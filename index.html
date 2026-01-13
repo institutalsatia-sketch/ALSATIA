@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Institut Alsatia - Connexion</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { background-color: #262f78; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .login-card { background: white; padding: 40px; border-radius: 8px; width: 300px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        h2 { color: #262f78; text-align: center; margin-top: 0; }
+        input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background-color: #262f78; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        button:hover { background-color: #1a225a; }
+        .error { color: red; font-size: 0.8em; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="login-card">
+    <h2>Institut Alsatia</h2>
+    <input type="email" id="email" placeholder="Email" required>
+    <input type="password" id="password" placeholder="Mot de passe" required>
+    <p id="error-msg" class="error"></p>
+    <button onclick="handleLogin()">Se connecter</button>
+</div>
+
+<script>
+    // 1. Connexion à votre Supabase
+    const SUPABASE_URL = 'https://ptiosrmpliffsjooedle.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'; // Mettez votre clé Anon ici
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // 2. Fonction de connexion
+    async function handleLogin() {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const errorMsg = document.getElementById('error-msg');
+
+        const { data, error } = await supabase.auth.signInWithPassword({
+            email: email,
+            password: password,
+        });
+
+        if (error) {
+            errorMsg.innerText = "Erreur : " + error.message;
+        } else {
+            // Une fois connecté, on va vers le tableau de bord
+            window.location.href = 'dashboard.html';
+        }
+    }
+</script>
+
+</body>
+</html>
