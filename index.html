@@ -3,50 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Institut Alsatia - Connexion</title>
+    <title>Connexion - Institut Alsatia</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
     <style>
-        body { background-color: #262f78; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .login-card { background: white; padding: 40px; border-radius: 8px; width: 300px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
-        h2 { color: #262f78; text-align: center; margin-top: 0; }
-        input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        button { width: 100%; padding: 10px; background-color: #262f78; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        button:hover { background-color: #1a225a; }
-        .error { color: red; font-size: 0.8em; text-align: center; }
+        :root { --blue: #262f78; }
+        body { font-family: sans-serif; background: #f0f2f5; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .login-card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 90%; max-width: 350px; text-align: center; }
+        img { width: 80px; margin-bottom: 20px; }
+        h2 { color: var(--blue); margin-bottom: 25px; font-size: 1.2rem; }
+        input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: var(--blue); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        #error-msg { color: red; font-size: 0.8rem; margin-top: 10px; }
     </style>
 </head>
 <body>
 
 <div class="login-card">
-    <h2>Institut Alsatia</h2>
-    <input type="email" id="email" placeholder="Email" required>
-    <input type="password" id="password" placeholder="Mot de passe" required>
-    <p id="error-msg" class="error"></p>
-    <button onclick="handleLogin()">Se connecter</button>
+    <img src="https://via.placeholder.com/80" alt="Logo Alsatia"> <h2>CRM Institut Alsatia</h2>
+    
+    <input type="email" id="email" placeholder="Email (@institut-alsatia.fr)">
+    <input type="password" id="password" placeholder="Mot de passe">
+    
+    <button id="login-btn" onclick="handleLogin()">Se connecter</button>
+    
+    <p id="error-msg"></p>
 </div>
 
 <script>
-    // 1. Connexion à votre Supabase
-    const SUPABASE_URL = 'https://ptiosrmpliffsjooedle.supabase.co';
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'; // Mettez votre clé Anon ici
-    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-    // 2. Fonction de connexion
+    // La fonction handleLogin doit être définie ici
     async function handleLogin() {
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
         const errorMsg = document.getElementById('error-msg');
+        const btn = document.getElementById('login-btn');
 
-        const { data, error } = await supabase.auth.signInWithPassword({
-            email: email,
-            password: password,
-        });
+        if (!email || !password) {
+            errorMsg.innerText = "Veuillez remplir tous les champs.";
+            return;
+        }
 
-        if (error) {
-            errorMsg.innerText = "Erreur : " + error.message;
-        } else {
-            // Une fois connecté, on va vers le tableau de bord
-            window.location.href = 'dashboard.html';
+        btn.innerText = "Connexion...";
+        btn.disabled = true;
+
+        try {
+            // supabaseClient est défini dans votre config.js
+            const { data, error } = await supabaseClient.auth.signInWithPassword({
+                email: email,
+                password: password,
+            });
+
+            if (error) {
+                errorMsg.innerText = "Erreur : " + error.message;
+                btn.innerText = "Se connecter";
+                btn.disabled = false;
+            } else {
+                window.location.href = 'dashboard.html';
+            }
+        } catch (err) {
+            errorMsg.innerText = "Erreur technique de connexion.";
+            btn.innerText = "Se connecter";
+            btn.disabled = false;
         }
     }
 </script>
