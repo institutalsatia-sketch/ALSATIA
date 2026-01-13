@@ -7,24 +7,60 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
     <style>
-        body { font-family: sans-serif; margin: 0; background: #f0f2f5; padding-bottom: 80px; }
-        .search-bar { padding: 15px; background: white; position: sticky; top: 0; }
-        input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; }
-        .donor-card { background: white; margin: 10px; padding: 15px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .tag { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; background: #eee; }
-        nav { background: white; position: fixed; bottom: 0; width: 100%; display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid #ddd; }
+        :root { --blue: #262f78; --red: #b40000; --green: #044634; --gold: #ffbd59; }
+        body { font-family: sans-serif; margin: 0; background: #f0f2f5; padding-bottom: 90px; }
+        .search-bar { padding: 15px; background: white; position: sticky; top: 0; z-index: 10; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; font-size: 16px; }
+        
+        .donor-card { background: white; margin: 10px; padding: 15px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .donor-card:active { background: #f9f9f9; }
+        
+        /* Étiquettes de couleur */
+        .tag { font-size: 0.7rem; padding: 4px 8px; border-radius: 4px; color: white; font-weight: bold; text-transform: uppercase; }
+        .tag-alsatia { background: var(--blue); }
+        .tag-herrade { background: var(--red); }
+        .tag-martin { background: var(--green); }
+        .tag-academia { background: var(--gold); }
+
+        /* Bouton flottant Ajouter */
+        .fab { position: fixed; bottom: 100px; right: 20px; width: 56px; height: 56px; background: var(--blue); color: white; border: none; border-radius: 50%; font-size: 24px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); z-index: 100; }
+
+        nav { background: white; position: fixed; bottom: 0; width: 100%; display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid #ddd; z-index: 100; }
+        nav a { text-decoration: none; color: #65676b; font-size: 0.8rem; text-align: center; }
     </style>
 </head>
 <body>
+
     <div class="search-bar">
         <input type="text" id="search" placeholder="🔍 Rechercher un donateur..." onkeyup="fetchDonors()">
     </div>
+
     <div id="donors-list"></div>
+
+    <button class="fab" onclick="document.getElementById('modal-add').style.display='block'">+</button>
+
     <nav>
         <a href="dashboard.html">🏠<br>Home</a>
         <a href="donateurs.html" style="color:#262f78; font-weight:bold;">👥<br>Donateurs</a>
         <a href="evenements.html">📅<br>Événements</a>
     </nav>
+
+    <div id="modal-add" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000;">
+        <div style="background:white; margin:10% auto; padding:20px; width:85%; border-radius:12px; box-shadow: 0 5px 20px rgba(0,0,0,0.3);">
+            <h3 style="margin-top:0;">Nouveau Donateur</h3>
+            <input type="text" id="new-lastname" placeholder="Nom de famille">
+            <input type="text" id="new-firstname" placeholder="Prénom (optionnel)" style="width:100%; margin-bottom:10px; padding:10px; border:1px solid #ddd; border-radius:5px; box-sizing:border-box;">
+            <input type="text" id="new-parish" placeholder="Paroisse / Ville">
+            <select id="new-entity" style="width:100%; margin-bottom:20px; padding:10px; border:1px solid #ddd; border-radius:5px;">
+                <option value="alsatia">Institut Alsatia</option>
+                <option value="herrade">Herrade (Rouge)</option>
+                <option value="martin">Martin (Vert)</option>
+                <option value="academia">Academia (Or)</option>
+            </select>
+            <button onclick="saveDonor()" style="width:100%; padding:15px; background:var(--blue); color:white; border:none; border-radius:8px; font-weight:bold;">Enregistrer</button>
+            <button onclick="document.getElementById('modal-add').style.display='none'" style="width:100%; margin-top:10px; background:none; border:none; color:grey;">Annuler</button>
+        </div>
+    </div>
 
     <script>
         async function fetchDonors() {
@@ -36,49 +72,44 @@
                 dbQuery = dbQuery.or(`last_name.ilike.%${query}%,first_name.ilike.%${query}%,parish.ilike.%${query}%`);
             }
 
-            const { data: donors } = await dbQuery.limit(20);
+            const { data: donors } = await dbQuery.order('last_name').limit(30);
             const list = document.getElementById('donors-list');
+            
             list.innerHTML = donors.map(d => `
-                <div class="donor-card">
-                    <b>${d.last_name} ${d.first_name}</b><br>
-                    <span>${d.parish || 'Sans paroisse'}</span> <span class="tag">${d.origin_entity}</span>
+                <div class="donor-card" onclick="window.location.href='fiche-donateur.html?id=${d.id}'">
+                    <div>
+                        <b>${d.last_name.toUpperCase()} ${d.first_name || ''}</b><br>
+                        <small style="color:gray;">📍 ${d.parish || 'Alsace'}</small>
+                    </div>
+                    <span class="tag tag-${d.origin_entity}">${d.origin_entity}</span>
                 </div>
             `).join('');
         }
+
+        async function saveDonor() {
+            const ln = document.getElementById('new-lastname').value;
+            const fn = document.getElementById('new-firstname').value;
+            const pa = document.getElementById('new-parish').value;
+            const en = document.getElementById('new-entity').value;
+
+            if(!ln) return alert("Le nom est obligatoire");
+
+            const { error } = await supabaseClient.from('donors').insert([
+                { last_name: ln, first_name: fn, parish: pa, origin_entity: en }
+            ]);
+
+            if (error) alert(error.message);
+            else {
+                document.getElementById('modal-add').style.display = 'none';
+                // Reset formulaire
+                document.getElementById('new-lastname').value = '';
+                document.getElementById('new-firstname').value = '';
+                document.getElementById('new-parish').value = '';
+                fetchDonors();
+            }
+        }
+
         fetchDonors();
     </script>
-<div id="modal-add" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000;">
-    <div style="background:white; margin:10% auto; padding:20px; width:90%; border-radius:10px;">
-        <h3>Nouveau Donateur</h3>
-        <input type="text" id="new-lastname" placeholder="Nom de famille" style="width:100%; margin-bottom:10px; padding:10px;">
-        <input type="text" id="new-parish" placeholder="Paroisse / Ville" style="width:100%; margin-bottom:10px; padding:10px;">
-        <select id="new-entity" style="width:100%; margin-bottom:20px; padding:10px;">
-            <option value="alsatia">Institut Alsatia</option>
-            <option value="herrade">Herrade (Primaire)</option>
-            <option value="martin">Martin (Collège)</option>
-        </select>
-        <button onclick="saveDonor()" style="width:100%; padding:15px; background:#262f78; color:white; border:none; border-radius:5px;">Enregistrer</button>
-        <button onclick="document.getElementById('modal-add').style.display='none'" style="width:100%; margin-top:10px; background:none; border:none; color:grey;">Annuler</button>
-    </div>
-</div>
-
-<script>
-async function saveDonor() {
-    const ln = document.getElementById('new-lastname').value;
-    const pa = document.getElementById('new-parish').value;
-    const en = document.getElementById('new-entity').value;
-
-    const { error } = await supabaseClient.from('donors').insert([
-        { last_name: ln, parish: pa, origin_entity: en }
-    ]);
-
-    if (error) alert(error.message);
-    else {
-        document.getElementById('modal-add').style.display = 'none';
-        fetchDonors(); // Recharge la liste
-    }
-}
-</script>
-    
 </body>
 </html>
