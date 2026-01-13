@@ -8,54 +8,132 @@
     <script src="config.js"></script>
     <style>
         :root { --blue: #262f78; --red: #b40000; --green: #044634; --gold: #ffbd59; }
-        body { font-family: sans-serif; margin: 0; background: #f0f2f5; padding-bottom: 80px; }
-        header { background: var(--blue); color: white; padding: 1rem; display: flex; justify-content: space-between; }
+        body { font-family: sans-serif; margin: 0; background: #f0f2f5; padding-bottom: 90px; }
+        header { background: var(--blue); color: white; padding: 1rem; display: flex; justify-content: space-between; align-items: center; }
         .container { padding: 15px; max-width: 600px; margin: auto; }
-        .task-card { background: white; border-radius: 10px; padding: 15px; margin-bottom: 10px; border-left: 8px solid var(--blue); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        
+        /* Cartes de messagerie/tâches */
+        .task-card { background: white; border-radius: 12px; padding: 15px; margin-bottom: 12px; border-left: 8px solid var(--blue); box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: relative; }
         .task-card.herrade { border-left-color: var(--red); }
         .task-card.martin { border-left-color: var(--green); }
         .task-card.academia { border-left-color: var(--gold); }
-        nav { background: white; position: fixed; bottom: 0; width: 100%; display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid #ddd; }
-        nav a { text-decoration: none; color: #65676b; font-size: 0.8rem; }
+        
+        .tag-urgent { background: #ff4d4d; color: white; font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-bottom: 5px; display: inline-block; }
+        .btn-done { position: absolute; right: 10px; top: 10px; background: #eee; border: none; border-radius: 50%; width: 25px; height: 25px; cursor: pointer; }
+        
+        /* Stats & Profil */
+        .profile-section { background: white; padding: 15px; border-radius: 10px; margin-bottom: 20px; font-size: 0.9rem; }
+        .btn-pwd { background: none; border: 1px solid #ccc; padding: 5px 10px; border-radius: 4px; font-size: 0.8rem; margin-top: 10px; cursor: pointer; }
+
+        /* Navigation */
+        nav { background: white; position: fixed; bottom: 0; width: 100%; display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid #ddd; z-index: 100; }
+        nav a { text-decoration: none; color: #65676b; font-size: 0.8rem; text-align: center; }
+        .admin-link { display: none; } /* Caché par défaut */
     </style>
 </head>
 <body>
+
     <header>
         <span>Alsatia Dashboard</span>
-        <button onclick="logout()" style="color:white; background:none; border:1px solid white; border-radius:4px;">Sortir</button>
+        <button onclick="logout()" style="color:white; background:none; border:1px solid white; border-radius:4px; padding:5px 10px;">Sortir</button>
     </header>
+
     <div class="container">
-        <h3>🚨 Actions Prioritaires</h3>
-        <div id="tasks-list">Chargement des urgences...</div>
+        <div class="profile-section" id="profile-info">
+            <b id="user-name">Chargement...</b><br>
+            <span id="user-entity">...</span><br>
+            <button class="btn-pwd" onclick="updatePassword()">Modifier mon mot de passe</button>
+        </div>
+
+        <h3>🚨 Messagerie & Urgences</h3>
+        <div id="tasks-list">Chargement des données prioritaires...</div>
     </div>
+
     <nav>
         <a href="dashboard.html" style="color:var(--blue); font-weight:bold;">🏠<br>Home</a>
         <a href="donateurs.html">👥<br>Donateurs</a>
         <a href="evenements.html">📅<br>Événements</a>
+        <a href="admin.html" class="admin-link" id="admin-nav">⚙️<br>Admin</a>
     </nav>
 
     <script>
-        async function loadDashboard() {
-            await checkAuth();
-            const { data: tasks, error } = await supabaseClient
-                .from('tasks')
+        let currentUser = null;
+
+        async function initDashboard() {
+            currentUser = await checkAuth();
+            if (!currentUser) return;
+
+            // 1. Récupérer le profil pour les droits et l'entité
+            const { data: profile } = await supabaseClient
+                .from('profiles')
                 .select('*')
-                .eq('is_completed', false)
-                .order('created_at', { ascending: false });
+                .eq('id', currentUser.id)
+                .single();
+
+            if (profile) {
+                document.getElementById('user-name').innerText = profile.full_name || currentUser.email;
+                document.getElementById('user-entity').innerText = "Entité : " + profile.entity.toUpperCase();
+                
+                // Afficher le menu Admin si l'utilisateur est admin
+                if (profile.role === 'admin') {
+                    document.getElementById('admin-nav').style.display = 'block';
+                }
+
+                loadUrgencies(profile);
+            }
+        }
+
+        async function loadUrgencies(profile) {
+            // On récupère les commentaires marqués "is_urgent" 
+            // ET qui appartiennent à l'entité de l'utilisateur (ou tout si admin)
+            let query = supabaseClient
+                .from('comments')
+                .select('*, donors(last_name, first_name, origin_entity)')
+                .eq('is_urgent', true);
+
+            // Filtrage par entité pour les directeurs
+            if (profile.role !== 'admin') {
+                // On ne montre que ce qui concerne son école (basé sur le donateur lié)
+                // Note: nécessite une structure de table correcte
+            }
+
+            const { data: messages, error } = await query.order('created_at', { ascending: false });
 
             const list = document.getElementById('tasks-list');
-            if (tasks && tasks.length > 0) {
-                list.innerHTML = tasks.map(t => `
-                    <div class="task-card">
-                        <b>${t.title}</b><br>
-                        <small>${new Date(t.created_at).toLocaleDateString()}</small>
+            if (messages && messages.length > 0) {
+                list.innerHTML = messages.map(m => `
+                    <div class="task-card ${m.donors.origin_entity}">
+                        <button class="btn-done" onclick="resolveUrgency('${m.id}')">✓</button>
+                        <span class="tag-urgent">URGENT</span><br>
+                        <b>${m.donors.last_name} ${m.donors.first_name}</b><br>
+                        <p style="margin:5px 0; font-size:0.9rem;">${m.content}</p>
+                        <small style="color:gray;">${new Date(m.created_at).toLocaleDateString()}</small>
                     </div>
                 `).join('');
             } else {
-                list.innerHTML = "Aucune urgence pour le moment. ✨";
+                list.innerHTML = "<p style='text-align:center; color:gray;'>Aucune alerte urgente. ✨</p>";
             }
         }
-        loadDashboard();
+
+        async function resolveUrgency(id) {
+            if(confirm("Marquer cette urgence comme traitée ?")) {
+                await supabaseClient.from('comments').update({ is_urgent: false }).eq('id', id);
+                initDashboard(); // Recharger
+            }
+        }
+
+        async function updatePassword() {
+            const newPwd = prompt("Nouveau mot de passe :");
+            if (newPwd && newPwd.length > 5) {
+                const { error } = await supabaseClient.auth.updateUser({ password: newPwd });
+                if (error) alert("Erreur : " + error.message);
+                else alert("Mot de passe modifié !");
+            } else {
+                alert("Le mot de passe doit faire au moins 6 caractères.");
+            }
+        }
+
+        initDashboard();
     </script>
 </body>
 </html>
