@@ -47,5 +47,38 @@
         }
         fetchDonors();
     </script>
+<div id="modal-add" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000;">
+    <div style="background:white; margin:10% auto; padding:20px; width:90%; border-radius:10px;">
+        <h3>Nouveau Donateur</h3>
+        <input type="text" id="new-lastname" placeholder="Nom de famille" style="width:100%; margin-bottom:10px; padding:10px;">
+        <input type="text" id="new-parish" placeholder="Paroisse / Ville" style="width:100%; margin-bottom:10px; padding:10px;">
+        <select id="new-entity" style="width:100%; margin-bottom:20px; padding:10px;">
+            <option value="alsatia">Institut Alsatia</option>
+            <option value="herrade">Herrade (Primaire)</option>
+            <option value="martin">Martin (Collège)</option>
+        </select>
+        <button onclick="saveDonor()" style="width:100%; padding:15px; background:#262f78; color:white; border:none; border-radius:5px;">Enregistrer</button>
+        <button onclick="document.getElementById('modal-add').style.display='none'" style="width:100%; margin-top:10px; background:none; border:none; color:grey;">Annuler</button>
+    </div>
+</div>
+
+<script>
+async function saveDonor() {
+    const ln = document.getElementById('new-lastname').value;
+    const pa = document.getElementById('new-parish').value;
+    const en = document.getElementById('new-entity').value;
+
+    const { error } = await supabaseClient.from('donors').insert([
+        { last_name: ln, parish: pa, origin_entity: en }
+    ]);
+
+    if (error) alert(error.message);
+    else {
+        document.getElementById('modal-add').style.display = 'none';
+        fetchDonors(); // Recharge la liste
+    }
+}
+</script>
+    
 </body>
 </html>
