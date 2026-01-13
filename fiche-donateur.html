@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fiche Donateur - Alsatia</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <style>
+        :root { --blue: #262f78; }
+        body { font-family: sans-serif; margin: 0; background: #f0f2f5; padding-bottom: 80px; }
+        header { background: var(--blue); color: white; padding: 15px; display: flex; align-items: center; }
+        .back-btn { background: none; border: none; color: white; font-size: 1.2rem; cursor: pointer; margin-right: 10px; }
+        .info-card { background: white; margin: 10px; padding: 20px; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .timeline { padding: 10px; }
+        .comment { background: #e7efff; padding: 12px; border-radius: 10px; margin-bottom: 10px; font-size: 0.9rem; position: relative; }
+        .comment small { color: #65676b; display: block; margin-bottom: 5px; }
+        .comment.urgent { border-left: 5px solid red; background: #fff1f1; }
+        .comment-input { position: fixed; bottom: 70px; width: 100%; padding: 10px; background: white; border-top: 1px solid #ddd; display: flex; box-sizing: border-box; }
+        .comment-input input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 20px; outline: none; }
+        .comment-input button { background: var(--blue); color: white; border: none; border-radius: 50%; width: 40px; margin-left: 10px; }
+        nav { background: white; position: fixed; bottom: 0; width: 100%; display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid #ddd; }
+    </style>
+</head>
+<body>
+    <header>
+        <button class="back-btn" onclick="history.back()">←</button>
+        <span id="donor-name">Chargement...</span>
+    </header>
+
+    <div class="info-card">
+        <p id="donor-details">Chargement des coordonnées...</p>
+        <div style="display: flex; gap: 10px;">
+            <a id="btn-call" href="#" style="flex:1; text-align:center; padding:10px; background:#f0f2f5; border-radius:8px; text-decoration:none; color:black;">📞 Appeler</a>
+            <a id="btn-email" href="#" style="flex:1; text-align:center; padding:10px; background:#f0f2f5; border-radius:8px; text-decoration:none; color:black;">✉️ Email</a>
+        </div>
+    </div>
+
+    <div class="timeline" id="comments-list">
+        <h4 style="margin-left:5px;">Historique des échanges</h4>
+        </div>
+
+    <div class="comment-input">
+        <input type="text" id="new-comment" placeholder="Ajouter une note de visite...">
+        <button onclick="addComment()">➔</button>
+    </div>
+
+    <nav>
+        <a href="dashboard.html">🏠<br>Home</a>
+        <a href="donateurs.html" style="color:var(--blue); font-weight:bold;">👥<br>Donateurs</a>
+        <a href="evenements.html">📅<br>Événements</a>
+    </nav>
+
+    <script>
+        // On récupère l'ID du donateur dans l'URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const donorId = urlParams.get('id');
+
+        async function loadDonor() {
+            const { data: donor } = await supabaseClient.from('donors').select('*').eq('id', donorId).single();
+            if (donor) {
+                document.getElementById('donor-name').innerText = donor.last_name + " " + (donor.first_name || "");
+                document.getElementById('donor-details').innerHTML = `
+                    <b>Paroisse :</b> ${donor.parish || 'N/A'}<br>
+                    <b>Ville :</b> ${donor.city || 'N/A'}<br>
+                    <b>Téléphone :</b> ${donor.phone || 'Non renseigné'}
+                `;
+                document.getElementById('btn-call').href = "tel:" + donor.phone;
+                document.getElementById('btn-email').href = "mailto:" + donor.email;
+                loadComments();
+            }
+        }
+
+        async function loadComments() {
+            const { data: comments } = await supabaseClient.from('comments').select('*').eq('donor_id', donorId).order('created_at', {ascending: false});
+            const list = document.getElementById('comments-list');
+            list.innerHTML = '<h4>Historique</h4>' + comments.map(c => `
+                <div class="comment ${c.is_urgent ? 'urgent' : ''}">
+                    <small>${new Date(c.created_at).toLocaleString()}</small>
+                    ${c.content}
+                </div>
+            `).join('');
+        }
+
+        async function addComment() {
+            const content = document.getElementById('new-comment').value;
+            if(!content) return;
+            await supabaseClient.from('comments').insert([{ donor_id: donorId, content: content }]);
+            document.getElementById('new-comment').value = '';
+            loadComments();
+        }
+
+        loadDonor();
+    </script>
+</body>
+</html>
