@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Institut Alsatia</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --alsatia-blue: #262f78;
+            --herrade-red: #b40000;
+            --martin-green: #044634;
+            --academia-gold: #ffbd59;
+        }
+        body { font-family: -apple-system, sans-serif; margin: 0; background: #f0f2f5; color: #1c1e21; }
+        header { background: var(--alsatia-blue); color: white; padding: 1rem; position: sticky; top: 0; z-index: 100; display: flex; justify-content: space-between; align-items: center; }
+        .container { padding: 1rem; max-width: 600px; margin: auto; }
+        h3 { display: flex; align-items: center; gap: 10px; }
+        
+        /* Style des cartes d'urgence */
+        .task-card { background: white; border-radius: 12px; padding: 15px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-left: 8px solid var(--alsatia-blue); position: relative; }
+        .task-card.herrade { border-left-color: var(--herrade-red); }
+        .task-card.martin { border-left-color: var(--martin-green); }
+        .task-card.academia { border-left-color: var(--academia-gold); }
+        
+        .task-title { font-weight: bold; font-size: 1.1rem; margin-bottom: 5px; display: block; }
+        .task-desc { color: #65676b; font-size: 0.9rem; }
+        .btn-check { position: absolute; right: 15px; top: 15px; background: #e4e6eb; border: none; border-radius: 50%; width: 30px; height: 30px; cursor: pointer; }
+
+        /* Menu de navigation bas (Mobile) */
+        nav { background: white; position: fixed; bottom: 0; width: 100%; display: flex; justify-content: space-around; padding: 10px 0; border-top: 1px solid #ddd; }
+        nav a { text-decoration: none; color: #65676b; font-size: 0.8rem; text-align: center; }
+        nav a.active { color: var(--alsatia-blue); font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<header>
+    <span>Institut Alsatia</span>
+    <button onclick="logout()" style="background:none; border:1px solid white; color:white; border-radius:4px; padding:4px 8px; font-size:0.7rem;">Déconnexion</button>
+</header>
+
+<div class="container">
+    <h3>🚨 Affaires Urgentes</h3>
+    
+    <div id="tasks-list">
+        <div class="task-card martin">
+            <span class="task-title">Donateur à rappeler (1 500 €)</span>
+            <span class="task-desc">M. Meyer (Grand-père Arthur). Urgent : Remerciements Collège.</span>
+            <button class="btn-check">✓</button>
+        </div>
+
+        <div class="task-card herrade">
+            <span class="task-title">Inscriptions Portes Ouvertes</span>
+            <span class="task-desc">12 nouvelles familles inscrites ce matin pour le Primaire.</span>
+            <button class="btn-check">✓</button>
+        </div>
+    </div>
+</div>
+
+<nav>
+    <a href="#" class="active">🏠<br>Dashboard</a>
+    <a href="donateurs.html">👥<br>Donateurs</a>
+    <a href="evenements.html">📅<br>Événements</a>
+</nav>
+
+<script>
+    // Config temporaire pour tester le visuel
+    function logout() {
+        window.location.href = 'index.html';
+    }
+</script>
+
+</body>
+</html>
