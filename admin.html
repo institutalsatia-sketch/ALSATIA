@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administration - Alsatia</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <style>
+        body { font-family: sans-serif; margin: 0; background: #f0f2f5; padding-bottom: 80px; }
+        header { background: #1a225a; color: white; padding: 15px; text-align: center; }
+        .admin-section { background: white; margin: 15px; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .btn-action { width: 100%; padding: 12px; margin-top: 10px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .btn-export { background: #28a745; color: white; }
+        .btn-users { background: #262f78; color: white; }
+        nav { background: white; position: fixed; bottom: 0; width: 100%; display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid #ddd; }
+    </style>
+</head>
+<body>
+    <header>Panel Administrateur</header>
+
+    <div class="admin-section">
+        <h3>📊 Export des Données</h3>
+        <p style="font-size: 0.8rem; color: #666;">Télécharger la liste complète des donateurs pour Brevo ou Excel.</p>
+        <button class="btn-action btn-export" onclick="exportDonors()">Exporter les Donateurs (CSV)</button>
+    </div>
+
+    <div class="admin-section">
+        <h3>👥 Gestion des Équipes</h3>
+        <p style="font-size: 0.8rem; color: #666;">Voir qui a accès au CRM (Directeurs, Communication).</p>
+        <button class="btn-action btn-users" onclick="alert('Lien vers la console de gestion des utilisateurs Supabase')">Gérer les Utilisateurs</button>
+    </div>
+
+    <nav>
+        <a href="dashboard.html">🏠<br>Home</a>
+        <a href="donateurs.html">👥<br>Donateurs</a>
+        <a href="admin.html" style="color:#262f78; font-weight:bold;">⚙️<br>Admin</a>
+    </nav>
+
+    <script>
+        checkAuth();
+
+        async function exportDonors() {
+            const { data: donors } = await supabaseClient.from('donors').select('*');
+            if (!donors) return;
+
+            // Création du fichier CSV
+            const csvContent = "data:text/csv;charset=utf-8," 
+                + "Nom,Prenom,Paroisse,Entity\n"
+                + donors.map(d => `${d.last_name},${d.first_name},${d.parish},${d.origin_entity}`).join("\n");
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "donateurs_alsatia.csv");
+            document.body.appendChild(link);
+            link.click();
+        }
+    </script>
+</body>
+</html>
