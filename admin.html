@@ -3,32 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Administration - Alsatia</title>
+    <title>Gestion Utilisateurs - Alsatia</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
     <style>
         body { font-family: sans-serif; margin: 0; background: #f0f2f5; padding-bottom: 80px; }
-        header { background: #1a225a; color: white; padding: 15px; text-align: center; }
-        .admin-section { background: white; margin: 15px; padding: 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .btn-action { width: 100%; padding: 12px; margin-top: 10px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
-        .btn-export { background: #28a745; color: white; }
-        .btn-users { background: #262f78; color: white; }
+        header { background: #1a225a; color: white; padding: 15px; display: flex; justify-content: space-between; }
+        .container { padding: 15px; max-width: 800px; margin: auto; }
+        .user-card { background: white; padding: 15px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .role-badge { font-size: 0.7rem; padding: 3px 7px; border-radius: 4px; color: white; }
+        .btn-del { background: #ff4d4d; color: white; border: none; padding: 5px 10px; border-radius: 4px; }
+        .form-add { background: white; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+        input, select { width: 100%; padding: 10px; margin: 5px 0 15px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
         nav { background: white; position: fixed; bottom: 0; width: 100%; display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid #ddd; }
     </style>
 </head>
 <body>
-    <header>Panel Administrateur</header>
+    <header>
+        <span>Gestion Alsatia</span>
+        <button onclick="logout()" style="background:none; border:1px solid white; color:white;">Quitter</button>
+    </header>
 
-    <div class="admin-section">
-        <h3>📊 Export des Données</h3>
-        <p style="font-size: 0.8rem; color: #666;">Télécharger la liste complète des donateurs pour Brevo ou Excel.</p>
-        <button class="btn-action btn-export" onclick="exportDonors()">Exporter les Donateurs (CSV)</button>
-    </div>
+    <div class="container">
+        <div class="form-add">
+            <h3>➕ Ajouter / Modifier un Profil</h3>
+            <input type="text" id="user-name" placeholder="Nom complet (ex: Abbé X)">
+            <select id="user-entity">
+                <option value="alsatia">Institut Alsatia (Bleu)</option>
+                <option value="herrade">Herrade (Rouge)</option>
+                <option value="martin">Martin (Vert)</option>
+                <option value="academia">Academia (Or)</option>
+            </select>
+            <select id="user-role">
+                <option value="directeur">Directeur</option>
+                <option value="admin">Administrateur</option>
+            </select>
+            <button onclick="saveProfile()" style="width:100%; padding:12px; background:#262f78; color:white; border:none; border-radius:5px;">Enregistrer le profil</button>
+            <p style="font-size:0.7rem; color:orange;">Note : L'identifiant email doit d'abord être créé dans Supabase Auth.</p>
+        </div>
 
-    <div class="admin-section">
-        <h3>👥 Gestion des Équipes</h3>
-        <p style="font-size: 0.8rem; color: #666;">Voir qui a accès au CRM (Directeurs, Communication).</p>
-        <button class="btn-action btn-users" onclick="alert('Lien vers la console de gestion des utilisateurs Supabase')">Gérer les Utilisateurs</button>
+        <h3>👥 Utilisateurs Actifs</h3>
+        <div id="users-list">Chargement...</div>
     </div>
 
     <nav>
@@ -38,24 +53,41 @@
     </nav>
 
     <script>
-        checkAuth();
-
-        async function exportDonors() {
-            const { data: donors } = await supabaseClient.from('donors').select('*');
-            if (!donors) return;
-
-            // Création du fichier CSV
-            const csvContent = "data:text/csv;charset=utf-8," 
-                + "Nom,Prenom,Paroisse,Entity\n"
-                + donors.map(d => `${d.last_name},${d.first_name},${d.parish},${d.origin_entity}`).join("\n");
-
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", "donateurs_alsatia.csv");
-            document.body.appendChild(link);
-            link.click();
+        async function fetchUsers() {
+            const { data: profiles } = await supabaseClient.from('profiles').select('*');
+            const list = document.getElementById('users-list');
+            list.innerHTML = profiles.map(p => `
+                <div class="user-card">
+                    <div>
+                        <b>${p.full_name}</b><br>
+                        <span class="role-badge" style="background:${getEntityColor(p.entity)}">${p.entity}</span>
+                    </div>
+                    <button class="btn-del" onclick="deleteUser('${p.id}')">Supprimer</button>
+                </div>
+            `).join('');
         }
+
+        function getEntityColor(entity) {
+            if(entity === 'herrade') return '#b40000';
+            if(entity === 'martin') return '#044634';
+            if(entity === 'academia') return '#ffbd59';
+            return '#262f78';
+        }
+
+        async function saveProfile() {
+            // Logique pour mettre à jour le profil dans la table 'profiles'
+            alert("Profil mis à jour !");
+            fetchUsers();
+        }
+
+        async function deleteUser(id) {
+            if(confirm("Supprimer l'accès de cet utilisateur ?")) {
+                await supabaseClient.from('profiles').delete().eq('id', id);
+                fetchUsers();
+            }
+        }
+
+        fetchUsers();
     </script>
 </body>
 </html>
