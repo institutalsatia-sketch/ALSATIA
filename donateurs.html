@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Donateurs - Institut Alsatia</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <style>
+        body { font-family: sans-serif; margin: 0; background: #f0f2f5; padding-bottom: 80px; }
+        .search-bar { padding: 15px; background: white; position: sticky; top: 0; }
+        input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; }
+        .donor-card { background: white; margin: 10px; padding: 15px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .tag { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; background: #eee; }
+        nav { background: white; position: fixed; bottom: 0; width: 100%; display: flex; justify-content: space-around; padding: 15px 0; border-top: 1px solid #ddd; }
+    </style>
+</head>
+<body>
+    <div class="search-bar">
+        <input type="text" id="search" placeholder="🔍 Rechercher un donateur..." onkeyup="fetchDonors()">
+    </div>
+    <div id="donors-list"></div>
+    <nav>
+        <a href="dashboard.html">🏠<br>Home</a>
+        <a href="donateurs.html" style="color:#262f78; font-weight:bold;">👥<br>Donateurs</a>
+        <a href="evenements.html">📅<br>Événements</a>
+    </nav>
+
+    <script>
+        async function fetchDonors() {
+            await checkAuth();
+            const query = document.getElementById('search').value;
+            let dbQuery = supabaseClient.from('donors').select('*');
+            
+            if(query) {
+                dbQuery = dbQuery.or(`last_name.ilike.%${query}%,first_name.ilike.%${query}%,parish.ilike.%${query}%`);
+            }
+
+            const { data: donors } = await dbQuery.limit(20);
+            const list = document.getElementById('donors-list');
+            list.innerHTML = donors.map(d => `
+                <div class="donor-card">
+                    <b>${d.last_name} ${d.first_name}</b><br>
+                    <span>${d.parish || 'Sans paroisse'}</span> <span class="tag">${d.origin_entity}</span>
+                </div>
+            `).join('');
+        }
+        fetchDonors();
+    </script>
+</body>
+</html>
