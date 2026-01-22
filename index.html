@@ -1,72 +1,134 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Connexion - Institut Alsatia</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="config.js"></script>
-    <style>
-        :root { --blue: #262f78; }
-        body { font-family: sans-serif; background: #f0f2f5; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        .login-card { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 90%; max-width: 350px; text-align: center; }
-        img { width: 80px; margin-bottom: 20px; }
-        h2 { color: var(--blue); margin-bottom: 25px; font-size: 1.2rem; }
-        input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background: var(--blue); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
-        #error-msg { color: red; font-size: 0.8rem; margin-top: 10px; }
-    </style>
-</head>
-<body>
+:root {
+    --primary-blue: #1a2a6c;   /* Alsatia */
+    --primary-red: #b21f1f;    /* Herrade */
+    --primary-green: #0a5d00;  /* Martin */
+    --primary-gold: #c5a059;   /* Academia */
+    --bg-light: #f4f7f6;
+    --text-dark: #2c3e50;
+    --white: #ffffff;
+    --shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
 
-<div class="login-card">
-    <img src="https://via.placeholder.com/80" alt="Logo Alsatia"> <h2>CRM Institut Alsatia</h2>
-    
-    <input type="email" id="email" placeholder="Email (@institut-alsatia.fr)">
-    <input type="password" id="password" placeholder="Mot de passe">
-    
-    <button id="login-btn" onclick="handleLogin()">Se connecter</button>
-    
-    <p id="error-msg"></p>
-</div>
+body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background: var(--bg-light);
+    color: var(--text-dark);
+}
 
-<script>
-    // La fonction handleLogin doit être définie ici
-    async function handleLogin() {
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
-        const errorMsg = document.getElementById('error-msg');
-        const btn = document.getElementById('login-btn');
+#app-container {
+    display: flex;
+    min-height: 100vh;
+}
 
-        if (!email || !password) {
-            errorMsg.innerText = "Veuillez remplir tous les champs.";
-            return;
-        }
+/* SIDEBAR LUXE */
+.sidebar {
+    width: 260px;
+    background: var(--primary-blue);
+    color: var(--white);
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+}
 
-        btn.innerText = "Connexion...";
-        btn.disabled = true;
+.sidebar h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.2rem;
+    text-align: center;
+    border-bottom: 1px solid rgba(255,255,255,0.2);
+    padding-bottom: 20px;
+}
 
-        try {
-            // supabaseClient est défini dans votre config.js
-            const { data, error } = await supabaseClient.auth.signInWithPassword({
-                email: email,
-                password: password,
-            });
+.nav-links {
+    list-style: none;
+    padding: 0;
+    margin-top: 30px;
+}
 
-            if (error) {
-                errorMsg.innerText = "Erreur : " + error.message;
-                btn.innerText = "Se connecter";
-                btn.disabled = false;
-            } else {
-                window.location.href = 'dashboard.html';
-            }
-        } catch (err) {
-            errorMsg.innerText = "Erreur technique de connexion.";
-            btn.innerText = "Se connecter";
-            btn.disabled = false;
-        }
-    }
-</script>
+.nav-links li {
+    padding: 15px;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: 0.3s;
+    margin-bottom: 5px;
+}
 
-</body>
-</html>
+.nav-links li:hover, .nav-links li.active {
+    background: rgba(255,255,255,0.1);
+}
+
+/* MAIN CONTENT */
+.main-content {
+    flex: 1;
+    padding: 40px;
+    overflow-y: auto;
+}
+
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* DASHBOARD CARDS PAR COULEUR */
+.urgent-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+    margin-top: 30px;
+}
+
+.urgent-card {
+    background: var(--white);
+    border-left: 8px solid;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+}
+
+.urgent-card.alsatia { border-color: var(--primary-blue); }
+.urgent-card.herrade { border-color: var(--primary-red); }
+.urgent-card.martin { border-color: var(--primary-green); }
+.urgent-card.academia { border-color: var(--primary-gold); }
+
+/* TABLEAU DONATEURS */
+table {
+    width: 100%;
+    background: var(--white);
+    border-collapse: collapse;
+    margin-top: 20px;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+th { background: #eee; padding: 15px; text-align: left; }
+td { padding: 15px; border-bottom: 1px solid #eee; }
+
+/* BOUTONS */
+.btn-primary {
+    background: var(--primary-blue);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.btn-resolved {
+    background: #27ae60;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+/* CHAT LAYOUT */
+.chat-layout {
+    display: flex;
+    height: 70vh;
+    background: var(--white);
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+}
+
+.chat-sidebar { width: 200px; border-right: 1px solid #eee; padding: 20px; }
+.chat-window { flex: 1; display: flex; flex-direction: column; }
+.messages-container { flex: 1; padding: 20px; overflow-y: auto; background: #fafafa; }
