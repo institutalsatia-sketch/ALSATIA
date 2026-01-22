@@ -1,0 +1,16 @@
+<div class="login-container">
+    <h2>Connexion Alsatia CRM</h2>
+    <input type="email" id="email" placeholder="Email (ex: admin1@alsatia.org)">
+    <input type="password" id="password" placeholder="Mot de passe">
+    <button onclick="signIn()">Entrer</button>
+</div>
+
+<script>
+    async function signIn() {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) alert(error.message);
+        else window.location.href = 'index.html';
+    }
+</script>
