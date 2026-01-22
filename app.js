@@ -1,111 +1,76 @@
-// CONFIGURATION SUPABASE
 const supabaseUrl = 'https://ptiosrmpliffsjooedle.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0aW9zcm1wbGlmZnNqb29lZGxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgzMzY0MzgsImV4cCI6MjA4MzkxMjQzOH0.SdTtCooQsDcCIQdGddnDz2-lMM_X6yfNpVmAW4C7j7o';
 const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
-let currentProfile = null;
-
-// ==========================================
-// 1. INITIALISATION & CONNEXION
-// ==========================================
-
 async function init() {
-    // Vérifier si l'utilisateur est connecté
-    const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) { window.location.href = 'login.html'; return; }
+
+    const { data: profile } = await supabaseClient.from('profiles').select('*').eq('id', session.user.id).single();
+    document.getElementById('user-name').innerText = profile ? `${profile.first_name} ${profile.last_name}` : session.user.email;
     
-    if (sessionError || !session) {
-        console.log("Pas de session, redirection vers login");
-        window.location.href = 'login.html';
-        return;
-    }
-
-    const user = session.user;
-    console.log("Utilisateur connecté:", user.email);
-
-    // Charger le profil public
-    const { data: profile, error: profileError } = await supabaseClient
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-    
-    if (profileError) {
-        console.error("Erreur profil:", profileError);
-        document.getElementById('user-name').innerText = user.email;
-    } else {
-        currentProfile = profile;
-        document.getElementById('user-name').innerText = `${profile.first_name} ${profile.last_name} (${profile.role})`;
-    }
-
-    // Charger les données du tableau de bord
     loadDashboard();
 }
-
-// ==========================================
-// 2. DASHBOARD DES URGENCES
-// ==========================================
-
-async function loadDashboard() {
-    const feed = document.getElementById('urgent-feed');
-    feed.innerHTML = '<p>Recherche d\'alertes en cours...</p>';
-
-    // Récupérer les commentaires marqués comme urgents
-    const { data, error } = await supabaseClient
-        .from('comments')
-        .select(`*, donors(last_name, first_name)`)
-        .eq('is_urgent', true)
-        .eq('status', 'open')
-        .order('created_at', { ascending: false });
-
-    if (error) {
-        console.error("Erreur dashboard:", error);
-        feed.innerHTML = '<p>Erreur lors du chargement des données.</p>';
-        return;
-    }
-
-    feed.innerHTML = '';
-    if (!data || data.length === 0) {
-        feed.innerHTML = `
-            <div class="urgent-card" style="border-color: #27ae60; grid-column: 1/-1; text-align: center;">
-                <h3>Tout est sous contrôle</h3>
-                <p>Aucune alerte urgente n'est signalée pour le moment.</p>
-            </div>`;
-        return;
-    }
-
-    data.forEach(msg => {
-        const entityClass = msg.entity ? msg.entity.toLowerCase().split(' ')[0] : 'alsatia';
-        const card = document.createElement('div');
-        card.className = `urgent-card ${entityClass}`;
-        card.innerHTML = `
-            <h3>${msg.donors ? msg.donors.last_name : 'Donateur'}</h3>
-            <p>"${msg.content}"</p>
-            <div class="card-footer">
-                <small>Par ${msg.entity} - ${new Date(msg.created_at).toLocaleDateString()}</small>
-                <button onclick="resolveUrgency('${msg.id}')" class="btn-resolved">✓ Terminer</button>
-            </div>
-        `;
-        feed.appendChild(card);
-    });
-}
-
-// ==========================================
-// 3. FONCTIONS UTILITAIRES
-// ==========================================
 
 function switchTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.nav-links li').forEach(l => l.classList.remove('active'));
-    
     document.getElementById(`tab-${tabName}`).classList.add('active');
+    document.getElementById(`nav-${tabName}`).classList.add('active');
+    if(tabName === 'donors') loadDonors();
+}
+
+async function loadDashboard() {
+    const feed = document.getElementById('urgent-feed');
+    const { data } = await supabaseClient.from('comments').select('*, donors(last_name)').eq('is_urgent', true).eq('status', 'open');
     
-    if(tabName === 'dashboard') loadDashboard();
+    if (!data || data.length === 0) {
+        feed.innerHTML = '<div class="urgent-card" style="border-left-color: #2ecc71"><h3>Aucune urgence</h3><p>Le réseau est calme.</p></div>';
+        return;
+    }
+    feed.innerHTML = '';
+    data.forEach(item => {
+        feed.innerHTML += `<div class="urgent-card"><h3>${item.donors?.last_name || 'Donateur'}</h3><p>${item.content}</p><small>${item.entity}</small></div>`;
+    });
 }
 
-async function logout() {
-    await supabaseClient.auth.signOut();
-    window.location.href = 'login.html';
+async function loadDonors() {
+    const { data: donors } = await supabaseClient.from('donors').select('*').order('last_name');
+    const body = document.getElementById('donors-body');
+    body.innerHTML = donors ? donors.map(d => `<tr><td>${d.last_name} ${d.first_name}</td><td>${d.entities || '-'}</td><td>${d.city || '-'}</td><td><button onclick="alert('ID: ${d.id}')">Détails</button></td></tr>`).join('') : '';
 }
 
-// Lancement au chargement de la page
+function showDonorModal() {
+    document.getElementById('donor-modal').style.display = 'block';
+    document.getElementById('modal-body').innerHTML = `
+        <h3>Nouveau Donateur</h3>
+        <form onsubmit="saveDonor(event)" class="luxe-form">
+            <input type="text" id="nom" placeholder="Nom" required>
+            <input type="text" id="prenom" placeholder="Prénom" required>
+            <input type="text" id="ville" placeholder="Ville">
+            <select id="ecole">
+                <option value="Institut Alsatia">Institut Alsatia</option>
+                <option value="Cours Herrade">Cours Herrade</option>
+                <option value="Collège Martin">Collège Martin</option>
+            </select>
+            <button type="submit" class="btn-primary">Enregistrer</button>
+        </form>`;
+}
+
+async function saveDonor(e) {
+    e.preventDefault();
+    const newDonor = {
+        last_name: document.getElementById('nom').value,
+        first_name: document.getElementById('prenom').value,
+        city: document.getElementById('ville').value,
+        entities: [document.getElementById('ecole').value]
+    };
+    const { error } = await supabaseClient.from('donors').insert([newDonor]);
+    if (error) alert("Erreur d'enregistrement");
+    else { closeModal(); loadDonors(); }
+}
+
+function closeModal() { document.getElementById('donor-modal').style.display = 'none'; }
+async function logout() { await supabaseClient.auth.signOut(); window.location.href = 'login.html'; }
+
 window.onload = init;
