@@ -63,11 +63,16 @@ async function saveDonor(e) {
         last_name: document.getElementById('nom').value,
         first_name: document.getElementById('prenom').value,
         city: document.getElementById('ville').value,
-        entities: [document.getElementById('ecole').value]
+        entities: document.getElementById('ecole').value // On envoie juste la valeur texte
     };
     const { error } = await supabaseClient.from('donors').insert([newDonor]);
-    if (error) alert("Erreur d'enregistrement");
-    else { closeModal(); loadDonors(); }
+    if (error) {
+        console.error("Erreur détaillée:", error);
+        alert("Erreur d'enregistrement : " + error.message);
+    } else { 
+        closeModal(); 
+        loadDonors(); 
+    }
 }
 
 function closeModal() { document.getElementById('donor-modal').style.display = 'none'; }
