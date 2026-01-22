@@ -1,134 +1,102 @@
-:root {
-    --primary-blue: #1a2a6c;   /* Alsatia */
-    --primary-red: #b21f1f;    /* Herrade */
-    --primary-green: #0a5d00;  /* Martin */
-    --primary-gold: #c5a059;   /* Academia */
-    --bg-light: #f4f7f6;
-    --text-dark: #2c3e50;
-    --white: #ffffff;
-    --shadow: 0 4px 15px rgba(0,0,0,0.1);
-}
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM Institut Alsatia - Excellence & Coordination</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <div id="app-container">
+        <nav class="sidebar">
+            <div class="logo-container">
+                <h1>INSTITUT ALSATIA</h1>
+            </div>
+            <ul class="nav-links">
+                <li class="active" onclick="switchTab('dashboard')">Tableau de Bord</li>
+                <li onclick="switchTab('donors')">Base Donateurs</li>
+                <li onclick="switchTab('agenda')">Agenda Partagé</li>
+                <li onclick="switchTab('chat')">Messagerie Interne</li>
+            </ul>
+            <div class="user-info" id="user-display">
+                <p id="user-name">Chargement...</p>
+                <button onclick="logout()" class="btn-logout">Déconnexion</button>
+            </div>
+        </nav>
 
-body {
-    margin: 0;
-    font-family: 'Inter', sans-serif;
-    background: var(--bg-light);
-    color: var(--text-dark);
-}
+        <main class="main-content">
+            
+            <section id="tab-dashboard" class="tab-content active">
+                <header>
+                    <h2>Tableau de Bord des Urgences</h2>
+                    <p class="subtitle">Coordination en temps réel des établissements</p>
+                </header>
+                <div id="urgent-feed" class="urgent-grid">
+                    </div>
+            </section>
 
-#app-container {
-    display: flex;
-    min-height: 100vh;
-}
+            <section id="tab-donors" class="tab-content">
+                <header class="flex-header">
+                    <h2>Base de Données</h2>
+                    <button class="btn-primary" onclick="showDonorModal()">+ Nouveau Donateur</button>
+                </header>
+                <div class="search-bar">
+                    <input type="text" id="donor-search" placeholder="Rechercher un nom, une ville, une école...">
+                    <button onclick="exportData()" class="btn-secondary">Export Excel</button>
+                </div>
+                <table id="donors-table">
+                    <thead>
+                        <tr>
+                            <th>Nom</th>
+                            <th>Entité(s)</th>
+                            <th>Ville</th>
+                            <th>Tags Brevo</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="donors-body"></tbody>
+                </table>
+            </section>
 
-/* SIDEBAR LUXE */
-.sidebar {
-    width: 260px;
-    background: var(--primary-blue);
-    color: var(--white);
-    display: flex;
-    flex-direction: column;
-    padding: 20px;
-}
+            <section id="tab-agenda" class="tab-content">
+                <header class="flex-header">
+                    <h2>Agenda Partagé de la Fédération</h2>
+                    <button class="btn-primary" onclick="showEventModal()">+ Ajouter un événement</button>
+                </header>
+                <div id="calendar-view" class="calendar-container">
+                    </div>
+            </section>
 
-.sidebar h1 {
-    font-family: 'Playfair Display', serif;
-    font-size: 1.2rem;
-    text-align: center;
-    border-bottom: 1px solid rgba(255,255,255,0.2);
-    padding-bottom: 20px;
-}
+            <section id="tab-chat" class="tab-content">
+                <div class="chat-layout">
+                    <div class="chat-sidebar">
+                        <h3>Canaux</h3>
+                        <ul id="channels-list">
+                            <li class="active" onclick="joinChannel('general')"># Général</li>
+                            <li onclick="joinChannel('herrade')"># Cours Herrade</li>
+                            <li onclick="joinChannel('martin')"># Collège Martin</li>
+                            <li onclick="joinChannel('academia')"># Academia</li>
+                        </ul>
+                    </div>
+                    <div class="chat-window">
+                        <div id="chat-messages" class="messages-container"></div>
+                        <div class="chat-input-area">
+                            <input type="text" id="chat-input" placeholder="Écrire un message...">
+                            <button onclick="sendChatMessage()">Envoyer</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
 
-.nav-links {
-    list-style: none;
-    padding: 0;
-    margin-top: 30px;
-}
-
-.nav-links li {
-    padding: 15px;
-    cursor: pointer;
-    border-radius: 8px;
-    transition: 0.3s;
-    margin-bottom: 5px;
-}
-
-.nav-links li:hover, .nav-links li.active {
-    background: rgba(255,255,255,0.1);
-}
-
-/* MAIN CONTENT */
-.main-content {
-    flex: 1;
-    padding: 40px;
-    overflow-y: auto;
-}
-
-.tab-content { display: none; }
-.tab-content.active { display: block; }
-
-/* DASHBOARD CARDS PAR COULEUR */
-.urgent-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 20px;
-    margin-top: 30px;
-}
-
-.urgent-card {
-    background: var(--white);
-    border-left: 8px solid;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: var(--shadow);
-}
-
-.urgent-card.alsatia { border-color: var(--primary-blue); }
-.urgent-card.herrade { border-color: var(--primary-red); }
-.urgent-card.martin { border-color: var(--primary-green); }
-.urgent-card.academia { border-color: var(--primary-gold); }
-
-/* TABLEAU DONATEURS */
-table {
-    width: 100%;
-    background: var(--white);
-    border-collapse: collapse;
-    margin-top: 20px;
-    border-radius: 8px;
-    overflow: hidden;
-}
-
-th { background: #eee; padding: 15px; text-align: left; }
-td { padding: 15px; border-bottom: 1px solid #eee; }
-
-/* BOUTONS */
-.btn-primary {
-    background: var(--primary-blue);
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 5px;
-    cursor: pointer;
-}
-
-.btn-resolved {
-    background: #27ae60;
-    color: white;
-    border: none;
-    padding: 5px 10px;
-    border-radius: 3px;
-    cursor: pointer;
-}
-
-/* CHAT LAYOUT */
-.chat-layout {
-    display: flex;
-    height: 70vh;
-    background: var(--white);
-    border-radius: 8px;
-    box-shadow: var(--shadow);
-}
-
-.chat-sidebar { width: 200px; border-right: 1px solid #eee; padding: 20px; }
-.chat-window { flex: 1; display: flex; flex-direction: column; }
-.messages-container { flex: 1; padding: 20px; overflow-y: auto; background: #fafafa; }
+    <div id="donor-modal" class="modal">
+        <div class="modal-content large">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <div id="donor-detail-view"></div>
+        </div>
+    </div>
+</body>
+</html>
