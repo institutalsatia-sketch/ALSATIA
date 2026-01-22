@@ -124,9 +124,10 @@
             const errorDiv = document.getElementById('error-message');
 
             const { data, error } = await supabaseClient.auth.signInWithPassword({
-                email: email,
-                password: password,
-            });
+    email: email.trim(), // On nettoie les espaces
+    password: password.trim(),
+});
+console.log("Erreur détaillée:", error);
 
             if (error) {
                 errorDiv.innerText = "Erreur : " + error.message;
