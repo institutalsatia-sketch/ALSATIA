@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CRM Institut Alsatia - Excellence & Coordination</title>
+    <title>CRM Institut Alsatia</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -15,44 +15,37 @@
                 <h1>INSTITUT ALSATIA</h1>
             </div>
             <ul class="nav-links">
-                <li class="active" onclick="switchTab('dashboard')">Tableau de Bord</li>
-                <li onclick="switchTab('donors')">Base Donateurs</li>
-                <li onclick="switchTab('agenda')">Agenda Partagé</li>
-                <li onclick="switchTab('chat')">Messagerie Interne</li>
+                <li id="nav-dashboard" class="active" onclick="switchTab('dashboard')">Tableau de Bord</li>
+                <li id="nav-donors" onclick="switchTab('donors')">Base Donateurs</li>
+                <li id="nav-agenda" onclick="switchTab('agenda')">Agenda Partagé</li>
+                <li id="nav-chat" onclick="switchTab('chat')">Messagerie Interne</li>
             </ul>
-            <div class="user-info" id="user-display">
+            <div class="user-info">
                 <p id="user-name">Chargement...</p>
                 <button onclick="logout()" class="btn-logout">Déconnexion</button>
             </div>
         </nav>
 
         <main class="main-content">
-            
             <section id="tab-dashboard" class="tab-content active">
                 <header>
                     <h2>Tableau de Bord des Urgences</h2>
-                    <p class="subtitle">Coordination en temps réel des établissements</p>
+                    <p class="subtitle">Coordination fédérale</p>
                 </header>
-                <div id="urgent-feed" class="urgent-grid">
-                    </div>
+                <div id="urgent-feed" class="urgent-grid"></div>
             </section>
 
             <section id="tab-donors" class="tab-content">
-                <header class="flex-header">
+                <header class="flex-header" style="display:flex; justify-content:space-between; align-items:center;">
                     <h2>Base de Données</h2>
                     <button class="btn-primary" onclick="showDonorModal()">+ Nouveau Donateur</button>
                 </header>
-                <div class="search-bar">
-                    <input type="text" id="donor-search" placeholder="Rechercher un nom, une ville, une école...">
-                    <button onclick="exportData()" class="btn-secondary">Export Excel</button>
-                </div>
-                <table id="donors-table">
+                <table>
                     <thead>
                         <tr>
                             <th>Nom</th>
-                            <th>Entité(s)</th>
+                            <th>Entité</th>
                             <th>Ville</th>
-                            <th>Tags Brevo</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -60,44 +53,18 @@
                 </table>
             </section>
 
-            <section id="tab-agenda" class="tab-content">
-                <header class="flex-header">
-                    <h2>Agenda Partagé de la Fédération</h2>
-                    <button class="btn-primary" onclick="showEventModal()">+ Ajouter un événement</button>
-                </header>
-                <div id="calendar-view" class="calendar-container">
-                    </div>
-            </section>
-
-            <section id="tab-chat" class="tab-content">
-                <div class="chat-layout">
-                    <div class="chat-sidebar">
-                        <h3>Canaux</h3>
-                        <ul id="channels-list">
-                            <li class="active" onclick="joinChannel('general')"># Général</li>
-                            <li onclick="joinChannel('herrade')"># Cours Herrade</li>
-                            <li onclick="joinChannel('martin')"># Collège Martin</li>
-                            <li onclick="joinChannel('academia')"># Academia</li>
-                        </ul>
-                    </div>
-                    <div class="chat-window">
-                        <div id="chat-messages" class="messages-container"></div>
-                        <div class="chat-input-area">
-                            <input type="text" id="chat-input" placeholder="Écrire un message...">
-                            <button onclick="sendChatMessage()">Envoyer</button>
-                        </div>
-                    </div>
-                </div>
-            </section>
+            <section id="tab-agenda" class="tab-content"><h2>Agenda</h2><p>Bientôt disponible.</p></section>
+            <section id="tab-chat" class="tab-content"><h2>Messagerie</h2><p>Bientôt disponible.</p></section>
         </main>
     </div>
 
     <div id="donor-modal" class="modal">
-        <div class="modal-content large">
+        <div class="modal-content">
             <span class="close" onclick="closeModal()">&times;</span>
-            <div id="donor-detail-view"></div>
+            <div id="modal-body"></div>
         </div>
     </div>
-<script src="app.js"></script>
+
+    <script src="app.js"></script>
 </body>
 </html>
