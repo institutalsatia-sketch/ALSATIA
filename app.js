@@ -1,9 +1,8 @@
-// CONFIGURATION SUPABASE (À compléter avec vos accès)
+// CONFIGURATION SUPABASE
 const supabaseUrl = 'https://ptiosrmpliffsjooedle.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0aW9zcm1wbGlmZnNqb29lZGxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgzMzY0MzgsImV4cCI6MjA4MzkxMjQzOH0.SdTtCooQsDcCIQdGddnDz2-lMM_X6yfNpVmAW4C7j7o';
-const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
-let currentUser = null;
 let currentProfile = null;
 
 // ==========================================
@@ -11,27 +10,35 @@ let currentProfile = null;
 // ==========================================
 
 async function init() {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-        window.location.href = 'login.html'; // Rediriger si non connecté
+    // Vérifier si l'utilisateur est connecté
+    const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+    
+    if (sessionError || !session) {
+        console.log("Pas de session, redirection vers login");
+        window.location.href = 'login.html';
         return;
     }
-    currentUser = session.user;
-    await loadProfile();
-    setupUIByRole();
-    loadDashboard();
-}
 
-async function loadProfile() {
-    const { data, error } = await supabase
+    const user = session.user;
+    console.log("Utilisateur connecté:", user.email);
+
+    // Charger le profil public
+    const { data: profile, error: profileError } = await supabaseClient
         .from('profiles')
-        .where('id', '==', currentUser.id)
+        .select('*')
+        .eq('id', user.id)
         .single();
     
-    if (data) {
-        currentProfile = data;
-        document.getElementById('user-name').innerText = `${data.first_name} (${data.role})`;
+    if (profileError) {
+        console.error("Erreur profil:", profileError);
+        document.getElementById('user-name').innerText = user.email;
+    } else {
+        currentProfile = profile;
+        document.getElementById('user-name').innerText = `${profile.first_name} ${profile.last_name} (${profile.role})`;
     }
+
+    // Charger les données du tableau de bord
+    loadDashboard();
 }
 
 // ==========================================
@@ -40,30 +47,38 @@ async function loadProfile() {
 
 async function loadDashboard() {
     const feed = document.getElementById('urgent-feed');
-    feed.innerHTML = '<p>Chargement des alertes...</p>';
+    feed.innerHTML = '<p>Recherche d\'alertes en cours...</p>';
 
-    // Requête filtrée par RLS (les admins voient tout, les autres leur entité)
-    let query = supabase
+    // Récupérer les commentaires marqués comme urgents
+    const { data, error } = await supabaseClient
         .from('comments')
         .select(`*, donors(last_name, first_name)`)
         .eq('is_urgent', true)
         .eq('status', 'open')
         .order('created_at', { ascending: false });
 
-    const { data, error } = await query;
+    if (error) {
+        console.error("Erreur dashboard:", error);
+        feed.innerHTML = '<p>Erreur lors du chargement des données.</p>';
+        return;
+    }
 
     feed.innerHTML = '';
-    if (data.length === 0) {
-        feed.innerHTML = '<p>Aucune urgence en cours. Tout est sous contrôle.</p>';
+    if (!data || data.length === 0) {
+        feed.innerHTML = `
+            <div class="urgent-card" style="border-color: #27ae60; grid-column: 1/-1; text-align: center;">
+                <h3>Tout est sous contrôle</h3>
+                <p>Aucune alerte urgente n'est signalée pour le moment.</p>
+            </div>`;
         return;
     }
 
     data.forEach(msg => {
-        const entityClass = msg.entity.toLowerCase().split(' ')[0]; // alsatia, herrade, martin...
+        const entityClass = msg.entity ? msg.entity.toLowerCase().split(' ')[0] : 'alsatia';
         const card = document.createElement('div');
         card.className = `urgent-card ${entityClass}`;
         card.innerHTML = `
-            <h3>${msg.donors.last_name} ${msg.donors.first_name}</h3>
+            <h3>${msg.donors ? msg.donors.last_name : 'Donateur'}</h3>
             <p>"${msg.content}"</p>
             <div class="card-footer">
                 <small>Par ${msg.entity} - ${new Date(msg.created_at).toLocaleDateString()}</small>
@@ -74,44 +89,8 @@ async function loadDashboard() {
     });
 }
 
-async function resolveUrgency(commentId) {
-    const { error } = await supabase
-        .from('comments')
-        .update({ status: 'resolved' })
-        .eq('id', commentId);
-    
-    if (!error) loadDashboard();
-}
-
 // ==========================================
-// 3. AGENDA PARTAGÉ
-// ==========================================
-
-async function loadAgenda() {
-    const calendar = document.getElementById('calendar-view');
-    const { data, error } = await supabase
-        .from('events')
-        .select('*')
-        .order('start_date', { ascending: true });
-
-    calendar.innerHTML = '<div class="event-list"></div>';
-    const list = calendar.querySelector('.event-list');
-
-    data.forEach(event => {
-        const entityClass = event.entity.toLowerCase().split(' ')[0];
-        const item = document.createElement('div');
-        item.className = `event-item ${entityClass}`;
-        item.innerHTML = `
-            <strong>${new Date(event.start_date).toLocaleDateString()}</strong> - 
-            <span>${event.title}</span> 
-            <small>(${event.entity})</small>
-        `;
-        list.appendChild(item);
-    });
-}
-
-// ==========================================
-// 4. NAVIGATION ET UI
+// 3. FONCTIONS UTILITAIRES
 // ==========================================
 
 function switchTab(tabName) {
@@ -121,16 +100,11 @@ function switchTab(tabName) {
     document.getElementById(`tab-${tabName}`).classList.add('active');
     
     if(tabName === 'dashboard') loadDashboard();
-    if(tabName === 'donors') loadDonors();
-    if(tabName === 'agenda') loadAgenda();
 }
 
-function setupUIByRole() {
-    // Si l'utilisateur est un simple Directeur de Com, on masque certains boutons d'admin
-    if (currentProfile.role === 'com') {
-        const adminButtons = document.querySelectorAll('.btn-admin-only');
-        adminButtons.forEach(btn => btn.style.display = 'none');
-    }
+async function logout() {
+    await supabaseClient.auth.signOut();
+    window.location.href = 'login.html';
 }
 
 // Lancement au chargement de la page
