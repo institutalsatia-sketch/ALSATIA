@@ -2,6 +2,8 @@ const supabaseUrl = 'https://ptiosrmpliffsjooedle.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0aW9zcm1wbGlmZnNqb29lZGxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgzMzY0MzgsImV4cCI6MjA4MzkxMjQzOH0.SdTtCooQsDcCIQdGddnDz2-lMM_X6yfNpVmAW4C7j7o';
 const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
+let allDonors = []; // Stockage local pour la recherche rapide
+
 async function init() {
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (!session) { window.location.href = 'login.html'; return; }
@@ -22,27 +24,55 @@ function switchTab(tabName) {
 
 async function loadDonors() {
     const { data: donors } = await supabaseClient.from('donors').select('*').order('last_name');
+    allDonors = donors || [];
+    renderDonors(allDonors);
+}
+
+function renderDonors(list) {
     const body = document.getElementById('donors-body');
-    body.innerHTML = '';
+    body.innerHTML = list.map(d => `
+        <tr>
+            <td>
+                <div style="font-weight:600;">${d.last_name.toUpperCase()} ${d.first_name}</div>
+                <span class="contact-sub">📧 ${d.email || '-'}</span>
+                <span class="contact-sub">📞 ${d.phone || '-'}</span>
+            </td>
+            <td>
+                <div style="font-size:0.9rem;">${d.address || '-'}</div>
+                <div style="font-size:0.85rem; color:#64748b;">${d.zip_code || ''} ${d.city || ''}</div>
+            </td>
+            <td><span class="badge-entity">${d.entities || '-'}</span></td>
+            <td><button class="btn-primary" style="padding:5px 10px; font-size:0.7rem;" onclick="alert('Dossier: ${d.id}')">Dossier</button></td>
+        </tr>`).join('');
+}
+
+function filterDonors() {
+    const query = document.getElementById('search-input').value.toLowerCase();
+    const filtered = allDonors.filter(d => 
+        d.last_name.toLowerCase().includes(query) || 
+        d.first_name.toLowerCase().includes(query) || 
+        d.city?.toLowerCase().includes(query) ||
+        d.entities?.toLowerCase().includes(query)
+    );
+    renderDonors(filtered);
+}
+
+function exportToExcel() {
+    if (allDonors.length === 0) return alert("Rien à exporter");
     
-    if (donors) {
-        donors.forEach(d => {
-            body.innerHTML += `
-                <tr>
-                    <td>
-                        <div style="font-weight:600;">${d.last_name.toUpperCase()} ${d.first_name}</div>
-                        <span class="contact-sub">📧 ${d.email || '-'}</span>
-                        <span class="contact-sub">📞 ${d.phone || '-'}</span>
-                    </td>
-                    <td>
-                        <div style="font-size:0.9rem;">${d.address || '-'}</div>
-                        <div style="font-size:0.85rem; color:#64748b;">${d.zip_code || ''} ${d.city || ''}</div>
-                    </td>
-                    <td><span class="badge-entity">${d.entities || '-'}</span></td>
-                    <td><button class="btn-primary" style="padding:5px 10px; font-size:0.7rem;" onclick="alert('Détails: ${d.id}')">Dossier</button></td>
-                </tr>`;
-        });
-    }
+    let csvContent = "data:text/csv;charset=utf-8,Nom;Prenom;Email;Telephone;Adresse;Code Postal;Ville;Etablissement\n";
+    
+    allDonors.forEach(d => {
+        let row = [d.last_name, d.first_name, d.email, d.phone, d.address, d.zip_code, d.city, d.entities];
+        csvContent += row.map(v => `"${v || ''}"`).join(";") + "\n";
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "base_donateurs_alsatia.csv");
+    document.body.appendChild(link);
+    link.click();
 }
 
 function showDonorModal() {
@@ -88,7 +118,7 @@ async function saveDonor(e) {
         entities: document.getElementById('ecole').value
     };
     const { error } = await supabaseClient.from('donors').insert([newDonor]);
-    if (error) alert("Erreur d'enregistrement : " + error.message);
+    if (error) alert("Erreur d'enregistrement");
     else { closeModal(); loadDonors(); }
 }
 
