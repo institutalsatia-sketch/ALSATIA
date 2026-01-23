@@ -1,78 +1,183 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CRM Institut Alsatia</title>
-    <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-</head>
-<body>
-    <div id="app-container">
-        <nav class="sidebar">
-            <div class="logo-container">
-                <h1>INSTITUT ALSATIA</h1>
-            </div>
-            <ul class="nav-links">
-                <li id="nav-dashboard" class="active" onclick="switchTab('dashboard')">Tableau de Bord</li>
-                <li id="nav-donors" onclick="switchTab('donors')">Base Donateurs</li>
-                <li id="nav-agenda" onclick="switchTab('agenda')">Agenda Partagé</li>
-                <li id="nav-chat" onclick="switchTab('chat')">Messagerie Interne</li>
-            </ul>
-            <div class="user-info">
-                <p id="user-name">Chargement...</p>
-                <button onclick="logout()" class="btn-logout">Déconnexion</button>
-            </div>
-        </nav>
+const supabaseUrl = 'https://ptiosrmpliffsjooedle.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0aW9zcm1wbGlmZnNqb29lZGxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgzMzY0MzgsImV4cCI6MjA4MzkxMjQzOH0.SdTtCooQsDcCIQdGddnDz2-lMM_X6yfNpVmAW4C7j7o';
+const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
-        <main class="main-content">
-            <section id="tab-dashboard" class="tab-content active">
-                <header>
-                    <h2>Tableau de Bord des Urgences</h2>
-                    <p class="subtitle">Coordination fédérale</p>
-                </header>
-                <div id="urgent-feed" class="urgent-grid"></div>
-            </section>
+let allDonors = [];
 
-            <section id="tab-donors" class="tab-content">
-                <header class="flex-header">
-                    <h2>Base de Données Donateurs</h2>
-                    <div class="actions-header">
-                        <button class="btn-export" onclick="exportToExcel()">📥 Export Excel</button>
-                        <button class="btn-primary" onclick="showDonorModal()">+ Nouveau Donateur</button>
-                    </div>
-                </header>
-                
-                <div class="search-container">
-                    <input type="text" id="search-input" placeholder="Rechercher par nom, ville ou établissement..." onkeyup="filterDonors()">
-                </div>
+async function init() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) { window.location.href = 'login.html'; return; }
+    
+    const { data: profile } = await supabaseClient.from('profiles').select('*').eq('id', session.user.id).single();
+    document.getElementById('user-name').innerText = profile ? `${profile.first_name} ${profile.last_name}` : session.user.email;
+    
+    loadDonors();
+    loadDashboard();
+}
 
-                <table id="main-table">
-                    <thead>
-                        <tr>
-                            <th>Identité & Contact</th>
-                            <th>Adresse Postale</th>
-                            <th>Établissement</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="donors-body"></tbody>
-                </table>
-            </section>
+// NAVIGATION
+function switchTab(tabName) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.nav-links li').forEach(l => l.classList.remove('active'));
+    document.getElementById(`tab-${tabName}`).classList.add('active');
+    document.getElementById(`nav-${tabName}`).classList.add('active');
+    if(tabName === 'donors') loadDonors();
+}
 
-            <section id="tab-agenda" class="tab-content"><h2>Agenda</h2><p>Bientôt disponible.</p></section>
-            <section id="tab-chat" class="tab-content"><h2>Messagerie</h2><p>Bientôt disponible.</p></section>
-        </main>
-    </div>
+// CHARGEMENT DONATEURS + DONS
+async function loadDonors() {
+    const { data, error } = await supabaseClient
+        .from('donors')
+        .select('*, donations(*)')
+        .order('last_name');
+    
+    allDonors = data || [];
+    renderDonors(allDonors);
+}
 
-    <div id="donor-modal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal()">&times;</span>
-            <div id="modal-body"></div>
+function renderDonors(list) {
+    const body = document.getElementById('donors-body');
+    body.innerHTML = list.map(d => {
+        const total = d.donations?.reduce((sum, don) => sum + don.amount, 0) || 0;
+        const pending = d.donations?.filter(don => don.thank_you_status === 'En attente').length || 0;
+        
+        return `
+        <tr>
+            <td><strong>${d.last_name.toUpperCase()} ${d.first_name}</strong><br><small>${d.entities || '-'}</small></td>
+            <td><b style="color:var(--primary)">${total.toLocaleString()} €</b><br><small>${d.donations?.length || 0} don(s)</small></td>
+            <td><span class="status-tag ${pending > 0 ? 'status-waiting' : 'status-done'}">${pending > 0 ? pending + ' à remercier' : 'À jour'}</span></td>
+            <td><button class="btn-primary" onclick="openDonorFile('${d.id}')">Dossier</button></td>
+        </tr>`;
+    }).join('');
+}
+
+// RECHERCHE
+function filterDonors() {
+    const q = document.getElementById('search-input').value.toLowerCase();
+    const filtered = allDonors.filter(d => 
+        d.last_name.toLowerCase().includes(q) || d.first_name.toLowerCase().includes(q) || d.city?.toLowerCase().includes(q)
+    );
+    renderDonors(filtered);
+}
+
+// FICHE DOSSIER DÉTAILLÉE
+async function openDonorFile(id) {
+    const donor = allDonors.find(d => d.id === id);
+    document.getElementById('donor-modal').style.display = 'block';
+    const body = document.getElementById('modal-body');
+    
+    body.innerHTML = `
+        <div class="fiche-header">
+            <h2 style="margin:0">${donor.first_name} ${donor.last_name.toUpperCase()}</h2>
+            <p style="color:var(--gold); font-weight:bold; margin:5px 0 0 0;">${donor.entities}</p>
         </div>
-    </div>
+        <div class="fiche-grid">
+            <div class="info-perso luxe-form">
+                <h3 class="section-title">Coordonnées</h3>
+                <label>Email</label><input type="text" value="${donor.email || ''}" onchange="updateDonorField('${id}', 'email', this.value)">
+                <label>Téléphone</label><input type="text" value="${donor.phone || ''}" onchange="updateDonorField('${id}', 'phone', this.value)">
+                <label>Adresse Postale</label>
+                <textarea onchange="updateDonorField('${id}', 'address', this.value)">${donor.address || ''}</textarea>
+                <div style="display:grid; grid-template-columns:1fr 2fr; gap:10px;">
+                    <input type="text" placeholder="CP" value="${donor.zip_code || ''}" onchange="updateDonorField('${id}', 'zip_code', this.value)">
+                    <input type="text" placeholder="Ville" value="${donor.city || ''}" onchange="updateDonorField('${id}', 'city', this.value)">
+                </div>
+            </div>
+            <div class="historique-dons">
+                <h3 class="section-title">Historique des Dons (Illimité)</h3>
+                <div id="donations-list" style="max-height:300px; overflow-y:auto; padding-right:5px;">
+                    ${donor.donations?.sort((a,b) => new Date(b.date) - new Date(a.date)).map(don => `
+                        <div class="donation-item">
+                            <div style="display:flex; justify-content:space-between;">
+                                <b>${don.amount} €</b>
+                                <span>${new Date(don.date).toLocaleDateString()}</span>
+                            </div>
+                            <div style="margin-top:5px; font-size:0.8rem; color:#666;">"${don.comment || 'Sans commentaire'}"</div>
+                            <div style="margin-top:5px;">
+                                <span class="status-tag ${don.thank_you_status === 'Effectué' ? 'status-done' : 'status-waiting'}">${don.thank_you_status}</span>
+                                ${don.thank_you_status === 'En attente' ? `<button style="font-size:0.6rem" onclick="markAsThanked('${don.id}', '${donor.id}')">Marquer comme remercié</button>` : ''}
+                            </div>
+                        </div>
+                    `).join('') || '<p>Aucun don.</p>'}
+                </div>
+                <button class="btn-primary" onclick="addDonation('${donor.id}')" style="width:100%; margin-top:15px;">+ Enregistrer un nouveau don</button>
+            </div>
+        </div>
+    `;
+}
 
-    <script src="app.js"></script>
-</body>
-</html>
+// ACTIONS DONS
+async function addDonation(donorId) {
+    const amount = prompt("Montant du don (€) :");
+    if (!amount || isNaN(amount)) return;
+    const comment = prompt("Commentaire (ex: Chèque, Virement, Campagne Noel...) :");
+    
+    await supabaseClient.from('donations').insert([{
+        donor_id: donorId,
+        amount: parseFloat(amount),
+        comment: comment
+    }]);
+    loadDonors().then(() => openDonorFile(donorId));
+}
+
+async function markAsThanked(donId, donorId) {
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    await supabaseClient.from('donations').update({ 
+        thank_you_status: 'Effectué',
+        thanked_by: user.email 
+    }).eq('id', donId);
+    loadDonors().then(() => openDonorFile(donorId));
+}
+
+async function updateDonorField(id, field, value) {
+    await supabaseClient.from('donors').update({ [field]: value }).eq('id', id);
+}
+
+// NOUVEAU DONATEUR
+function showDonorModal() {
+    document.getElementById('donor-modal').style.display = 'block';
+    document.getElementById('modal-body').innerHTML = `
+        <h3>Nouveau Donateur</h3>
+        <form onsubmit="saveDonor(event)" class="luxe-form">
+            <input type="text" id="n-nom" placeholder="Nom" required>
+            <input type="text" id="n-pren" placeholder="Prénom" required>
+            <select id="n-eco"><option>Institut Alsatia</option><option>Cours Herrade</option><option>Collège Martin</option></select>
+            <button type="submit" class="btn-primary" style="width:100%">Enregistrer</button>
+        </form>`;
+}
+
+async function saveDonor(e) {
+    e.preventDefault();
+    const d = { last_name: document.getElementById('n-nom').value, first_name: document.getElementById('n-pren').value, entities: document.getElementById('n-eco').value };
+    await supabaseClient.from('donors').insert([d]);
+    closeModal(); loadDonors();
+}
+
+// EXPORT
+function exportToExcel() {
+    let csv = "Nom;Prenom;Total Dons;Nombre de dons\n";
+    allDonors.forEach(d => {
+        const total = d.donations?.reduce((sum, don) => sum + don.amount, 0) || 0;
+        csv += `${d.last_name};${d.first_name};${total};${d.donations?.length || 0}\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "export_alsatia.csv";
+    link.click();
+}
+
+// DASHBOARD
+async function loadDashboard() {
+    const feed = document.getElementById('urgent-feed');
+    const { data } = await supabaseClient.from('donations').select('*, donors(last_name)').eq('thank_you_status', 'En attente').limit(5);
+    if (!data || data.length === 0) {
+        feed.innerHTML = '<div class="urgent-card" style="border-left-color:green"><h3>RAS</h3><p>Tous les donateurs ont été remerciés.</p></div>';
+        return;
+    }
+    feed.innerHTML = data.map(d => `<div class="urgent-card"><h3>${d.donors.last_name}</h3><p>Don de ${d.amount}€ à remercier.</p></div>`).join('');
+}
+
+function closeModal() { document.getElementById('donor-modal').style.display = 'none'; }
+async function logout() { await supabaseClient.auth.signOut(); window.location.href = 'login.html'; }
+window.onload = init;
