@@ -38,8 +38,16 @@
             <section id="tab-donors" class="tab-content">
                 <header class="flex-header">
                     <h2>Base de Données Donateurs</h2>
-                    <button class="btn-primary" onclick="showDonorModal()">+ Nouveau Donateur</button>
+                    <div class="actions-header">
+                        <button class="btn-export" onclick="exportToExcel()">📥 Export Excel</button>
+                        <button class="btn-primary" onclick="showDonorModal()">+ Nouveau Donateur</button>
+                    </div>
                 </header>
+                
+                <div class="search-container">
+                    <input type="text" id="search-input" placeholder="Rechercher par nom, ville ou établissement..." onkeyup="filterDonors()">
+                </div>
+
                 <table id="main-table">
                     <thead>
                         <tr>
