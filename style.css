@@ -1,34 +1,40 @@
 :root {
     --primary: #1a2a6c;
     --gold: #c5a059;
-    --white: #ffffff;
+    --bg: #f4f7f6;
 }
 
-body { margin: 0; font-family: 'Inter', sans-serif; background: #f4f7f6; }
-
+body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: #333; }
 #app-container { display: flex; height: 100vh; }
 
-.sidebar { width: 260px; background: var(--primary); color: white; padding: 20px; display: flex; flex-direction: column; }
+.sidebar { width: 260px; background: var(--primary); color: white; padding: 25px; display: flex; flex-direction: column; box-shadow: 4px 0 10px rgba(0,0,0,0.1); }
+.logo-container h1 { font-family: 'Playfair Display', serif; font-size: 1.1rem; letter-spacing: 2px; color: var(--gold); border-bottom: 1px solid rgba(197, 160, 89, 0.3); padding-bottom: 15px; }
 
 .nav-links { list-style: none; padding: 0; margin-top: 30px; flex-grow: 1; }
-.nav-links li { padding: 12px; cursor: pointer; border-radius: 5px; margin-bottom: 8px; }
+.nav-links li { padding: 12px 15px; cursor: pointer; border-radius: 6px; margin-bottom: 8px; transition: 0.2s; font-size: 0.95rem; }
 .nav-links li.active, .nav-links li:hover { background: rgba(255,255,255,0.1); color: var(--gold); }
 
 .main-content { flex-grow: 1; padding: 40px; overflow-y: auto; }
-.tab-content { display: none; }
-.tab-content.active { display: block; }
+.flex-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
 
-.urgent-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
-.urgent-card { background: white; padding: 20px; border-radius: 8px; border-left: 5px solid #e74c3c; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+.search-container { margin-bottom: 25px; }
+#search-input { width: 100%; padding: 15px; border-radius: 8px; border: 1px solid #ddd; font-size: 1rem; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }
 
-table { width: 100%; border-collapse: collapse; background: white; margin-top: 20px; }
-th, td { padding: 15px; text-align: left; border-bottom: 1px solid #ddd; }
+table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+th { background: #f8fafc; padding: 15px; text-align: left; font-size: 0.85rem; text-transform: uppercase; color: #64748b; border-bottom: 2px solid #edf2f7; }
+td { padding: 18px 15px; border-bottom: 1px solid #edf2f7; vertical-align: top; }
 
-.btn-primary { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
-.btn-logout { background: transparent; border: 1px solid var(--gold); color: var(--gold); padding: 10px; cursor: pointer; width: 100%; margin-top: 10px; }
+.badge-entity { background: #eef2ff; color: #1a2a6c; padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
+.contact-sub { display: block; font-size: 0.8rem; color: #64748b; margin-top: 4px; }
 
-/* Modal Design */
-.modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
-.modal-content { background: white; margin: 10% auto; padding: 30px; width: 400px; border-radius: 10px; position: relative; }
-.close { position: absolute; right: 20px; top: 10px; font-size: 25px; cursor: pointer; }
-.luxe-form input, .luxe-form select { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+.btn-primary { background: var(--primary); color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+.btn-export { background: white; color: var(--primary); border: 1px solid var(--primary); padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: 600; margin-right: 10px; }
+.btn-logout { background: transparent; border: 1px solid var(--gold); color: var(--gold); padding: 10px; cursor: pointer; width: 100%; border-radius: 6px; }
+
+.modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); }
+.modal-content { background: white; margin: 5% auto; padding: 35px; width: 500px; border-radius: 15px; position: relative; }
+.close { position: absolute; right: 25px; top: 15px; font-size: 30px; cursor: pointer; color: #94a3b8; }
+
+.luxe-form label { display: block; font-size: 0.75rem; font-weight: 700; color: var(--gold); margin-bottom: 5px; text-transform: uppercase; }
+.luxe-form input, .luxe-form select { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #e2e8f0; border-radius: 6px; box-sizing: border-box; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
