@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CRM Institut Alsatia - Excellence</title>
+    <title>CRM Institut Alsatia - Expert Edition</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -60,6 +60,19 @@
             <div id="modal-body"></div>
         </div>
     </div>
+
+    <div id="custom-confirm" class="modal">
+        <div class="modal-content small confirm-box">
+            <h3 id="confirm-title" class="section-title">Confirmation</h3>
+            <p id="confirm-message" style="margin: 20px 0;"></p>
+            <div class="confirm-actions">
+                <button id="confirm-yes" class="btn-danger">Confirmer</button>
+                <button onclick="closeConfirm()" class="btn-export">Annuler</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-notification" class="toast">Action réussie</div>
 
     <script src="app.js"></script>
 </body>
