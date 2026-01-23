@@ -82,15 +82,30 @@ function renderDonorForm(type) {
 async function saveNewDonor(e, type) {
     e.preventDefault();
     const entites = Array.from(document.querySelectorAll('input[name="entite"]:checked')).map(el => el.value).join(', ');
+    
     const donor = { 
-        donor_type: type, last_name: document.getElementById('n-nom').value, 
+        donor_type: type, 
+        last_name: document.getElementById('n-nom').value, 
         first_name: type === 'Particulier' ? document.getElementById('n-pren').value : '',
         title: document.getElementById('n-civ').value,
-        entities: entites, category: document.getElementById('n-cat').value, 
-        introduced_by: document.getElementById('n-intro').value, country: 'France' 
+        entities: entites, 
+        category: document.getElementById('n-cat').value, 
+        introduced_by: document.getElementById('n-intro').value, 
+        country: 'France' 
     };
-    const { data } = await supabaseClient.from('donors').insert([donor]).select();
-    loadDonors().then(() => openDonorFile(data[0].id));
+
+    const { data, error } = await supabaseClient.from('donors').insert([donor]).select();
+
+    if (error) {
+        console.error("Erreur Supabase:", error);
+        alert("Erreur lors de la création : " + error.message + "\nAssurez-vous d'avoir exécuté le script SQL pour ajouter les colonnes.");
+        return;
+    }
+
+    if (data && data.length > 0) {
+        await loadDonors(); 
+        openDonorFile(data[0].id);
+    }
 }
 
 // --- FICHE COMPLÈTE (ÉDITION TOTALE) ---
