@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CRM Institut Alsatia</title>
+    <title>CRM Institut Alsatia - Gestion Donateurs & Entreprises</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -11,7 +11,9 @@
 <body>
     <div id="app-container">
         <nav class="sidebar">
-            <div class="logo-container"><h1>INSTITUT ALSATIA</h1></div>
+            <div class="logo-container">
+                <h1>INSTITUT ALSATIA</h1>
+            </div>
             <ul class="nav-links">
                 <li id="nav-dashboard" class="active" onclick="switchTab('dashboard')">Tableau de Bord</li>
                 <li id="nav-donors" onclick="switchTab('donors')">Base Donateurs</li>
@@ -23,34 +25,40 @@
         </nav>
 
         <main class="main-content">
+            
             <section id="tab-dashboard" class="tab-content active">
-                <header><h2>Tableau de Bord des Urgences</h2></header>
-                <div id="urgent-feed" class="urgent-grid"></div>
+                <header>
+                    <h2>Tableau de Bord</h2>
+                    <p class="subtitle">Derniers dons à remercier et actions prioritaires</p>
+                </header>
+                <div id="urgent-feed" class="urgent-grid">
+                    </div>
             </section>
 
             <section id="tab-donors" class="tab-content">
                 <header class="flex-header">
-                    <h2>Base de Données Donateurs</h2>
+                    <h2>Base de Données</h2>
                     <div class="actions-header">
                         <button class="btn-export" onclick="exportToExcel()">📥 Export Excel</button>
-                        <button class="btn-primary" onclick="showDonorModal()">+ Nouveau Donateur</button>
+                        <button class="btn-primary" onclick="showDonorModal()">+ Nouveau Dossier</button>
                     </div>
                 </header>
                 
                 <div class="search-container">
-                    <input type="text" id="search-input" placeholder="Rechercher un nom, une ville..." onkeyup="filterDonors()">
+                    <input type="text" id="search-input" placeholder="Rechercher par nom, ville, type ou établissement..." onkeyup="filterDonors()">
                 </div>
 
-                <table>
+                <table id="main-table">
                     <thead>
                         <tr>
-                            <th>Identité & Ville</th>
+                            <th>Identité & Type</th>
                             <th>Total Cumulé</th>
-                            <th>Remerciements</th>
+                            <th>Dernier Contact</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody id="donors-body"></tbody>
+                    <tbody id="donors-body">
+                        </tbody>
                 </table>
             </section>
         </main>
@@ -59,7 +67,8 @@
     <div id="donor-modal" class="modal">
         <div class="modal-content large">
             <span class="close" onclick="closeModal()">&times;</span>
-            <div id="modal-body"></div>
+            <div id="modal-body">
+                </div>
         </div>
     </div>
 
