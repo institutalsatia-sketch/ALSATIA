@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CRM Institut Alsatia - Gestion Totale</title>
+    <title>CRM Institut Alsatia - Excellence</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -30,19 +30,19 @@
 
             <section id="tab-donors" class="tab-content">
                 <header class="flex-header">
-                    <h2>Base Donateurs & Entreprises</h2>
+                    <h2>Base de Données</h2>
                     <div class="actions-header">
                         <button class="btn-export" onclick="exportToExcel()">📥 Export Excel</button>
                         <button class="btn-primary" onclick="showDonorModal()">+ Nouveau Dossier</button>
                     </div>
                 </header>
                 <div class="search-container">
-                    <input type="text" id="search-input" placeholder="Rechercher..." onkeyup="filterDonors()">
+                    <input type="text" id="search-input" placeholder="Rechercher par Nom, Ville, Catégorie..." onkeyup="filterDonors()">
                 </div>
                 <table>
                     <thead>
                         <tr>
-                            <th>Identité & Type</th>
+                            <th>Identité / Entité</th>
                             <th>Total Dons</th>
                             <th>Dernier Contact</th>
                             <th>Actions</th>
