@@ -3,140 +3,116 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Connexion | Institut Alsatia</title>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <title>Connexion - Institut Alsatia</title>
+    <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        :root {
-            --primary-blue: #1a2a6c;
-            --gold: #c5a059;
-            --white: #ffffff;
-        }
-        body {
-            margin: 0;
-            font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #1a2a6c 0%, #2a4858 100%);
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--white);
-        }
-        .login-card {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            padding: 40px;
-            border-radius: 15px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            width: 100%;
-            max-width: 400px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-            text-align: center;
-        }
-        h1 {
-            font-family: 'Playfair Display', serif;
-            font-size: 2rem;
-            margin-bottom: 10px;
-            letter-spacing: 1px;
-        }
-        p {
-            font-weight: 300;
-            color: rgba(255, 255, 255, 0.7);
-            margin-bottom: 30px;
-        }
-        .input-group {
-            margin-bottom: 20px;
-            text-align: left;
-        }
-        label {
-            display: block;
-            font-size: 0.8rem;
-            margin-bottom: 5px;
-            color: var(--gold);
-            text-transform: uppercase;
-        }
-        input {
-            width: 100%;
-            padding: 12px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 5px;
-            color: white;
-            box-sizing: border-box;
-            outline: none;
-        }
-        input:focus {
-            border-color: var(--gold);
-        }
-        button {
-            width: 100%;
-            padding: 15px;
-            background: var(--gold);
-            color: var(--primary-blue);
-            border: none;
-            border-radius: 5px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: 0.3s;
-            margin-top: 10px;
-        }
-        button:hover {
-            background: #d4b475;
-            transform: translateY(-2px);
-        }
-        .error-msg {
-            color: #ff6b6b;
-            font-size: 0.9rem;
-            margin-top: 15px;
-            display: none;
-        }
+        body { background: #0f172a; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: 'Inter', sans-serif; }
+        .login-card { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); width: 100%; max-width: 400px; text-align: center; }
+        .logo-gold { color: #b99d65; font-size: 1.6rem; font-weight: bold; margin-bottom: 25px; text-transform: uppercase; letter-spacing: 2px; }
+        .portal-grid { display: flex; flex-direction: column; gap: 10px; }
+        .portal-btn { background: #f8fafc; border: 2px solid #e2e8f0; padding: 12px; border-radius: 12px; cursor: pointer; transition: 0.3s; font-weight: 600; text-align: left; display: flex; align-items: center; gap: 12px; font-size: 0.85rem; }
+        .portal-btn:hover { border-color: #b99d65; background: #fdfaf3; transform: translateY(-2px); }
+        .step-2, .pin-area, .new-user-fields { display: none; margin-top: 20px; animation: fadeIn 0.4s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .luxe-input { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; margin-bottom: 10px; box-sizing: border-box; font-size: 1rem; }
+        #pin-input { font-size: 1.5rem; letter-spacing: 10px; text-align: center; border-color: #b99d65; }
     </style>
 </head>
 <body>
 
-    <div class="login-card">
-        <h1>Institut Alsatia</h1>
-        <p>Portail de Gestion Fédérale</p>
-        
-        <div class="input-group">
-            <label>Email Professionnel</label>
-            <input type="email" id="email" placeholder="nom@alsatia.org">
+<div class="login-card">
+    <div class="logo-gold">Institut Alsatia</div>
+
+    <div id="step-1">
+        <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 20px;">Choisissez votre portail d'accès</p>
+        <div class="portal-grid">
+            <button class="portal-btn" onclick="selectPortal('Institut Alsatia')">🛡️ Institut Alsatia (Admin)</button>
+            <button class="portal-btn" onclick="selectPortal('Cours Herrade de Landsberg')">📖 Cours Herrade de Landsberg</button>
+            <button class="portal-btn" onclick="selectPortal('Collège Saints Louis et Zélie Martin')">🏫 Collège Saints Martin</button>
+            <button class="portal-btn" onclick="selectPortal('Academia Alsatia')">🎓 Academia Alsatia</button>
         </div>
-        
-        <div class="input-group">
-            <label>Mot de passe</label>
-            <input type="password" id="password" placeholder="••••••••">
-        </div>
-        
-        <button onclick="handleLogin()">Se connecter</button>
-        <div id="error-message" class="error-msg">Identifiants incorrects.</div>
     </div>
 
-    <script>
-        // REMPLACER PAR VOS CLÉS SUPABASE
-        const supabaseUrl = 'https://ptiosrmpliffsjooedle.supabase.co';
-        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0aW9zcm1wbGlmZnNqb29lZGxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgzMzY0MzgsImV4cCI6MjA4MzkxMjQzOH0.SdTtCooQsDcCIQdGddnDz2-lMM_X6yfNpVmAW4C7j7o';
-        const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+    <div id="step-2" class="step-2">
+        <button onclick="location.reload()" style="background:none; border:none; color:#b99d65; cursor:pointer; font-size:0.8rem; margin-bottom:15px;">← Retour</button>
+        <p id="portal-name" style="font-weight:bold; color:#1e293b; margin-bottom:15px;"></p>
+        
+        <select id="user-select" class="luxe-input" onchange="checkUserType()">
+            <option value="">-- Qui êtes-vous ? --</option>
+            <option value="NEW" style="font-weight:bold; color:#b99d65;">+ Nouveau membre...</option>
+        </select>
 
-        async function handleLogin() {
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            const errorDiv = document.getElementById('error-message');
+        <div id="new-user-fields" class="new-user-fields">
+            <input type="text" id="reg-fname" placeholder="Votre Prénom" class="luxe-input">
+            <input type="text" id="reg-lname" placeholder="Votre Nom" class="luxe-input">
+        </div>
 
-            const { data, error } = await supabaseClient.auth.signInWithPassword({
-    email: email.trim(), // On nettoie les espaces
-    password: password.trim(),
-});
-console.log("Erreur détaillée:", error);
+        <div id="pin-area" class="pin-area">
+            <p style="font-size: 0.8rem; color:#64748b;">Entrez votre Code PIN</p>
+            <input type="password" id="pin-input" maxlength="6" placeholder="••••">
+            <button onclick="attemptLogin()" class="btn-primary" style="width:100%; margin-top:15px; padding:15px;">Accéder au CRM</button>
+        </div>
+    </div>
+</div>
 
-            if (error) {
-                errorDiv.innerText = "Erreur : " + error.message;
-                errorDiv.style.display = 'block';
-            } else {
-                // Succès : redirection vers le dashboard
-                window.location.href = 'index.html';
-            }
+<script>
+    const supabaseUrl = 'https://ptiosrmpliffsjooedle.supabase.co';
+    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0aW9zcm1wbGlmZnNqb29lZGxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgzMzY0MzgsImV4cCI6MjA4MzkxMjQzOH0.SdTtCooQsDcCIQdGddnDz2-lMM_X6yfNpVmAW4C7j7o';
+    const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+
+    let currentPortal = "";
+
+    async function selectPortal(portal) {
+        currentPortal = portal;
+        document.getElementById('step-1').style.display = 'none';
+        document.getElementById('step-2').style.display = 'block';
+        document.getElementById('portal-name').innerText = portal;
+
+        // Charger les membres existants de ce portail
+        const { data, error } = await supabaseClient.from('profiles').select('*').eq('portal', portal).order('last_name');
+        const select = document.getElementById('user-select');
+        
+        data.forEach(user => {
+            const opt = document.createElement('option');
+            opt.value = user.id;
+            opt.innerText = `${user.first_name} ${user.last_name}`;
+            select.appendChild(opt);
+        });
+    }
+
+    function checkUserType() {
+        const val = document.getElementById('user-select').value;
+        document.getElementById('new-user-fields').style.display = (val === 'NEW') ? 'block' : 'none';
+        document.getElementById('pin-area').style.display = (val !== "") ? 'block' : 'none';
+    }
+
+    async function attemptLogin() {
+        const userSelect = document.getElementById('user-select').value;
+        const pin = document.getElementById('pin-input').value;
+        let finalUser = null;
+
+        if (userSelect === 'NEW') {
+            const fname = document.getElementById('reg-fname').value;
+            const lname = document.getElementById('reg-lname').value;
+            if(!fname || !lname || !pin) return alert("Veuillez remplir tous les champs");
+
+            const { data, error } = await supabaseClient.from('profiles').insert([
+                { first_name: fname, last_name: lname, portal: currentPortal, pin: pin }
+            ]).select().single();
+
+            if(error) return alert("Erreur : " + error.message);
+            finalUser = data;
+        } else {
+            const { data, error } = await supabaseClient.from('profiles').select('*').eq('id', userSelect).single();
+            if (data.pin !== pin) return alert("Code PIN incorrect");
+            finalUser = data;
         }
-    </script>
+
+        // Stockage de la session et direction vers le CRM
+        localStorage.setItem('alsatia_user', JSON.stringify(finalUser));
+        window.location.href = 'index.html';
+    }
+</script>
 </body>
 </html>
