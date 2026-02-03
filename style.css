@@ -1,62 +1,237 @@
-:root { 
-    --primary: #1a2a6c; 
-    --gold: #c5a059; 
-    --bg: #f4f7f6; 
-    --border: #e2e8f0; 
-    --danger: #e53e3e; 
-    --success: #38a169; 
+/* --- 1. FONDATIONS & RESET --- */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
-body { margin: 0; font-family: 'Inter', sans-serif; background: var(--bg); color: #333; line-height: 1.4; overflow: hidden; }
+:root {
+    --primary: #0f172a;      /* Bleu Nuit Profond */
+    --gold: #b99d65;         /* Or Institut */
+    --gold-light: #d4c197;
+    --bg-light: #f1f5f9;     /* Fond de page gris bleuté */
+    --white: #ffffff;
+    --text-main: #1e293b;
+    --text-muted: #64748b;
+    --border: #e2e8f0;
+    --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
 
-#app-container { display: flex; height: 100vh; }
+body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background-color: var(--bg-light);
+    color: var(--text-main);
+    line-height: 1.6;
+}
 
-/* Sidebar */
-.sidebar { width: 260px; background: var(--primary); color: white; padding: 25px; display: flex; flex-direction: column; }
-.logo-container h1 { font-family: 'Playfair Display'; color: var(--gold); font-size: 0.9rem; border-bottom: 1px solid rgba(197,160,89,0.3); padding-bottom: 10px; margin: 0; letter-spacing: 1px; }
-.nav-links { list-style: none; padding: 0; margin-top: 25px; flex-grow: 1; }
-.nav-links li { padding: 12px; cursor: pointer; border-radius: 6px; margin-bottom: 5px; transition: 0.2s; }
-.nav-links li.active { background: rgba(255,255,255,0.1); color: var(--gold); font-weight: 600; }
-.btn-logout { background: transparent; border: 1px solid var(--gold); color: var(--gold); padding: 10px; cursor: pointer; border-radius: 6px; width: 100%; }
+/* --- 2. HEADER & NAVIGATION --- */
+header {
+    background: var(--primary);
+    color: var(--white);
+    padding: 0 2rem;
+    height: 70px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 3px solid var(--gold);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
 
-/* Main Content */
-.main-content { flex-grow: 1; padding: 30px; overflow-y: auto; }
-.flex-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.logo-gold {
+    color: var(--gold);
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    font-size: 1.2rem;
+}
 
-/* Table */
-table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #f0f0f0; }
-th { background: #f8fafc; color: #64748b; font-size: 0.7rem; text-transform: uppercase; }
+nav ul {
+    display: flex;
+    list-style: none;
+    gap: 20px;
+}
 
-/* Modales */
-.modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(3px); }
-.modal-content.large { width: 95%; max-width: 1200px; background: white; margin: 1% auto; padding: 25px; border-radius: 12px; position: relative; max-height: 95vh; overflow-y: auto; }
-.modal-content.small { width: 400px; margin: 15vh auto; padding: 30px; text-align: center; border-radius: 12px; border-top: 5px solid var(--gold); background: white; }
-.close { position: absolute; right: 20px; top: 15px; font-size: 28px; cursor: pointer; color: #94a3b8; }
+nav li {
+    cursor: pointer;
+    padding: 10px 15px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: 0.3s;
+    color: var(--white);
+}
 
-/* Fiche Dossier */
-.fiche-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 30px; }
-.section-title { font-family: 'Playfair Display'; color: var(--primary); border-left: 3px solid var(--gold); padding-left: 12px; margin: 20px 0 15px 0; font-size: 1.1rem; }
+nav li:hover, nav li.active {
+    background: var(--gold);
+    color: var(--primary);
+}
 
-/* Forms */
-.luxe-form label { display: block; font-size: 0.65rem; font-weight: 700; color: var(--gold); text-transform: uppercase; margin-top: 10px; }
-.luxe-form input, .luxe-form textarea, .luxe-form select { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 5px; margin-top: 4px; box-sizing: border-box; font-size: 0.9rem; font-family: inherit; }
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+/* --- 3. MISE EN PAGE & GRILLES --- */
+.container {
+    max-width: 1200px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+}
 
-/* Dons */
-.donation-item { background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #edf2f7; margin-bottom: 12px; position: relative; }
-.status-tag { font-size: 0.65rem; padding: 3px 8px; border-radius: 10px; font-weight: 700; text-transform: uppercase; }
-.status-waiting { background: #fef3c7; color: #92400e; }
-.status-done { background: #dcfce7; color: #166534; }
+.grid-2 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+    gap: 25px;
+    margin-bottom: 25px;
+}
 
-/* Boutons */
-.btn-primary { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: 600; }
-.btn-danger { background: #e53e3e; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; }
-.btn-export { background: white; color: var(--primary); border: 1px solid var(--primary); padding: 10px 20px; border-radius: 6px; cursor: pointer; }
-.btn-delete-small { position: absolute; top: 10px; right: 10px; background: transparent; color: #cbd5e1; border: none; cursor: pointer; font-size: 1.2rem; }
+.card {
+    background: var(--white);
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+}
 
-/* Notifications Toast */
-.toast { position: fixed; bottom: 30px; right: 30px; background: var(--primary); color: var(--gold); padding: 15px 25px; border-radius: 8px; transform: translateY(100px); transition: 0.4s; z-index: 2000; border-left: 4px solid var(--gold); font-weight: 600; }
-.toast.show { transform: translateY(0); }
+h2, h3 {
+    color: var(--primary);
+    margin-bottom: 1.5rem;
+    font-weight: 700;
+}
 
-.confirm-actions { display: flex; gap: 15px; justify-content: center; margin-top: 20px; }
+/* --- 4. GESTION DES ONGLETS (LOGIQUE D'AFFICHAGE) --- */
+.tab-content {
+    display: none; /* Cache tout par défaut */
+}
+
+.tab-content.active {
+    display: block; /* Affiche seulement l'onglet actif */
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- 5. TABLEAUX ET LISTES --- */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+}
+
+th {
+    text-align: left;
+    padding: 12px;
+    background: #f8fafc;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    border-bottom: 2px solid var(--border);
+}
+
+td {
+    padding: 15px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.9rem;
+}
+
+tr:hover {
+    background-color: #fdfaf3; /* Teinte dorée très légère au survol */
+}
+
+/* --- 6. BOUTONS --- */
+.btn-primary {
+    background: var(--primary);
+    color: var(--gold);
+    border: 1px solid var(--gold);
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 700;
+    transition: 0.3s;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+}
+
+.btn-primary:hover {
+    background: var(--gold);
+    color: var(--primary);
+}
+
+.btn-danger {
+    background: #be123c;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+/* --- 7. MODALES --- */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.85); /* Fond bleu nuit transparent */
+    backdrop-filter: blur(4px);
+}
+
+.modal-content {
+    background: var(--white);
+    margin: 5vh auto;
+    padding: 30px;
+    border-radius: 15px;
+    width: 90%;
+    max-width: 800px;
+    max-height: 90vh;
+    overflow-y: auto;
+    border: 2px solid var(--gold);
+}
+
+/* --- 8. ÉLÉMENTS SPÉCIFIQUES (FEEDS, CHAT) --- */
+.feed-container {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.donation-item {
+    padding: 12px;
+    border-left: 4px solid var(--gold);
+    background: #f8fafc;
+    margin-bottom: 10px;
+    border-radius: 0 8px 8px 0;
+}
+
+.status-tag {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: bold;
+    background: #fee2e2;
+    color: #be123c;
+}
+
+.status-tag.status-done {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+/* --- 9. FORMULAIRES --- */
+.luxe-input, input[type="text"], input[type="date"], select, textarea {
+    width: 100%;
+    padding: 12px;
+    margin-top: 8px;
+    margin-bottom: 15px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 1rem;
+}
+
+input:focus {
+    outline: none;
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(185, 157, 101, 0.2);
+}
