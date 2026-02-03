@@ -1,323 +1,182 @@
-// CONFIGURATION SUPABASE
+// --- CONFIGURATION SUPABASE ---
 const supabaseUrl = 'https://ptiosrmpliffsjooedle.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0aW9zcm1wbGlmZnNqb29lZGxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgzMzY0MzgsImV4cCI6MjA4MzkxMjQzOH0.SdTtCooQsDcCIQdGddnDz2-lMM_X6yfNpVmAW4C7j7o';
 const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
+// --- VARIABLES GLOBALES ---
+let currentUser = JSON.parse(localStorage.getItem('alsatia_user'));
 let allDonors = [];
-let confirmCallback = null;
+let currentTab = 'dashboard';
 
-// --- 1. FONCTIONS DE CHARGEMENT (Déclarées en premier) ---
-
-async function loadDashboard() {
-    const feed = document.getElementById('urgent-feed');
-    if (!feed) return;
-
-    try {
-        const { data, error } = await supabaseClient
-            .from('donations')
-            .select('*, donors(last_name)')
-            .eq('thank_you_status', 'En attente')
-            .limit(6);
-
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-            feed.innerHTML = data.map(d => `
-                <div class="donation-item" style="border-left: 4px solid var(--danger);">
-                    <h4 style="margin:0;">${d.donors ? d.donors.last_name : 'Donateur inconnu'}</h4>
-                    <p style="margin:5px 0; font-weight:bold; color:var(--primary);">${d.amount} €</p>
-                    <button class="btn-primary" style="font-size:0.6rem; padding:4px 8px;" onclick="openDonorFile('${d.donor_id}')">Ouvrir fiche</button>
-                </div>
-            `).join('');
-        } else {
-            feed.innerHTML = '<p style="color:#94a3b8; font-size:0.8rem; padding:10px;">Aucun remerciement en attente.</p>';
-        }
-    } catch (err) {
-        console.error("Erreur Dashboard:", err);
-        feed.innerHTML = "Erreur de chargement du flux.";
-    }
-}
-
-async function loadDonors() {
-    try {
-        const { data, error } = await supabaseClient
-            .from('donors')
-            .select('*, donations(*)')
-            .order('last_name');
-        
-        if (error) throw error;
-
-        allDonors = data || [];
-        renderDonors(allDonors);
-        
-        // On lance le dashboard après avoir chargé les donateurs
-        await loadDashboard();
-        
-    } catch (err) {
-        console.error("Erreur globale loadDonors:", err);
-        showToast("Erreur de synchronisation");
-    }
-}
-
-// --- 2. INITIALISATION DE L'APP ---
-
+// --- 1. INITIALISATION & SÉCURITÉ ---
 async function init() {
-    try {
-        const { data: { session }, error } = await supabaseClient.auth.getSession();
-        if (error) throw error;
-        
-        if (!session) { 
-            window.location.href = 'login.html'; 
-            return; 
-        }
-        
-        // On charge les données
-        await loadDonors();
-        
-    } catch (err) {
-        console.error("Erreur d'initialisation:", err);
-        // Si erreur de connexion type network, on affiche un message
-        if(err.message.includes('fetch')) {
-            showToast("Problème de connexion au serveur Supabase");
-        }
+    if (!currentUser) {
+        window.location.href = 'login.html';
+        return;
+    }
+
+    // Affichage identité
+    document.getElementById('user-name-display').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
+    document.getElementById('current-portal-display').innerText = currentUser.portal;
+    if(document.getElementById('btn-my-portal')) {
+        document.getElementById('btn-my-portal').innerText = `🔒 Salon ${currentUser.portal.split(' ')[0]}`;
+    }
+
+    await loadAllData();
+}
+
+async function loadAllData() {
+    await loadDonors();
+    await loadDashboard();
+    await loadEvents();
+    if(currentTab === 'chat') loadGlobalChat('Global');
+}
+
+// --- 2. GESTION DES ONGLETS ---
+function switchTab(tabId) {
+    currentTab = tabId;
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('nav li').forEach(l => l.classList.remove('active'));
+    
+    document.getElementById(`tab-${tabId}`).classList.add('active');
+    document.getElementById(`nav-${tabId}`).classList.add('active');
+    
+    if(tabId === 'chat') loadGlobalChat('Global');
+}
+
+// --- 3. GESTION DES DONATEURS & FILTRAGE ---
+async function loadDonors() {
+    let query = supabaseClient.from('donors').select('*, donations(*)');
+
+    // FILTRE DE SÉCURITÉ : Les écoles ne voient que leurs donateurs
+    if (currentUser.portal !== 'Institut Alsatia') {
+        const schoolKeyword = currentUser.portal.split(' ')[1]; // Récupère "Herrade", "Martin" ou "Academia"
+        query = query.ilike('entities', `%${schoolKeyword}%`);
+    }
+
+    const { data, error } = await query.order('last_name');
+    if (!error) {
+        allDonors = data;
+        renderDonors(data);
     }
 }
 
-// --- 3. RENDU ET INTERFACE ---
-
-function renderDonors(list) {
-    const body = document.getElementById('donors-body');
-    if (!body) return;
-    
-    body.innerHTML = list.map(d => {
-        const total = d.donations?.reduce((sum, don) => sum + don.amount, 0) || 0;
-        const displayName = d.donor_type === 'Entreprise' ? d.last_name : `${d.last_name.toUpperCase()} ${d.first_name || ''}`;
+function renderDonors(data) {
+    const list = document.getElementById('donors-list');
+    list.innerHTML = data.map(d => {
+        const total = d.donations.reduce((sum, don) => sum + Number(don.amount), 0);
         return `
-        <tr>
-            <td><strong>${displayName}</strong><br><small>${d.city || '-'} | ${d.category || '-'}</small></td>
-            <td><b style="color:var(--primary)">${total.toLocaleString('fr-FR')} €</b></td>
-            <td><small>${d.last_contact_date ? new Date(d.last_contact_date).toLocaleDateString('fr-FR') : 'Jamais'}</small></td>
-            <td><button class="btn-primary" style="padding:6px 12px; font-size:0.75rem;" onclick="openDonorFile('${d.id}')">Dossier</button></td>
-        </tr>`;
+            <tr>
+                <td><strong>${d.last_name}</strong> ${d.first_name || ''}</td>
+                <td><small>${d.entities || ''}</small></td>
+                <td>${total} €</td>
+                <td><span class="status-tag ${d.next_action ? 'status-waiting' : ''}">${d.next_action || 'Aucune'}</span></td>
+                <td><button onclick="openDonorFile('${d.id}')" class="btn-primary" style="font-size:0.7rem;">Ouvrir</button></td>
+            </tr>
+        `;
     }).join('');
 }
 
-// --- 4. SYSTÈME DE MODALES ET TOASTS ---
+// --- 4. MESSAGERIE (DOSSIER & SALON) ---
+async function sendGlobalMessage() {
+    const input = document.getElementById('global-chat-input');
+    const portalTarget = document.querySelector('.btn-portal.active').innerText.includes('Général') ? 'Global' : currentUser.portal;
+    
+    if(!input.value) return;
 
-function customConfirm(message, callback) {
-    confirmCallback = callback;
-    const modal = document.getElementById('custom-confirm');
-    const msgEl = document.getElementById('confirm-message');
-    if(modal && msgEl) {
-        msgEl.innerText = message;
-        modal.style.display = 'block';
-    }
+    await supabaseClient.from('messages').insert([{
+        content: input.value,
+        author_id: currentUser.id,
+        author_name: `${currentUser.first_name} ${currentUser.last_name}`,
+        target_portal: portalTarget
+    }]);
+
+    input.value = '';
+    loadGlobalChat(portalTarget === 'Global' ? 'Global' : 'Privé');
 }
 
-function closeConfirm() { 
-    const modal = document.getElementById('custom-confirm');
-    if(modal) modal.style.display = 'none'; 
+async function loadGlobalChat(type) {
+    let query = supabaseClient.from('messages').select('*').is('donor_id', null);
+    
+    if(type === 'Global') {
+        query = query.eq('target_portal', 'Global');
+    } else {
+        query = query.eq('target_portal', currentUser.portal);
+    }
+
+    const { data } = await query.order('created_at', { ascending: true });
+    const chatBox = document.getElementById('global-chat-history');
+    
+    chatBox.innerHTML = data.map(m => `
+        <div class="chat-bubble ${m.author_id === currentUser.id ? 'my-msg' : ''}">
+            <div class="chat-meta">${m.author_name} • ${new Date(m.created_at).toLocaleTimeString()}</div>
+            <div>${m.content}</div>
+        </div>
+    `).join('');
+    chatBox.scrollTop = chatBox.scrollHeight;
 }
 
-// Configuration du bouton de confirmation une seule fois
-document.addEventListener('DOMContentLoaded', () => {
-    const btnYes = document.getElementById('confirm-yes');
-    if(btnYes) {
-        btnYes.onclick = () => { if (confirmCallback) confirmCallback(); closeConfirm(); };
-    }
-});
+// --- 5. AGENDA & DOCUMENTS (STORAGE) ---
+async function handleEventSubmit(e) {
+    e.preventDefault();
+    const files = document.getElementById('ev-files').files;
+    let urls = [];
 
+    // Upload fichiers
+    for (let file of files) {
+        const path = `events/${Date.now()}_${file.name}`;
+        const { data, error } = await supabaseClient.storage.from('event-files').upload(path, file);
+        if(!error) {
+            const { data: urlData } = supabaseClient.storage.from('event-files').getPublicUrl(path);
+            urls.push(urlData.publicUrl);
+        }
+    }
+
+    await supabaseClient.from('events').insert([{
+        title: document.getElementById('ev-title').value,
+        event_date: document.getElementById('ev-date').value,
+        description: document.getElementById('ev-desc').value,
+        portal: currentUser.portal,
+        created_by: `${currentUser.first_name} ${currentUser.last_name}`,
+        attachments: urls
+    }]);
+
+    closeModal('event-modal');
+    loadEvents();
+    showToast("Événement publié !");
+}
+
+async function loadEvents() {
+    const { data } = await supabaseClient.from('events').select('*').order('event_date', { ascending: true });
+    const container = document.getElementById('events-container');
+    
+    container.innerHTML = data.map(ev => `
+        <div class="card event-card">
+            <div class="chat-meta" style="color:var(--gold)">${new Date(ev.event_date).toLocaleDateString()} - ${ev.portal}</div>
+            <h4>${ev.title}</h4>
+            <p style="font-size:0.8rem;">${ev.description}</p>
+            <div class="event-media">
+                ${ev.attachments?.map(url => `<small onclick="window.open('${url}')" style="cursor:pointer; color:blue; display:block;">📄 Document joint</small>`).join('')}
+            </div>
+        </div>
+    `).join('');
+}
+
+// --- 6. UTILITAIRES ---
 function showToast(msg) {
     const t = document.getElementById('toast-notification');
-    if(!t) return;
-    t.innerText = msg; t.classList.add('show');
+    t.innerText = msg;
+    t.classList.add('show');
     setTimeout(() => t.classList.remove('show'), 3000);
 }
 
-// --- 5. ACTIONS ET FORMULAIRES ---
-
-function showDonorModal() {
-    document.getElementById('donor-modal').style.display = 'block';
-    document.getElementById('modal-body').innerHTML = `
-        <h2 class="section-title">Nouveau Dossier</h2>
-        <div style="display:flex; gap:20px; justify-content:center; padding:20px;">
-            <button class="btn-primary" onclick="renderDonorForm('Particulier')">👨 Particulier</button>
-            <button class="btn-primary" onclick="renderDonorForm('Entreprise')">🏢 Entreprise</button>
-        </div>`;
+function logout() {
+    localStorage.removeItem('alsatia_user');
+    window.location.href = 'login.html';
 }
 
-function renderDonorForm(type) {
-    document.getElementById('modal-body').innerHTML = `
-        <h2 class="section-title">Initialisation ${type}</h2>
-        <form onsubmit="saveNewDonor(event, '${type}')" class="luxe-form">
-            <div class="grid-2">
-                <div><label>Civilité</label><input type="text" id="n-civ" placeholder="M., Mme..."></div>
-                <div><label>Nom</label><input type="text" id="n-nom" required></div>
-            </div>
-            ${type === 'Particulier' ? '<label>Prénom</label><input type="text" id="n-pren" required>' : ''}
-            <label>Affectation :</label>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:5px; margin:10px 0; font-size:0.8rem;">
-                <label><input type="checkbox" name="entite" value="Institut Alsatia"> Institut Alsatia</label>
-                <label><input type="checkbox" name="entite" value="Cours Herrade"> Cours Herrade</label>
-                <label><input type="checkbox" name="entite" value="Collège Martin"> Collège Martin</label>
-                <label><input type="checkbox" name="entite" value="Academia Alsatia"> Academia Alsatia</label>
-            </div>
-            <button type="submit" class="btn-primary" style="width:100%; margin-top:20px;">Créer la fiche</button>
-        </form>`;
-}
+function openEventModal() { document.getElementById('event-modal').style.display = 'block'; }
+function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
-async function saveNewDonor(e, type) {
-    e.preventDefault();
-    const entites = Array.from(document.querySelectorAll('input[name="entite"]:checked')).map(el => el.value).join(', ');
-    const donor = { 
-        donor_type: type, last_name: document.getElementById('n-nom').value, 
-        first_name: type === 'Particulier' ? document.getElementById('n-pren').value : '',
-        title: document.getElementById('n-civ').value, entities: entites, country: 'France' 
-    };
-    const { data, error } = await supabaseClient.from('donors').insert([donor]).select();
-    if(!error) {
-        await loadDonors();
-        openDonorFile(data[0].id);
-    }
-}
-
-async function openDonorFile(id) {
-    const donor = allDonors.find(d => d.id === id);
-    if(!donor) return;
-    document.getElementById('donor-modal').style.display = 'block';
-    const body = document.getElementById('modal-body');
-    
-    body.innerHTML = `
-        <div class="fiche-header" style="display:flex; justify-content:space-between; align-items:start;">
-            <div>
-                <span class="status-tag status-done">${donor.donor_type}</span>
-                <h2 style="margin:5px 0 0 0;">${donor.title || ''} ${donor.first_name || ''} ${donor.last_name.toUpperCase()}</h2>
-            </div>
-            <button class="btn-danger" style="padding:5px 10px; font-size:0.7rem;" onclick="deleteDonor('${id}')">Supprimer Dossier</button>
-        </div>
-        <div class="fiche-grid">
-            <div class="luxe-form">
-                <h3 class="section-title">Informations</h3>
-                <div class="grid-2">
-                    <div><label>Email</label><input type="email" value="${donor.email || ''}" onchange="updateField('${id}', 'email', this.value)"></div>
-                    <div><label>Téléphone</label><input type="text" value="${donor.phone || ''}" onchange="updateField('${id}', 'phone', this.value)"></div>
-                </div>
-                <label>Adresse</label><input type="text" value="${donor.address || ''}" onchange="updateField('${id}', 'address', this.value)">
-                <div class="grid-2">
-                    <input type="text" value="${donor.zip_code || ''}" placeholder="CP" onchange="updateField('${id}', 'zip_code', this.value)">
-                    <input type="text" value="${donor.city || ''}" placeholder="Ville" onchange="updateField('${id}', 'city', this.value)">
-                </div>
-                <h3 class="section-title">Suivi Relationnel</h3>
-                <label>Prochaine Action</label>
-                <textarea style="border: 2px solid var(--gold)" onchange="updateField('${id}', 'next_action', this.value)">${donor.next_action || ''}</textarea>
-                <label>Notes</label>
-                <textarea style="height:80px;" onchange="updateField('${id}', 'notes', this.value)">${donor.notes || ''}</textarea>
-            </div>
-            <div>
-                <h3 class="section-title">Dons</h3>
-                <div style="background:#f1f5f9; padding:15px; border-radius:10px; margin-bottom:15px;">
-                    <div class="grid-2">
-                        <input type="number" id="don-mt" placeholder="Montant €">
-                        <input type="date" id="don-dt" value="${new Date().toISOString().split('T')[0]}">
-                    </div>
-                    <button class="btn-primary" style="width:100%; margin-top:10px;" onclick="submitDonation('${id}')">Ajouter Don</button>
-                </div>
-                <div style="max-height:350px; overflow-y:auto;">
-                    ${donor.donations?.sort((a,b) => new Date(b.date) - new Date(a.date)).map(don => `
-                        <div class="donation-item" style="border-left: 4px solid ${don.thank_you_status === 'Effectué' ? 'var(--success)' : 'var(--danger)'}; position:relative;">
-                            <button class="btn-delete-small" onclick="deleteDonation('${don.id}', '${id}')" style="position:absolute; right:5px; top:5px; border:none; background:none; cursor:pointer;">×</button>
-                            <div class="grid-2">
-                                <input type="number" value="${don.amount}" onchange="updateDonationField('${don.id}', 'amount', this.value, '${id}')" style="font-weight:bold; border:none; background:transparent;">
-                                <span style="font-size:0.8rem; color:#666;">${new Date(don.date).toLocaleDateString()}</span>
-                            </div>
-                            <div style="margin-top:10px; display:flex; justify-content:space-between; align-items:center;">
-                                <span class="status-tag ${don.thank_you_status === 'Effectué' ? 'status-done' : 'status-waiting'}" style="font-size:0.6rem;">${don.thank_you_status}</span>
-                                <button class="btn-primary" style="padding:4px 8px; font-size:0.6rem;" onclick="markAsThanked('${don.id}', '${id}')">Marquer Remercié</button>
-                            </div>
-                        </div>
-                    `).join('') || 'Aucun historique.'}
-                </div>
-            </div>
-        </div>`;
-}
-
-// --- 6. ACTIONS BASE DE DONNÉES ---
-
-async function updateField(id, field, value) {
-    const { error } = await supabaseClient.from('donors').update({ [field]: value }).eq('id', id);
-    if(!error) showToast("Donnée sauvegardée");
-}
-
-async function updateDonationField(donId, field, value, donorId) {
-    await supabaseClient.from('donations').update({ [field]: value }).eq('id', donId);
-    showToast("Montant mis à jour");
-    await loadDonors();
-}
-
-async function submitDonation(donorId) {
-    const mt = document.getElementById('don-mt').value;
-    const dt = document.getElementById('don-dt').value;
-    if(!mt) return;
-    const { error } = await supabaseClient.from('donations').insert([{ donor_id: donorId, amount: parseFloat(mt), date: dt }]);
-    if(!error) {
-        showToast("Nouveau don enregistré");
-        await loadDonors();
-        openDonorFile(donorId);
-    }
-}
-
-async function markAsThanked(donId, donorId) {
-    await supabaseClient.from('donations').update({ thank_you_status: 'Effectué' }).eq('id', donId);
-    showToast("Statut mis à jour");
-    await loadDonors();
-    openDonorFile(donorId);
-}
-
-async function deleteDonor(id) {
-    customConfirm("Voulez-vous supprimer ce dossier et tout son historique ?", async () => {
-        const { error } = await supabaseClient.from('donors').delete().eq('id', id);
-        if(!error) {
-            closeModal();
-            await loadDonors();
-            showToast("Dossier supprimé");
-        }
-    });
-}
-
-async function deleteDonation(donId, donorId) {
-    customConfirm("Supprimer ce don ?", async () => {
-        await supabaseClient.from('donations').delete().eq('id', donId);
-        await loadDonors();
-        openDonorFile(donorId);
-        showToast("Don supprimé");
-    });
-}
-
-// --- 7. UTILITAIRES ---
-
-function filterDonors() {
-    const q = document.getElementById('search-input').value.toLowerCase();
-    const filtered = allDonors.filter(d => 
-        d.last_name.toLowerCase().includes(q) || 
-        (d.city && d.city.toLowerCase().includes(q))
-    );
-    renderDonors(filtered);
-}
-
-function switchTab(t) {
-    document.querySelectorAll('.tab-content, .nav-links li').forEach(el => el.classList.remove('active'));
-    document.getElementById(`tab-${t}`).classList.add('active');
-    document.getElementById(`nav-${t}`).classList.add('active');
-}
-
-function closeModal() { 
-    document.getElementById('donor-modal').style.display = 'none'; 
-}
-
-async function logout() { 
-    await supabaseClient.auth.signOut(); 
-    window.location.href = 'login.html'; 
-}
-
-// Lancement
+// Démarrage
 window.onload = init;
