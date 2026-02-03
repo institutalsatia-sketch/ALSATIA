@@ -3,76 +3,130 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CRM Institut Alsatia - Expert Edition</title>
+    <title>CRM - Institut Alsatia</title>
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
-    <div id="app-container">
-        <nav class="sidebar">
-            <div class="logo-container"><h1>INSTITUT ALSATIA</h1></div>
-            <ul class="nav-links">
-                <li id="nav-dashboard" class="active" onclick="switchTab('dashboard')">Tableau de Bord</li>
-                <li id="nav-donors" onclick="switchTab('donors')">Base Donateurs</li>
+
+    <header>
+        <div class="logo-gold" id="current-portal-display">Institut Alsatia</div>
+        <nav>
+            <ul>
+                <li id="nav-dashboard" class="active" onclick="switchTab('dashboard')">📊 Dashboard</li>
+                <li id="nav-donors" onclick="switchTab('donors')">👥 Donateurs</li>
+                <li id="nav-events" onclick="switchTab('events')">📅 Événements</li>
+                <li id="nav-chat" onclick="switchTab('chat')">💬 Salon</li>
             </ul>
-            <div class="user-info">
-                <p id="user-name">Chargement...</p>
-                <button onclick="logout()" class="btn-logout">Déconnexion</button>
-            </div>
         </nav>
+        <div class="user-profile">
+            <span id="user-name-display">...</span>
+            <button onclick="logout()" class="btn-danger" style="margin-left:15px; padding:5px 10px;">Quitter</button>
+        </div>
+    </header>
 
-        <main class="main-content">
-            <section id="tab-dashboard" class="tab-content active">
-                <header><h2>Tableau de Bord</h2></header>
-                <div id="urgent-feed" class="urgent-grid"></div>
-            </section>
+    <div class="container">
 
-            <section id="tab-donors" class="tab-content">
-                <header class="flex-header">
-                    <h2>Base de Données</h2>
-                    <div class="actions-header">
-                        <button class="btn-export" onclick="exportToExcel()">📥 Export Excel</button>
-                        <button class="btn-primary" onclick="showDonorModal()">+ Nouveau Dossier</button>
-                    </div>
-                </header>
-                <div class="search-container">
-                    <input type="text" id="search-input" placeholder="Rechercher par Nom, Ville, Catégorie..." onkeyup="filterDonors()">
+        <section id="tab-dashboard" class="tab-content active">
+            <div class="grid-2">
+                <div class="card">
+                    <h3 class="section-title">🎁 Remerciements à traiter</h3>
+                    <div id="urgent-donations-feed" class="feed-container">
+                        </div>
                 </div>
-                <table>
+                <div class="card">
+                    <h3 class="section-title">💬 Activité Récente</h3>
+                    <div id="recent-activity-feed" class="feed-container">
+                        </div>
+                </div>
+            </div>
+            <div class="card" style="margin-top:20px;">
+                <h3 class="section-title">📅 Événements à venir (48h)</h3>
+                <div id="urgent-events-feed" class="feed-container"></div>
+            </div>
+        </section>
+
+        <section id="tab-donors" class="tab-content">
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                    <h2>Base Donateurs</h2>
+                    <button class="btn-primary" onclick="openNewDonorModal()">+ Nouveau Donateur</button>
+                </div>
+                <div class="search-bar">
+                    <input type="text" id="donor-search" placeholder="Rechercher par nom, ville ou entité..." oninput="filterDonors()">
+                </div>
+                <table id="donors-table">
                     <thead>
                         <tr>
-                            <th>Identité / Entité</th>
+                            <th>Nom / Raison Sociale</th>
+                            <th>Entités</th>
                             <th>Total Dons</th>
-                            <th>Dernier Contact</th>
+                            <th>Prochaine Action</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody id="donors-body"></tbody>
+                    <tbody id="donors-list"></tbody>
                 </table>
-            </section>
-        </main>
+            </div>
+        </section>
+
+        <section id="tab-events" class="tab-content">
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h2>Agenda & Documents</h2>
+                    <button class="btn-primary" onclick="openEventModal()">+ Ajouter un événement</button>
+                </div>
+                <div id="events-container" class="grid-2" style="margin-top:20px;">
+                    </div>
+            </div>
+        </section>
+
+        <section id="tab-chat" class="tab-content">
+            <div class="card chat-main-container">
+                <div class="chat-sidebar">
+                    <button class="btn-portal active" onclick="loadGlobalChat('Global')">🌍 Salon Général</button>
+                    <button class="btn-portal" id="btn-my-portal" onclick="loadGlobalChat('Privé')">🔒 Mon École</button>
+                </div>
+                <div class="chat-area">
+                    <div id="global-chat-history" class="chat-box" style="height:500px;"></div>
+                    <div class="chat-input-area">
+                        <input type="text" id="global-chat-input" placeholder="Écrire un message à l'équipe...">
+                        <button class="btn-primary" onclick="sendGlobalMessage()">Envoyer</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
     </div>
 
     <div id="donor-modal" class="modal">
-        <div class="modal-content large">
-            <span class="close" onclick="closeModal()">&times;</span>
-            <div id="modal-body"></div>
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('donor-modal')">&times;</span>
+            <div id="donor-detail-content">
+                </div>
         </div>
     </div>
 
-    <div id="custom-confirm" class="modal">
-        <div class="modal-content small confirm-box">
-            <h3 id="confirm-title" class="section-title">Confirmation</h3>
-            <p id="confirm-message" style="margin: 20px 0;"></p>
-            <div class="confirm-actions">
-                <button id="confirm-yes" class="btn-danger">Confirmer</button>
-                <button onclick="closeConfirm()" class="btn-export">Annuler</button>
-            </div>
+    <div id="event-modal" class="modal">
+        <div class="modal-content" style="max-width:500px;">
+            <span class="close" onclick="closeModal('event-modal')">&times;</span>
+            <h3 class="section-title">Nouvel Événement</h3>
+            <form id="event-form" onsubmit="handleEventSubmit(event)">
+                <label>Nom de l'événement</label>
+                <input type="text" id="ev-title" required class="luxe-input">
+                <label>Date</label>
+                <input type="date" id="ev-date" required class="luxe-input">
+                <label>Description</label>
+                <textarea id="ev-desc" class="luxe-input" rows="3"></textarea>
+                <label>Documents / Photos</label>
+                <input type="file" id="ev-files" multiple class="luxe-input">
+                <button type="submit" class="btn-primary" style="width:100%;">Enregistrer</button>
+            </form>
         </div>
     </div>
 
-    <div id="toast-notification" class="toast">Action réussie</div>
+    <div id="toast-notification">Notification</div>
 
     <script src="app.js"></script>
 </body>
