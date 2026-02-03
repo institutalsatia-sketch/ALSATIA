@@ -1,51 +1,19 @@
-// --- CONFIGURATION SUPABASE ---
+// --- 1. CONFIGURATION ET VARIABLES ---
 const supabaseUrl = 'https://ptiosrmpliffsjooedle.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0aW9zcm1wbGlmZnNqb29lZGxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgzMzY0MzgsImV4cCI6MjA4MzkxMjQzOH0.SdTtCooQsDcCIQdGddnDz2-lMM_X6yfNpVmAW4C7j7o';
 const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
-// --- VARIABLES GLOBALES ---
 let currentUser = JSON.parse(localStorage.getItem('alsatia_user'));
 let allDonors = [];
-let currentTab = 'dashboard';
 
-// --- 1. INITIALISATION ---
-async function init() {
-    if (!currentUser) {
-        window.location.href = 'login.html';
-        return;
-    }
+// --- 2. FONCTIONS DE CHARGEMENT (DÉFINITIONS) ---
 
-    document.getElementById('user-name-display').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
-    document.getElementById('current-portal-display').innerText = currentUser.portal;
-    
-    await loadAllData();
-}
-
-async function loadAllData() {
-    await loadDonors();
-    await loadDashboard();
-    await loadEvents();
-}
-
-// --- 2. NAVIGATION ---
-function switchTab(tabId) {
-    currentTab = tabId;
-    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('nav li').forEach(l => l.classList.remove('active'));
-    
-    document.getElementById(`tab-${tabId}`).classList.add('active');
-    document.getElementById(`nav-${tabId}`).classList.add('active');
-    
-    if(tabId === 'chat') loadGlobalChat('Global');
-    if(tabId === 'dashboard') loadDashboard();
-}
-
-// --- 3. DASHBOARD (Correction erreur loadDashboard is not defined) ---
+// Charger le Dashboard
 async function loadDashboard() {
+    console.log("Chargement du Dashboard...");
     const feedDons = document.getElementById('urgent-donations-feed');
     if (!feedDons) return;
 
-    // Récupérer les dons en attente
     const { data, error } = await supabaseClient
         .from('donations')
         .select('*, donors(last_name)')
@@ -53,7 +21,7 @@ async function loadDashboard() {
         .limit(5);
 
     if (error) {
-        feedDons.innerHTML = "Erreur de chargement.";
+        feedDons.innerHTML = "Erreur de chargement des dons.";
         return;
     }
 
@@ -62,11 +30,12 @@ async function loadDashboard() {
             <strong>${d.donors?.last_name || 'Inconnu'}</strong> : ${d.amount} €
             <button onclick="openDonorFile('${d.donor_id}')" class="btn-primary" style="font-size:0.6rem; float:right;">Voir</button>
         </div>
-    `).join('') : "Aucun don en attente de remerciement.";
+    `).join('') : "Aucun don en attente.";
 }
 
-// --- 4. GESTION DES DONATEURS ---
+// Charger les Donateurs
 async function loadDonors() {
+    console.log("Chargement des Donateurs...");
     let query = supabaseClient.from('donors').select('*, donations(*)');
 
     if (currentUser.portal !== 'Institut Alsatia') {
@@ -98,7 +67,22 @@ function renderDonors(data) {
     }).join('');
 }
 
-// --- 5. MODALES (Correction erreur openNewDonorModal) ---
+// Charger les Événements
+async function loadEvents() {
+    const { data } = await supabaseClient.from('events').select('*').order('event_date', { ascending: true });
+    const container = document.getElementById('events-container');
+    if(!container) return;
+    container.innerHTML = data ? data.map(ev => `
+        <div class="card">
+            <small style="color:var(--gold)">${new Date(ev.event_date).toLocaleDateString()}</small>
+            <h4>${ev.title}</h4>
+            <p>${ev.description || ''}</p>
+        </div>
+    `).join('') : "Aucun événement.";
+}
+
+// --- 3. ACTIONS ET MODALES ---
+
 function openNewDonorModal() {
     const modal = document.getElementById('donor-modal');
     const content = document.getElementById('donor-detail-content');
@@ -130,52 +114,65 @@ async function handleNewDonor(e) {
     if (!error) {
         closeModal('donor-modal');
         loadDonors();
-        showToast("Donateur créé avec succès");
+        showToast("Donateur créé !");
     }
 }
 
-// --- 6. SALON DE CHAT (Correction erreur 400 et map null) ---
-async function loadGlobalChat(type) {
-    const chatBox = document.getElementById('global-chat-history');
-    if (!chatBox) return;
+async function openDonorFile(donorId) {
+    const modal = document.getElementById('donor-modal');
+    const content = document.getElementById('donor-detail-content');
+    modal.style.display = 'block';
+    content.innerHTML = "Chargement...";
 
-    let query = supabaseClient.from('messages').select('*').is('donor_id', null);
-    
-    if(type === 'Global') {
-        query = query.eq('target_portal', 'Global');
-    } else {
-        query = query.eq('target_portal', currentUser.portal);
-    }
+    const { data: donor } = await supabaseClient.from('donors').select('*, donations(*), messages(*)').eq('id', donorId).single();
 
-    const { data, error } = await query.order('created_at', { ascending: true });
-    
-    if (error || !data) {
-        chatBox.innerHTML = "Aucun message.";
+    content.innerHTML = `
+        <h2>${donor.last_name}</h2>
+        <p>Type: ${donor.donor_type} | Entités: ${donor.entities}</p>
+        <hr style="margin:20px 0;">
+        <div class="grid-2">
+            <div>
+                <h3>Dons</h3>
+                <input type="number" id="new-don-amount" placeholder="Montant €" class="luxe-input">
+                <button onclick="addDonation('${donor.id}')" class="btn-primary">Ajouter Don</button>
+            </div>
+            <div>
+                <h3>Notes internes</h3>
+                <div style="height:150px; overflow-y:auto; background:#f8fafc; padding:10px; margin-bottom:10px;">
+                    ${donor.messages?.map(m => `<p><strong>${m.author_name}:</strong> ${m.content}</p>`).join('') || 'Aucune note.'}
+                </div>
+                <input type="text" id="donor-chat-input" placeholder="Ajouter une note..." class="luxe-input">
+                <button onclick="sendDonorMessage('${donor.id}')" class="btn-primary">Publier</button>
+            </div>
+        </div>
+    `;
+}
+
+// --- 4. NAVIGATION ET INITIALISATION ---
+
+async function loadAllData() {
+    // On appelle les fonctions DÉJÀ définies plus haut
+    await loadDonors();
+    await loadDashboard();
+    await loadEvents();
+}
+
+async function init() {
+    if (!currentUser) {
+        window.location.href = 'login.html';
         return;
     }
-
-    chatBox.innerHTML = data.map(m => `
-        <div class="chat-bubble ${m.author_id === currentUser.id ? 'my-msg' : ''}">
-            <div class="chat-meta">${m.author_name} • ${new Date(m.created_at).toLocaleTimeString()}</div>
-            <div>${m.content}</div>
-        </div>
-    `).join('');
-    chatBox.scrollTop = chatBox.scrollHeight;
+    document.getElementById('user-name-display').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
+    document.getElementById('current-portal-display').innerText = currentUser.portal;
+    
+    await loadAllData();
 }
 
-// --- 7. AGENDA & EVENTS ---
-async function loadEvents() {
-    const { data } = await supabaseClient.from('events').select('*').order('event_date', { ascending: true });
-    const container = document.getElementById('events-container');
-    if(!container) return;
-    
-    container.innerHTML = data ? data.map(ev => `
-        <div class="card">
-            <small style="color:var(--gold)">${new Date(ev.event_date).toLocaleDateString()}</small>
-            <h4>${ev.title}</h4>
-            <p>${ev.description || ''}</p>
-        </div>
-    `).join('') : "Aucun événement prévu.";
+function switchTab(tabId) {
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('nav li').forEach(l => l.classList.remove('active'));
+    document.getElementById(`tab-${tabId}`).classList.add('active');
+    document.getElementById(`nav-${tabId}`).classList.add('active');
 }
 
 // --- UTILITAIRES ---
@@ -185,6 +182,6 @@ function showToast(msg) {
     t.innerText = msg; t.classList.add('show');
     setTimeout(() => t.classList.remove('show'), 3000);
 }
-function logout() { localStorage.removeItem('alsatia_user'); window.location.href = 'login.html'; }
 
+// DÉMARRAGE DU SCRIPT
 window.onload = init;
