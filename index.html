@@ -6,7 +6,6 @@
     <title>CRM - Institut Alsatia</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
 
@@ -27,102 +26,49 @@
     </header>
 
     <div class="container">
-
         <section id="tab-dashboard" class="tab-content active">
             <div class="grid-2">
                 <div class="card">
-                    <h3 class="section-title">🎁 Remerciements à traiter</h3>
-                    <div id="urgent-donations-feed" class="feed-container">
-                        </div>
+                    <h3>🎁 Remerciements à traiter</h3>
+                    <div id="urgent-donations-feed" class="feed-container">Chargement...</div>
                 </div>
                 <div class="card">
-                    <h3 class="section-title">💬 Activité Récente</h3>
-                    <div id="recent-activity-feed" class="feed-container">
-                        </div>
+                    <h3>📅 Événements</h3>
+                    <div id="events-container" class="feed-container"></div>
                 </div>
-            </div>
-            <div class="card" style="margin-top:20px;">
-                <h3 class="section-title">📅 Événements à venir (48h)</h3>
-                <div id="urgent-events-feed" class="feed-container"></div>
             </div>
         </section>
 
         <section id="tab-donors" class="tab-content">
             <div class="card">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
                     <h2>Base Donateurs</h2>
                     <button class="btn-primary" onclick="openNewDonorModal()">+ Nouveau Donateur</button>
                 </div>
-                <div class="search-bar">
-                    <input type="text" id="donor-search" placeholder="Rechercher par nom, ville ou entité..." oninput="filterDonors()">
-                </div>
-                <table id="donors-table">
+                <table>
                     <thead>
-                        <tr>
-                            <th>Nom / Raison Sociale</th>
-                            <th>Entités</th>
-                            <th>Total Dons</th>
-                            <th>Prochaine Action</th>
-                            <th>Actions</th>
-                        </tr>
+                        <tr><th>Nom</th><th>Entités</th><th>Total</th><th>Action</th><th>Dossier</th></tr>
                     </thead>
                     <tbody id="donors-list"></tbody>
                 </table>
             </div>
         </section>
 
-        <section id="tab-events" class="tab-content">
-            <div class="card">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <h2>Agenda & Documents</h2>
-                    <button class="btn-primary" onclick="openEventModal()">+ Ajouter un événement</button>
-                </div>
-                <div id="events-container" class="grid-2" style="margin-top:20px;">
-                    </div>
-            </div>
-        </section>
-
         <section id="tab-chat" class="tab-content">
-            <div class="card chat-main-container">
-                <div class="chat-sidebar">
-                    <button class="btn-portal active" onclick="loadGlobalChat('Global')">🌍 Salon Général</button>
-                    <button class="btn-portal" id="btn-my-portal" onclick="loadGlobalChat('Privé')">🔒 Mon École</button>
-                </div>
-                <div class="chat-area">
-                    <div id="global-chat-history" class="chat-box" style="height:500px;"></div>
-                    <div class="chat-input-area">
-                        <input type="text" id="global-chat-input" placeholder="Écrire un message à l'équipe...">
-                        <button class="btn-primary" onclick="sendGlobalMessage()">Envoyer</button>
-                    </div>
+            <div class="card">
+                <div id="global-chat-history" style="height:400px; overflow-y:auto; border:1px solid #eee; padding:15px; margin-bottom:10px;"></div>
+                <div style="display:flex; gap:10px;">
+                    <input type="text" id="global-chat-input" placeholder="Message..." class="luxe-input">
+                    <button onclick="sendGlobalMessage()" class="btn-primary">Envoyer</button>
                 </div>
             </div>
         </section>
-
     </div>
 
     <div id="donor-modal" class="modal">
         <div class="modal-content">
-            <span class="close" onclick="closeModal('donor-modal')">&times;</span>
-            <div id="donor-detail-content">
-                </div>
-        </div>
-    </div>
-
-    <div id="event-modal" class="modal">
-        <div class="modal-content" style="max-width:500px;">
-            <span class="close" onclick="closeModal('event-modal')">&times;</span>
-            <h3 class="section-title">Nouvel Événement</h3>
-            <form id="event-form" onsubmit="handleEventSubmit(event)">
-                <label>Nom de l'événement</label>
-                <input type="text" id="ev-title" required class="luxe-input">
-                <label>Date</label>
-                <input type="date" id="ev-date" required class="luxe-input">
-                <label>Description</label>
-                <textarea id="ev-desc" class="luxe-input" rows="3"></textarea>
-                <label>Documents / Photos</label>
-                <input type="file" id="ev-files" multiple class="luxe-input">
-                <button type="submit" class="btn-primary" style="width:100%;">Enregistrer</button>
-            </form>
+            <span class="close" onclick="closeModal('donor-modal')" style="float:right; cursor:pointer; font-size:24px;">&times;</span>
+            <div id="donor-detail-content"></div>
         </div>
     </div>
 
