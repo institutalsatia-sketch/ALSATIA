@@ -282,3 +282,62 @@ function listenRealtime() {
 }
 
 window.handleFileUpload = (input) => { if(input.files[0]) { selectedFile = input.files[0]; document.getElementById('file-preview').innerText = "📎 " + selectedFile.name; } };
+
+// ========================== GESTION DES SUJETS (CHANNELS) ==========================
+
+window.showNewSubjectModal = () => {
+    document.getElementById('custom-modal').style.display = 'flex';
+    document.getElementById('modal-body').innerHTML = `
+        <h3 style="color:var(--primary);">Créer un nouveau sujet</h3>
+        <p style="font-size:0.8rem; margin-bottom:15px;">Exemple : #Gala2024, #Travaux, #Direction</p>
+        <input type="text" id="n-subject-name" placeholder="Nom du sujet (sans espaces)" class="luxe-input">
+        <div style="display:flex; gap:10px; margin-top:20px;">
+            <button onclick="execCreateSubject()" class="btn-gold" style="flex:1; justify-content:center;">Créer</button>
+            <button onclick="closeCustomModal()" class="btn-danger" style="flex:1; background:#666;">Annuler</button>
+        </div>
+    `;
+};
+
+window.execCreateSubject = async () => {
+    const name = document.getElementById('n-subject-name').value.trim().replace(/\s+/g, '-');
+    if(!name) return;
+
+    const { error } = await supabaseClient
+        .from('chat_subjects')
+        .insert([{ name: name }]);
+
+    if(error) {
+        console.error("Erreur création sujet:", error);
+        alert("Ce sujet existe déjà ou une erreur est survenue.");
+    } else {
+        closeCustomModal();
+        loadSubjects(); // Recharge la liste déroulante
+    }
+};
+
+window.askDeleteSubject = () => {
+    const subj = document.getElementById('chat-subject-filter').value;
+    if(!subj) return;
+
+    document.getElementById('custom-modal').style.display = 'flex';
+    document.getElementById('modal-body').innerHTML = `
+        <h3 style="color:var(--danger);">Supprimer le sujet #${subj} ?</h3>
+        <p style="font-size:0.8rem;">Attention : Cela ne supprimera pas les messages, mais le canal ne sera plus visible.</p>
+        <div style="display:flex; gap:10px; margin-top:20px;">
+            <button onclick="execDeleteSubject('${subj}')" class="btn-danger" style="flex:1; justify-content:center;">Confirmer</button>
+            <button onclick="closeCustomModal()" class="btn-gold" style="flex:1;">Annuler</button>
+        </div>
+    `;
+};
+
+window.execDeleteSubject = async (name) => {
+    const { error } = await supabaseClient
+        .from('chat_subjects')
+        .delete()
+        .eq('name', name);
+
+    if(!error) {
+        closeCustomModal();
+        loadSubjects();
+    }
+};
