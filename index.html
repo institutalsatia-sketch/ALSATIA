@@ -17,7 +17,7 @@
 
     <nav class="side-nav">
         <div class="logo-area">
-            <img src="logo_alsatia.png" alt="Institut Alsatia" class="logo">
+            <div class="logo-placeholder" style="font-size: 2.5rem; margin-bottom: 10px;">⚜️</div>
             <span class="portal-tag" id="current-portal-display">Chargement...</span>
         </div>
         
@@ -28,7 +28,7 @@
         </ul>
 
         <div class="user-bottom">
-            <span id="user-name-display">Utilisateur</span>
+            <span id="user-name-display" style="display:block; margin-bottom:5px; font-weight:600;">Utilisateur</span>
             <button onclick="logout()" class="btn-logout">Déconnexion</button>
         </div>
     </nav>
@@ -38,7 +38,6 @@
         <section id="tab-chat" class="tab-content active">
             <div class="header-tab">
                 <h1>Salon de Discussion</h1>
-                <p>Échanges en temps réel entre les entités.</p>
             </div>
             <div id="global-chat-history" class="chat-box"></div>
             <div class="chat-input-area">
@@ -70,8 +69,7 @@
                             <th>Action</th>
                         </tr>
                     </thead>
-                    <tbody id="donors-list">
-                        </tbody>
+                    <tbody id="donors-list"></tbody>
                 </table>
             </div>
         </section>
@@ -79,10 +77,9 @@
         <section id="tab-events" class="tab-content">
             <div class="header-tab">
                 <h1>Gestion des Événements</h1>
-                <p>À venir : Organisation, invitations et pointage.</p>
             </div>
+            <p>Module en cours de configuration...</p>
         </section>
-
     </main>
 
     <div id="donor-modal" class="modal-overlay">
@@ -93,11 +90,11 @@
 
     <div id="confirm-modal" class="confirm-overlay">
         <div class="confirm-box">
-            <h3 class="gold-title">Confirmation Requise</h3>
-            <p id="confirm-msg">Êtes-vous sûr de vouloir effectuer cette action ?</p>
+            <h3 class="gold-title">Confirmation</h3>
+            <p id="confirm-msg" style="margin: 20px 0;"></p>
             <div class="confirm-btns">
-                <button id="confirm-yes" class="btn-danger-action">Confirmer la suppression</button>
-                <button onclick="document.getElementById('confirm-modal').style.display='none'" class="btn-outline">Annuler</button>
+                <button id="confirm-yes" class="btn-danger-action">Confirmer</button>
+                <button onclick="closeConfirm()" class="btn-outline">Annuler</button>
             </div>
         </div>
     </div>
