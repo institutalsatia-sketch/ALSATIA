@@ -1,212 +1,249 @@
-/* --- CRM INSTITUT ALSATIA - FEUILLE DE STYLE PRO --- */
-
+/* --- VARIABLES ET DESIGN SYSTEM --- */
 :root {
-    --primary: #0f172a;       /* Bleu Nuit Profond */
-    --gold: #b99d65;          /* Or Institut */
-    --gold-light: #d4c197;
-    --bg-light: #f8fafc;
+    --primary: #0f172a;       /* Bleu Nuit */
+    --gold: #b99d65;          /* Or Alsatia */
+    --gold-hover: #d4c197;
+    --bg-main: #f1f5f9;
     --white: #ffffff;
+    --text-dark: #1e293b;
+    --text-muted: #64748b;
     --danger: #ef4444;
     --success: #10b981;
     --border: #e2e8f0;
-    --shadow-luxe: 0 10px 25px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    --shadow-luxe: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
-/* --- STRUCTURE DE LA FICHE PRO --- */
-.pro-fiche {
-    padding: 10px;
-    color: var(--primary);
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
 }
 
-.fiche-header {
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-main);
+    color: var(--text-dark);
     display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    border-bottom: 2px solid var(--gold);
-    padding-bottom: 15px;
-    margin-bottom: 25px;
+    height: 100vh;
+    overflow: hidden;
 }
 
-.gold-title {
+/* --- NAVIGATION LATERALE --- */
+.side-nav {
+    width: 280px;
+    background-color: var(--primary);
+    color: white;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    box-shadow: 4px 0 10px rgba(0,0,0,0.1);
+}
+
+.logo-area {
+    text-align: center;
+    padding-bottom: 30px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    margin-bottom: 20px;
+}
+
+.logo {
+    width: 80px;
+    margin-bottom: 10px;
+}
+
+.portal-tag {
+    display: block;
+    font-size: 0.75rem;
     color: var(--gold);
     text-transform: uppercase;
     letter-spacing: 1px;
     font-weight: 700;
 }
 
-/* --- GRILLES ET CARTES --- */
-.grid-2 {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 25px;
+.side-nav ul {
+    list-style: none;
+    flex-grow: 1;
 }
 
-.full-width {
-    grid-column: span 2;
-}
-
-.card-inner {
-    background: #ffffff;
-    border: 1px solid var(--border);
-    padding: 20px;
-    border-radius: 12px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
-}
-
-.card-inner h3 {
-    font-size: 0.95rem;
-    color: var(--gold);
-    margin-bottom: 15px;
+.side-nav li {
+    padding: 14px 18px;
+    margin-bottom: 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-weight: 500;
     display: flex;
     align-items: center;
-    gap: 8px;
-    border-bottom: 1px solid #f1f5f9;
-    padding-bottom: 8px;
-}
-
-/* --- FORMULAIRES LUXE --- */
-.input-stack {
-    display: flex;
-    flex-direction: column;
     gap: 12px;
 }
 
-label {
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    margin-bottom: -8px;
+.side-nav li:hover, .side-nav li.active {
+    background-color: var(--gold);
+    color: white;
 }
 
-.luxe-input {
+.user-bottom {
+    padding-top: 20px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+}
+
+.btn-logout {
     width: 100%;
-    padding: 12px;
-    border: 1.5px solid var(--border);
-    border-radius: 8px;
-    font-size: 0.9rem;
-    transition: all 0.2s;
-    background: #fdfdfd;
-}
-
-.luxe-input:focus {
-    outline: none;
-    border-color: var(--gold);
-    box-shadow: 0 0 0 3px rgba(185, 157, 101, 0.15);
-}
-
-/* --- TRAÇABILITÉ ET SIGNATURES --- */
-.signature-info {
-    margin-top: 15px;
-    font-size: 0.8rem;
-    font-style: italic;
-    color: var(--gold);
-    background: #fefce8;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.3);
+    color: white;
     padding: 8px;
     border-radius: 6px;
-    border-left: 3px solid var(--gold);
+    margin-top: 10px;
+    cursor: pointer;
 }
 
-.notes-container {
-    max-height: 250px;
+/* --- CONTENU PRINCIPAL --- */
+.main-content {
+    flex-grow: 1;
     overflow-y: auto;
-    background: #f8fafc;
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 15px;
+    padding: 40px;
 }
 
-.note-item {
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+    animation: fadeIn 0.4s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.header-tab {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+.header-tab h1 {
+    font-size: 1.8rem;
+    color: var(--primary);
+    font-weight: 700;
+}
+
+/* --- CRM & TABLEAUX --- */
+.search-container {
+    position: relative;
+    margin-bottom: 25px;
+}
+
+.search-input {
+    width: 100%;
+    padding: 16px 20px;
+    border-radius: 12px;
+    border: 2px solid var(--border);
+    font-size: 1rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    transition: border-color 0.3s;
+}
+
+.search-input:focus {
+    border-color: var(--gold);
+    outline: none;
+}
+
+.table-container {
     background: white;
-    padding: 12px;
-    border-radius: 8px;
-    margin-bottom: 10px;
-    border: 1px solid var(--border);
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: var(--shadow-luxe);
 }
 
-.note-meta {
-    font-size: 0.7rem;
-    color: var(--gold);
-    margin-bottom: 5px;
-    border-bottom: 1px dashed #eee;
-    padding-bottom: 3px;
-}
-
-.note-body {
-    font-size: 0.85rem;
-    line-height: 1.4;
-}
-
-/* --- TABLEAUX DE DONS --- */
-.luxe-table {
+.luxe-table-main {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 10px;
-    font-size: 0.85rem;
 }
 
-.luxe-table th {
+.luxe-table-main th {
+    background-color: #f8fafc;
+    padding: 15px 20px;
     text-align: left;
-    padding: 12px;
-    background: #f1f5f9;
-    color: var(--primary);
+    font-size: 0.8rem;
     text-transform: uppercase;
-    font-size: 0.7rem;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
 }
 
-.luxe-table td {
-    padding: 12px;
-    border-bottom: 1px solid #f1f5f9;
+.luxe-table-main td {
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--border);
 }
 
-.table-input {
-    border: 1px solid transparent;
-    padding: 4px 8px;
-    border-radius: 4px;
-    width: 100%;
-    background: #f8fafc;
+/* --- FICHE DONATEUR (DANS MODALE) --- */
+.pro-fiche {
+    color: var(--primary);
 }
 
-.table-input:hover, .table-input:focus {
-    border-color: var(--gold);
-    background: white;
+.fiche-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid var(--gold);
 }
 
-/* --- BOUTONS D'ACTION --- */
-.btn-save {
-    background: var(--primary);
-    color: white;
-    padding: 12px 25px;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
-    border: none;
-    transition: 0.3s;
-}
-
-.btn-save:hover {
-    background: #1e293b;
-    transform: translateY(-1px);
-}
-
-.btn-sm-gold {
-    background: var(--gold);
-    color: white;
-    border: none;
-    padding: 6px 12px;
-    border-radius: 6px;
+.signature-tag {
     font-size: 0.75rem;
+    background: #f1f5f9;
+    padding: 4px 10px;
+    border-radius: 20px;
+    color: var(--text-muted);
+}
+
+.grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.card-inner {
+    background: #fff;
+    border: 1px solid var(--border);
+    padding: 20px;
+    border-radius: 12px;
+}
+
+.full-width { grid-column: span 2; }
+
+/* --- INPUTS & BOUTONS --- */
+.luxe-input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-top: 5px;
+    margin-bottom: 12px;
+}
+
+.btn-save {
+    background-color: var(--primary);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
     cursor: pointer;
 }
 
 .btn-outline-gold {
-    background: transparent;
+    border: 2px solid var(--gold);
     color: var(--gold);
-    border: 1.5px solid var(--gold);
-    padding: 8px 15px;
+    background: transparent;
+    padding: 10px 20px;
     border-radius: 8px;
-    cursor: pointer;
     font-weight: 600;
+    cursor: pointer;
 }
 
 .btn-outline-gold:hover {
@@ -214,13 +251,96 @@ label {
     color: white;
 }
 
-.gold-text {
-    color: var(--gold);
-    font-weight: 700;
+/* --- MODALES --- */
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.6);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
 }
 
-/* --- RESPONSIVE --- */
-@media (max-width: 768px) {
-    .grid-2 { grid-template-columns: 1fr; }
-    .full-width { grid-column: span 1; }
+.modal-content {
+    background: white;
+    width: 90%;
+    max-width: 900px;
+    max-height: 90vh;
+    padding: 30px;
+    border-radius: 20px;
+    overflow-y: auto;
+    position: relative;
 }
+
+/* --- CONFIRMATION (CUSTOM) --- */
+.confirm-overlay {
+    position: fixed;
+    top:0; left:0; width:100%; height:100%;
+    background: rgba(15, 23, 42, 0.85);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 11000;
+}
+
+.confirm-box {
+    background: white;
+    padding: 40px;
+    border-radius: 20px;
+    text-align: center;
+    max-width: 400px;
+}
+
+.btn-danger-action {
+    background: var(--danger);
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+/* --- TOAST NOTIFICATIONS --- */
+#notification-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 12000;
+}
+
+.toast {
+    background: var(--primary);
+    color: white;
+    padding: 16px 28px;
+    border-radius: 12px;
+    margin-bottom: 10px;
+    box-shadow: var(--shadow-luxe);
+    transform: translateX(150%);
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    border-left: 6px solid var(--gold);
+}
+
+.toast.show { transform: translateX(0); }
+.toast-error { border-left-color: var(--danger); }
+
+/* --- NOTES & DONS --- */
+.note-row {
+    display: flex;
+    justify-content: space-between;
+    background: #f8fafc;
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+}
+
+.btn-icon {
+    background: none;
+    border: none;
+    cursor: pointer;
+    filter: grayscale(1);
+    transition: 0.2s;
+}
+
+.btn-icon:hover { filter: grayscale(0); transform: scale(1.2); }
