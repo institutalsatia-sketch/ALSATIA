@@ -437,19 +437,69 @@ window.filterDonors = () => {
 window.openNewDonorModal = () => {
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
-        <h3>Nouveau Donateur</h3>
-        <input type="text" id="n-company" placeholder="Entreprise" class="luxe-input">
-        <input type="text" id="n-last" placeholder="Nom *" class="luxe-input">
-        <input type="text" id="n-origin" placeholder="Origine" class="luxe-input">
-        <button onclick="execCreateDonor()" class="btn-gold" style="width:100%; margin-top:10px;">CRÉER</button>
+        <h3 style="color:var(--primary); border-bottom:1px solid var(--gold); padding-bottom:10px;">Nouveau Donateur</h3>
+        
+        <div style="margin-top:15px;">
+            <label class="mini-label">ENTREPRISE / SOCIÉTÉ</label>
+            <input type="text" id="n-company" placeholder="Nom de l'entreprise (optionnel)" class="luxe-input">
+            
+            <div style="display:flex; gap:10px; margin-top:10px;">
+                <div style="flex:1;">
+                    <label class="mini-label">PRÉNOM</label>
+                    <input type="text" id="n-first" placeholder="Prénom" class="luxe-input">
+                </div>
+                <div style="flex:1;">
+                    <label class="mini-label">NOM *</label>
+                    <input type="text" id="n-last" placeholder="Nom de famille" class="luxe-input">
+                </div>
+            </div>
+
+            <label class="mini-label" style="margin-top:15px;">ENTITÉ RATTACHÉE (ORIGINE DU DON)</label>
+            <select id="n-origin" class="luxe-input">
+                <option value="Institut Alsatia">Institut Alsatia</option>
+                <option value="Cours Herrade de Landsberg">Cours Herrade de Landsberg</option>
+                <option value="Collège Saints Louis et Zélie Martin">Collège Saints Louis et Zélie Martin</option>
+                <option value="Academia Alsatia">Academia Alsatia</option>
+            </select>
+            
+            <button onclick="execCreateDonor()" class="btn-gold" style="width:100%; margin-top:20px; height:45px;">
+                CRÉER LA FICHE DONATEUR
+            </button>
+            <button onclick="closeCustomModal()" style="width:100%; background:none; border:none; color:gray; cursor:pointer; margin-top:10px; font-size:0.8rem;">
+                Annuler
+            </button>
+        </div>
     `;
 };
 
 window.execCreateDonor = async () => {
-    const last = document.getElementById('n-last').value;
-    if(!last) return alert("Nom requis.");
-    await supabaseClient.from('donors').insert([{ last_name: last, company_name: document.getElementById('n-company').value, origin: document.getElementById('n-origin').value }]);
-    closeCustomModal(); loadDonors();
+    const lastName = document.getElementById('n-last').value.trim();
+    const firstName = document.getElementById('n-first').value.trim();
+    const company = document.getElementById('n-company').value.trim();
+    const origin = document.getElementById('n-origin').value;
+
+    if (!lastName) {
+        alert("Le nom de famille est obligatoire pour créer une fiche.");
+        return;
+    }
+
+    const { error } = await supabaseClient
+        .from('donors')
+        .insert([{ 
+            last_name: lastName, 
+            first_name: firstName,
+            company_name: company, 
+            origin: origin,
+            last_modified_by: currentUser.first_name + " " + currentUser.last_name 
+        }]);
+
+    if (!error) {
+        closeCustomModal();
+        loadDonors(); // Recharge la liste pour voir le nouveau donateur
+    } else {
+        console.error("Erreur lors de la création du donateur:", error);
+        alert("Impossible de créer la fiche. Vérifiez la console.");
+    }
 };
 
 window.exportAllDonors = () => {
