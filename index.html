@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Portail Alsatia - Premium V28</title>
+    <title>Portail Alsatia - V30 Pro</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -16,10 +16,7 @@
             <span class="portal-tag" id="current-portal-display">...</span>
         </div>
         <ul id="main-nav">
-            <li id="nav-chat" class="active" onclick="switchTab('chat')">
-                <i data-lucide="message-square"></i> Discussion 
-                <span id="chat-badge" class="badge-notif"></span>
-            </li>
+            <li id="nav-chat" class="active" onclick="switchTab('chat')"><i data-lucide="message-square"></i> Discussion <span id="chat-badge" class="badge-notif"></span></li>
             <li id="nav-campaigns" onclick="switchTab('campaigns')"><i data-lucide="megaphone"></i> Campagnes</li>
             <li id="nav-events" onclick="switchTab('events')"><i data-lucide="calendar"></i> Événements</li>
         </ul>
@@ -36,29 +33,30 @@
         <section id="tab-chat" class="tab-content active">
             <div class="header-tab">
                 <h1>Salon de Discussion</h1>
-                <div class="chat-controls">
+                <div class="header-actions">
                     <select id="chat-subject-filter" class="luxe-input" onchange="loadChatMessages()"></select>
                     <button onclick="showNewSubjectModal()" class="btn-gold"><i data-lucide="plus"></i> Nouveau Sujet</button>
                 </div>
             </div>
             <div class="chat-container">
                 <div id="chat-box" class="chat-box"></div>
-                <div class="chat-input-area">
-                    <div id="mention-suggestions" class="mention-list"></div>
-                    <div id="target-selector" class="target-grid">
-                        <span class="label-mini">DIFFUSION :</span>
-                        <label><input type="checkbox" class="target-check" value="Institut Alsatia"> Institut</label>
-                        <label><input type="checkbox" class="target-check" value="Academia Alsatia"> Academia</label>
-                        <label><input type="checkbox" class="target-check" value="Cours Herrade de Landsberg"> Herrade</label>
-                        <label><input type="checkbox" class="target-check" value="Collège Saints Louis et Zélie Martin"> Martin</label>
+                <div class="chat-footer">
+                    <div class="target-selector">
+                        <span class="mini-label">DIFFUSER À :</span>
+                        <div class="check-group">
+                            <label><input type="checkbox" class="target-check" value="Institut Alsatia"> Institut</label>
+                            <label><input type="checkbox" class="target-check" value="Academia Alsatia"> Academia</label>
+                            <label><input type="checkbox" class="target-check" value="Cours Herrade de Landsberg"> Herrade</label>
+                            <label><input type="checkbox" class="target-check" value="Collège Saints Louis et Zélie Martin"> Martin</label>
+                        </div>
                     </div>
-                    <div class="input-wrapper">
-                        <input type="text" id="chat-input" placeholder="Écrire un message... (@ pour mentionner)" autocomplete="off">
-                        <label for="chat-file" class="icon-btn"><i data-lucide="paperclip"></i></label>
+                    <div class="input-bar">
+                        <input type="text" id="chat-input" placeholder="Votre message... (@ pour mentionner)" autocomplete="off">
+                        <label for="chat-file" class="file-btn"><i data-lucide="paperclip"></i></label>
                         <input type="file" id="chat-file" style="display:none;" onchange="handleFileUpload(this)">
                         <button onclick="sendChatMessage()" class="btn-send"><i data-lucide="send"></i></button>
                     </div>
-                    <div id="file-preview"></div>
+                    <div id="file-preview" class="file-preview"></div>
                 </div>
             </div>
         </section>
@@ -66,29 +64,29 @@
         <section id="tab-donors" class="tab-content">
             <div class="header-tab">
                 <h1>Base Donateurs</h1>
-                <button onclick="openNewDonorModal()" class="btn-gold"><i data-lucide="user-plus"></i> Ajouter</button>
+                <button onclick="openNewDonorModal()" class="btn-gold"><i data-lucide="user-plus"></i> Nouveau Donateur</button>
             </div>
             <div id="pending-thanks-alert"></div>
-            <div class="search-bar-container">
+            <div class="search-bar">
                 <i data-lucide="search"></i>
-                <input type="text" id="search-donor" placeholder="Rechercher par nom, ville, origine..." onkeyup="filterDonors()">
+                <input type="text" id="search-donor" placeholder="Rechercher un nom, une ville, une origine..." onkeyup="filterDonors()">
             </div>
-            <div class="table-container">
+            <div class="table-card">
                 <table class="luxe-table">
                     <thead>
-                        <tr><th>Identité</th><th>Origine</th><th>Dernière Note</th><th>Cumul</th><th>Action</th></tr>
+                        <tr><th>Identité / Entreprise</th><th>Origine</th><th>Dernière Note</th><th>Cumul</th><th>Actions</th></tr>
                     </thead>
                     <tbody id="donors-list"></tbody>
                 </table>
             </div>
         </section>
 
-        <section id="tab-campaigns" class="tab-content"><div class="header-tab"><h1>Campagnes</h1></div><div id="campaigns-list" class="grid-cards"></div></section>
-        <section id="tab-events" class="tab-content"><div class="header-tab"><h1>Événements</h1></div><div id="events-grid" class="grid-cards"></div></section>
+        <section id="tab-campaigns" class="tab-content"><div class="header-tab"><h1>Campagnes</h1></div><div id="campaigns-list" class="grid-layout"></div></section>
+        <section id="tab-events" class="tab-content"><div class="header-tab"><h1>Événements</h1></div><div id="events-grid" class="grid-layout"></div></section>
     </main>
 
     <div id="custom-modal" class="modal-overlay">
-        <div class="modal-content">
+        <div class="modal-window">
             <div id="modal-body"></div>
         </div>
     </div>
