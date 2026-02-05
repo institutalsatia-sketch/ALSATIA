@@ -57,6 +57,7 @@ window.switchTab = (id) => {
     
     if(id === 'donors') loadDonors();
     if(id === 'chat') loadChatMessages();
+    if(id === 'events') loadEvents();
     lucide.createIcons();
 };
 
@@ -567,4 +568,127 @@ window.handleFileUpload = (input) => {
         selectedFile = input.files[0]; 
         document.getElementById('file-preview').innerText = "📎 " + selectedFile.name; 
     } 
+};
+
+// ==========================================
+// GESTION DES ÉVÉNEMENTS
+// ==========================================
+
+async function loadEvents() {
+    const { data, error } = await supabaseClient
+        .from('events')
+        .select('*')
+        .order('event_date', { ascending: true });
+
+    if (error) return console.error("Erreur events:", error);
+    renderEvents(data);
+}
+
+function renderEvents(events) {
+    const container = document.getElementById('events-container'); // Assurez-vous d'avoir cet ID dans votre HTML
+    if (!container) return;
+
+    if (events.length === 0) {
+        container.innerHTML = `<div style="text-align:center; padding:20px; opacity:0.5;">Aucun événement prévu.</div>`;
+        return;
+    }
+
+    container.innerHTML = events.map(ev => {
+        const canManage = (currentUser.portal === "Institut Alsatia" || currentUser.portal === ev.entity);
+        const dateFr = new Date(ev.event_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+        
+        return `
+            <div class="event-card" style="border-left: 5px solid ${getColorByEntity(ev.entity)};">
+                <div class="event-info">
+                    <span class="event-entity-badge">${ev.entity}</span>
+                    <h4>${ev.title}</h4>
+                    <p><i data-lucide="calendar"></i> ${dateFr} ${ev.event_time ? ' à ' + ev.event_time : ''}</p>
+                    <p><i data-lucide="map-pin"></i> ${ev.location || 'Lieu non défini'}</p>
+                    ${ev.description ? `<p class="event-desc">${ev.description}</p>` : ''}
+                </div>
+                <div class="event-actions">
+                    ${canManage ? `<button onclick="askDeleteEvent('${ev.id}', '${ev.title.replace(/'/g, "\\'")}')" class="btn-mini-danger"><i data-lucide="trash-2"></i></button>` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+    lucide.createIcons();
+}
+
+function getColorByEntity(entity) {
+    const colors = {
+        "Institut Alsatia": "#1e3a8a",
+        "Cours Herrade de Landsberg": "#15803d",
+        "Collège Saints Louis et Zélie Martin": "#b91c1c",
+        "Academia Alsatia": "#b45309"
+    };
+    return colors[entity] || "#666";
+}
+
+// --- MODALE AJOUT ÉVÉNEMENT ---
+window.openNewEventModal = () => {
+    document.getElementById('custom-modal').style.display = 'flex';
+    document.getElementById('modal-body').innerHTML = `
+        <h3 style="color:var(--primary); border-bottom:1px solid var(--gold); padding-bottom:10px;">Programmer un événement</h3>
+        
+        <label class="mini-label">TITRE DE L'ÉVÉNEMENT</label>
+        <input type="text" id="ev-title" placeholder="ex: Portes Ouvertes" class="luxe-input">
+        
+        <div style="display:flex; gap:10px;">
+            <div style="flex:1;">
+                <label class="mini-label">DATE</label>
+                <input type="date" id="ev-date" class="luxe-input">
+            </div>
+            <div style="flex:1;">
+                <label class="mini-label">HEURE (Optionnel)</label>
+                <input type="time" id="ev-time" class="luxe-input">
+            </div>
+        </div>
+
+        <label class="mini-label">LIEU</label>
+        <input type="text" id="ev-loc" placeholder="ex: Salle d'honneur" class="luxe-input">
+
+        <label class="mini-label">ENTITÉ ORGANISATRICE</label>
+        <select id="ev-entity" class="luxe-input">
+            <option value="${currentUser.portal}">${currentUser.portal} (Mon entité)</option>
+            ${currentUser.portal === "Institut Alsatia" ? `
+                <option value="Cours Herrade de Landsberg">Cours Herrade de Landsberg</option>
+                <option value="Collège Saints Louis et Zélie Martin">Collège Saints Louis et Zélie Martin</option>
+                <option value="Academia Alsatia">Academia Alsatia</option>
+            ` : ''}
+        </select>
+
+        <label class="mini-label">DESCRIPTION</label>
+        <textarea id="ev-desc" class="luxe-input" style="height:60px;"></textarea>
+        
+        <button onclick="execCreateEvent()" class="btn-gold" style="width:100%; margin-top:15px;">PUBLIER L'ÉVÉNEMENT</button>
+    `;
+};
+
+window.execCreateEvent = async () => {
+    const title = document.getElementById('ev-title').value.trim();
+    const date = document.getElementById('ev-date').value;
+    if (!title || !date) return alert("Le titre et la date sont obligatoires.");
+
+    const { error } = await supabaseClient.from('events').insert([{
+        title,
+        event_date: date,
+        event_time: document.getElementById('ev-time').value || null,
+        location: document.getElementById('ev-loc').value,
+        entity: document.getElementById('ev-entity').value,
+        description: document.getElementById('ev-desc').value,
+        created_by: currentUser.first_name + " " + currentUser.last_name
+    }]);
+
+    if (!error) { closeCustomModal(); loadEvents(); }
+};
+
+window.askDeleteEvent = (id, title) => {
+    if (!confirm(`Supprimer l'événement "${title}" ?`)) return;
+    execDeleteEvent(id);
+};
+
+window.execDeleteEvent = async (id) => {
+    const { error } = await supabaseClient.from('events').delete().eq('id', id);
+    if (!error) loadEvents();
 };
