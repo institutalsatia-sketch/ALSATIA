@@ -574,8 +574,7 @@ window.handleFileUpload = (input) => {
 // GESTION DES ÉVÉNEMENTS
 // ==========================================
 
-async function loadEvents() {
-    // On récupère les événements et on joint les ressources pour le badge de statut
+window.loadEvents = async () => {
     const { data, error } = await supabaseClient
         .from('events')
         .select('*, event_resources(id, file_url, description)')
@@ -583,7 +582,7 @@ async function loadEvents() {
 
     if (error) return console.error("Erreur events:", error);
     renderEvents(data);
-}
+};
 
 function renderEvents(events) {
     const container = document.getElementById('events-container'); 
@@ -674,6 +673,44 @@ window.openEventMedia = async (eventId) => {
     lucide.createIcons();
 };
 
+window.uploadEventFile = async (eventId) => {
+    const file = document.getElementById('res-file').files[0];
+    if(!file) return;
+
+    const path = `events_media/${eventId}/${Date.now()}_${file.name}`;
+    const { data, error } = await supabaseClient.storage.from('documents').upload(path, file);
+    
+    if (data) {
+        const url = supabaseClient.storage.from('documents').getPublicUrl(path).data.publicUrl;
+        await supabaseClient.from('event_resources').insert([{ event_id: eventId, file_url: url }]);
+        openEventMedia(eventId); 
+    } else {
+        alert("Erreur lors de l'envoi du fichier.");
+    }
+};
+
+window.saveEventContent = async (eventId) => {
+    const text = document.getElementById('res-text').value;
+    const { data: resources } = await supabaseClient.from('event_resources').select('*').eq('event_id', eventId);
+    const existingText = resources ? resources.find(r => !r.file_url) : null;
+    
+    if(existingText) {
+        await supabaseClient.from('event_resources').update({ description: text }).eq('id', existingText.id);
+    } else {
+        await supabaseClient.from('event_resources').insert([{ event_id: eventId, description: text }]);
+    }
+    
+    alert("Contenu sauvegardé.");
+    closeCustomModal();
+    loadEvents();
+};
+
+window.deleteResource = async (resId, eventId) => {
+    if(!confirm("Supprimer ce média ?")) return;
+    await supabaseClient.from('event_resources').delete().eq('id', resId);
+    openEventMedia(eventId);
+};
+
 // --- GESTION DES INVITÉS ---
 window.openEventGuests = async (eventId) => {
     const { data: donors } = await supabaseClient.from('donors').select('id, last_name, first_name, company_name').order('last_name');
@@ -718,9 +755,7 @@ window.copyEventText = () => {
     const text = document.getElementById('res-text').value;
     if(!text) return;
     navigator.clipboard.writeText(text);
-    // On utilise showNotice si vous l'avez déjà implémenté, sinon alert
-    if(window.showNotice) showNotice("Copié !", "Le texte est dans votre presse-papier.");
-    else alert("Texte copié !");
+    alert("Texte copié !");
 };
 
 window.downloadPhoto = (url, filename) => {
@@ -742,8 +777,7 @@ function getColorByEntity(entity) {
     return colors[entity] || "#666";
 }
 
-// --- LOGIQUE DE CRÉATION CLASSIQUE ---
-
+// --- MODALE AJOUT ÉVÉNEMENT ---
 window.openNewEventModal = () => {
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
