@@ -595,8 +595,6 @@ function renderEvents(events) {
 
     container.innerHTML = events.map(ev => {
         const canManage = (currentUser.portal === "Institut Alsatia" || currentUser.portal === ev.entity);
-        
-        // Badge intelligent : Prêt si texte > 10 car. ET au moins une image
         const hasText = ev.event_resources?.some(r => r.description && r.description.length > 10);
         const hasPhoto = ev.event_resources?.some(r => r.file_url);
         const isReady = hasText && hasPhoto;
@@ -685,7 +683,7 @@ window.uploadEventFile = async (eventId) => {
         await supabaseClient.from('event_resources').insert([{ event_id: eventId, file_url: url }]);
         openEventMedia(eventId); 
     } else {
-        alert("Erreur lors de l'envoi du fichier.");
+        showNotice("Erreur", "L'envoi a échoué.");
     }
 };
 
@@ -700,63 +698,87 @@ window.saveEventContent = async (eventId) => {
         await supabaseClient.from('event_resources').insert([{ event_id: eventId, description: text }]);
     }
     
-    alert("Contenu sauvegardé.");
+    showNotice("Enregistré", "Dossier mis à jour.");
     closeCustomModal();
     loadEvents();
 };
 
 window.deleteResource = async (resId, eventId) => {
+    // Note: Utilisation de confirm() simplifié car showNotice est souvent informatif. 
+    // Si vous avez une modale de confirmation personnalisée, remplacez ici.
     if(!confirm("Supprimer ce média ?")) return;
     await supabaseClient.from('event_resources').delete().eq('id', resId);
     openEventMedia(eventId);
 };
 
-// --- GESTION DES INVITÉS ---
+// --- GESTION DES INVITÉS AVEC RECHERCHE ET FILTRE ---
 window.openEventGuests = async (eventId) => {
-    // 1. Récupération des donateurs
-    const { data: donors, error: errDonors } = await supabaseClient
-        .from('donors')
-        .select('id, last_name, first_name, company_name')
-        .order('last_name');
-
-    // 2. Récupération des invités actuels
-    const { data: guests, error: errGuests } = await supabaseClient
-        .from('event_guests')
-        .select('donor_id')
-        .eq('event_id', eventId);
-
-    if (errGuests || errDonors) {
-        console.error("Erreur de chargement:", errGuests || errDonors);
-        alert("La table 'event_guests' n'existe pas ou est inaccessible. Vérifiez le SQL.");
-        return;
-    }
-
-    // Sécurisation : si guests est null, on utilise un tableau vide
+    const { data: donors } = await supabaseClient.from('donors').select('id, last_name, first_name, company_name, entity').order('last_name');
+    const { data: guests } = await supabaseClient.from('event_guests').select('donor_id').eq('event_id', eventId);
     const guestIds = (guests || []).map(g => g.donor_id);
 
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
         <div style="display:flex; justify-content:space-between; border-bottom:2px solid var(--gold); padding-bottom:10px;">
-            <h3>Liste des Invités</h3>
+            <h3>Gestion des Invités</h3>
             <button onclick="closeCustomModal()" class="btn-gold">X</button>
         </div>
-        <div style="margin-top:15px;">
-            <p class="mini-label">Cochez les donateurs invités à cet événement</p>
-            <div id="guest-list-scroll" style="max-height:400px; overflow-y:auto; margin-top:10px; border:1px solid #eee; border-radius:8px; background:#fff;">
+        
+        <div style="margin-top:15px; display:flex; flex-direction:column; gap:10px;">
+            <input type="text" id="guest-search" class="luxe-input" placeholder="Rechercher un nom ou une société..." oninput="filterGuestList()">
+            
+            <select id="guest-filter-entity" class="luxe-input" onchange="filterGuestList()">
+                <option value="ALL">Toutes les entités</option>
+                <option value="Institut Alsatia">Institut Alsatia</option>
+                <option value="Cours Herrade de Landsberg">Cours Herrade de Landsberg</option>
+                <option value="Collège Saints Louis et Zélie Martin">Collège Saints Louis et Zélie Martin</option>
+                <option value="Academia Alsatia">Academia Alsatia</option>
+            </select>
+
+            <div id="guest-list-scroll" style="max-height:350px; overflow-y:auto; border:1px solid #eee; border-radius:8px; background:#fff;">
                 ${(donors || []).map(d => `
-                    <label style="display:flex; align-items:center; padding:10px; border-bottom:1px solid #f9f9f9; cursor:pointer; font-size:0.85rem;">
-                        <input type="checkbox" style="margin-right:12px; width:16px; height:16px;" 
+                    <label class="guest-item" data-name="${d.last_name} ${d.first_name}" data-company="${d.company_name || ''}" data-entity="${d.entity}"
+                        style="display:flex; align-items:center; padding:10px; border-bottom:1px solid #f9f9f9; cursor:pointer; font-size:0.85rem;">
+                        <input type="checkbox" style="margin-right:12px; width:18px; height:18px;" 
                             ${guestIds.includes(d.id) ? 'checked' : ''} 
                             onchange="toggleGuest('${eventId}', '${d.id}', this.checked)">
-                        <div>
+                        <div style="flex:1;">
                             <strong>${d.last_name} ${d.first_name || ''}</strong>
-                            <br><small style="color:gray;">${d.company_name || 'Particulier'}</small>
+                            <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; color:gray;">
+                                <span>${d.company_name || 'Particulier'}</span>
+                                <span style="font-style:italic; color:${getColorByEntity(d.entity)}">${d.entity}</span>
+                            </div>
                         </div>
                     </label>
                 `).join('')}
             </div>
+            <p id="guest-count" style="font-size:0.7rem; color:gray; text-align:right;">${donors.length} donateurs affichés</p>
         </div>
     `;
+};
+
+window.filterGuestList = () => {
+    const query = document.getElementById('guest-search').value.toLowerCase();
+    const entityFilter = document.getElementById('guest-filter-entity').value;
+    const items = document.querySelectorAll('.guest-item');
+    let visibleCount = 0;
+
+    items.forEach(item => {
+        const name = item.getAttribute('data-name').toLowerCase();
+        const company = item.getAttribute('data-company').toLowerCase();
+        const entity = item.getAttribute('data-entity');
+        
+        const matchesSearch = name.includes(query) || company.includes(query);
+        const matchesEntity = (entityFilter === 'ALL' || entity === entityFilter);
+
+        if (matchesSearch && matchesEntity) {
+            item.style.display = 'flex';
+            visibleCount++;
+        } else {
+            item.style.display = 'none';
+        }
+    });
+    document.getElementById('guest-count').innerText = `${visibleCount} donateurs affichés`;
 };
 
 window.toggleGuest = async (eventId, donorId, isChecked) => {
@@ -772,7 +794,7 @@ window.copyEventText = () => {
     const text = document.getElementById('res-text').value;
     if(!text) return;
     navigator.clipboard.writeText(text);
-    alert("Texte copié !");
+    showNotice("Copié !", "Prêt à être collé.");
 };
 
 window.downloadPhoto = (url, filename) => {
@@ -837,7 +859,7 @@ window.openNewEventModal = () => {
 window.execCreateEvent = async () => {
     const title = document.getElementById('ev-title').value.trim();
     const date = document.getElementById('ev-date').value;
-    if (!title || !date) return alert("Le titre et la date sont obligatoires.");
+    if (!title || !date) return showNotice("Erreur", "Titre et date requis.");
 
     const { error } = await supabaseClient.from('events').insert([{
         title,
@@ -849,14 +871,23 @@ window.execCreateEvent = async () => {
         created_by: currentUser.first_name + " " + currentUser.last_name
     }]);
 
-    if (!error) { closeCustomModal(); loadEvents(); }
+    if (!error) { 
+        showNotice("Succès", "Événement créé.");
+        closeCustomModal(); 
+        loadEvents(); 
+    }
 };
 
 window.askDeleteEvent = (id, title) => {
-    if (!confirm(`Supprimer l'événement "${title}" ?`)) return;
+    if (!confirm(`Supprimer définitivement l'événement "${title}" ?`)) return;
     execDeleteEvent(id);
 };
 
+window.execDeleteEvent = async (id) => {
+    await supabaseClient.from('events').delete().eq('id', id);
+    showNotice("Supprimé", "L'événement a été retiré.");
+    loadEvents();
+};
 window.execDeleteEvent = async (id) => {
     await supabaseClient.from('events').delete().eq('id', id);
     loadEvents();
