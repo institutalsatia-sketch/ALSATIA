@@ -868,10 +868,46 @@ window.execCreateEvent = async () => {
 };
 
 window.askDeleteEvent = (id, title) => {
-    if (confirm(`Supprimer "${title}" ?`)) {
-        supabaseClient.from('events').delete().eq('id', id).then(() => {
-            showNotice("Supprimé", "Événement retiré.");
-            loadEvents();
-        });
+    // On réutilise la modale custom existante pour la confirmation
+    document.getElementById('custom-modal').style.display = 'flex';
+    document.getElementById('modal-body').innerHTML = `
+        <div style="text-align:center; padding: 20px;">
+            <div style="color:#ef4444; margin-bottom:15px;">
+                <i data-lucide="alert-triangle" style="width:48px; height:48px; margin:0 auto;"></i>
+            </div>
+            <h3 style="margin-bottom:10px;">Supprimer l'événement ?</h3>
+            <p style="color:#64748b; font-size:0.9rem; margin-bottom:20px;">
+                Êtes-vous sûr de vouloir supprimer <strong>"${title}"</strong> ? <br>
+                Cette action supprimera également toutes les photos et textes associés.
+            </p>
+            <div style="display:flex; gap:10px;">
+                <button onclick="closeCustomModal()" class="btn-gold" style="flex:1; background:#f1f5f9; color:#1e293b; border:1px solid #cbd5e1;">
+                    ANNULER
+                </button>
+                <button onclick="window.execDeleteEvent('${id}')" class="btn-mini-danger" style="flex:1; padding:12px;">
+                    OUI, SUPPRIMER
+                </button>
+            </div>
+        </div>
+    `;
+    lucide.createIcons();
+};
+
+window.execDeleteEvent = async (id) => {
+    // 1. Suppression des ressources liées (pour le propre)
+    await supabaseClient.from('event_resources').delete().eq('event_id', id);
+    
+    // 2. Suppression des invités
+    await supabaseClient.from('event_guests').delete().eq('event_id', id);
+    
+    // 3. Suppression de l'événement
+    const { error } = await supabaseClient.from('events').delete().eq('id', id);
+
+    if (!error) {
+        window.showNotice("Supprimé", "L'événement a été retiré avec succès.");
+        closeCustomModal();
+        window.loadEvents();
+    } else {
+        window.showNotice("Erreur", "Impossible de supprimer l'événement.");
     }
 };
