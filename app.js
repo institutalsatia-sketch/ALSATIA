@@ -585,7 +585,7 @@ async function loadEvents() {
 }
 
 function renderEvents(events) {
-    const container = document.getElementById('events-container'); // Assurez-vous d'avoir cet ID dans votre HTML
+    const container = document.getElementById('events-container'); 
     if (!container) return;
 
     if (events.length === 0) {
@@ -600,14 +600,23 @@ function renderEvents(events) {
         return `
             <div class="event-card" style="border-left: 5px solid ${getColorByEntity(ev.entity)};">
                 <div class="event-info">
-                    <span class="event-entity-badge">${ev.entity}</span>
+                    <span class="event-entity-badge" style="background:${getColorByEntity(ev.entity)}20; color:${getColorByEntity(ev.entity)};">
+                        ${ev.entity}
+                    </span>
                     <h4>${ev.title}</h4>
                     <p><i data-lucide="calendar"></i> ${dateFr} ${ev.event_time ? ' à ' + ev.event_time : ''}</p>
                     <p><i data-lucide="map-pin"></i> ${ev.location || 'Lieu non défini'}</p>
                     ${ev.description ? `<p class="event-desc">${ev.description}</p>` : ''}
                 </div>
                 <div class="event-actions">
-                    ${canManage ? `<button onclick="askDeleteEvent('${ev.id}', '${ev.title.replace(/'/g, "\\'")}')" class="btn-mini-danger"><i data-lucide="trash-2"></i></button>` : ''}
+                    <button onclick="openEventMedia('${ev.id}')" class="btn-gold" title="Dossier Com / Réseaux" style="padding:5px 10px;">
+                        <i data-lucide="camera"></i> CONTENU
+                    </button>
+                    ${canManage ? `
+                        <button onclick="askDeleteEvent('${ev.id}', '${ev.title.replace(/'/g, "\\'")}')" class="btn-mini-danger">
+                            <i data-lucide="trash-2"></i>
+                        </button>` 
+                    : ''}
                 </div>
             </div>
         `;
@@ -625,7 +634,93 @@ function getColorByEntity(entity) {
     return colors[entity] || "#666";
 }
 
-// --- MODALE AJOUT ÉVÉNEMENT ---
+// --- DOSSIER MÉDIA & RÉSEAUX SOCIAUX ---
+window.openEventMedia = async (eventId) => {
+    // Vérification : L'admin Institut peut tout voir, les autres voient leur entité
+    const { data: ev } = await supabaseClient.from('events').select('*').eq('id', eventId).single();
+    if (currentUser.portal !== "Institut Alsatia" && currentUser.portal !== ev.entity) {
+        return alert("Accès restreint aux membres de " + ev.entity);
+    }
+
+    const { data: res } = await supabaseClient.from('event_resources').select('*').eq('event_id', eventId);
+
+    // Extraction du texte s'il existe (on stocke le texte dans une ligne sans file_url)
+    const textData = res.find(r => !r.file_url);
+    const photos = res.filter(r => r.file_url);
+
+    document.getElementById('custom-modal').style.display = 'flex';
+    document.getElementById('modal-body').innerHTML = `
+        <div style="display:flex; justify-content:space-between; border-bottom:2px solid var(--gold); padding-bottom:10px;">
+            <h3>Dossier de Publication : ${ev.title}</h3>
+            <button onclick="closeCustomModal()" class="btn-gold">X</button>
+        </div>
+        
+        <div style="margin-top:15px; max-height:70vh; overflow-y:auto;">
+            <label class="mini-label">TEXTE POUR LES RÉSEAUX SOCIAUX</label>
+            <textarea id="res-text" class="luxe-input" style="height:120px;" 
+                placeholder="Rédigez ici le texte, les hashtags et les infos pour le post...">${textData ? textData.description : ''}</textarea>
+            
+            <label class="mini-label" style="margin-top:15px;">AJOUTER DES PHOTOS / DOCUMENTS</label>
+            <input type="file" id="res-file" class="luxe-input" onchange="uploadEventFile('${eventId}')" accept="image/*,.pdf">
+            
+            <div id="media-gallery" style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:15px;">
+                ${photos.map(r => `
+                    <div class="gallery-item" style="position:relative;">
+                        <img src="${r.file_url}" style="width:100%; height:80px; object-fit:cover; border-radius:5px; border:1px solid #ddd;">
+                        <button onclick="deleteResource('${r.id}', '${eventId}')" 
+                            style="position:absolute; top:2px; right:2px; background:rgba(225,29,72,0.8); color:white; border:none; border-radius:3px; cursor:pointer;">×</button>
+                    </div>
+                `).join('')}
+            </div>
+
+            <button onclick="saveEventContent('${eventId}')" class="btn-gold" style="width:100%; margin-top:20px; background:var(--primary);">
+                VALIDER LE CONTENU POUR PUBLICATION
+            </button>
+        </div>
+    `;
+};
+
+window.uploadEventFile = async (eventId) => {
+    const file = document.getElementById('res-file').files[0];
+    if(!file) return;
+
+    const path = `events_media/${eventId}/${Date.now()}_${file.name}`;
+    const { data, error } = await supabaseClient.storage.from('documents').upload(path, file);
+    
+    if (data) {
+        const url = supabaseClient.storage.from('documents').getPublicUrl(path).data.publicUrl;
+        await supabaseClient.from('event_resources').insert([{ event_id: eventId, file_url: url }]);
+        openEventMedia(eventId); 
+    } else {
+        alert("Erreur lors de l'envoi du fichier.");
+    }
+};
+
+window.saveEventContent = async (eventId) => {
+    const text = document.getElementById('res-text').value;
+    
+    // On cherche si une ligne de texte existe déjà (ligne où file_url est nul)
+    const { data: existing } = await supabaseClient.from('event_resources')
+        .select('*').eq('event_id', eventId).is('file_url', null).single();
+    
+    if(existing) {
+        await supabaseClient.from('event_resources').update({ description: text }).eq('id', existing.id);
+    } else {
+        await supabaseClient.from('event_resources').insert([{ event_id: eventId, description: text }]);
+    }
+    
+    alert("Contenu sauvegardé. L'équipe de communication peut maintenant l'utiliser !");
+    closeCustomModal();
+};
+
+window.deleteResource = async (resId, eventId) => {
+    if(!confirm("Supprimer ce média ?")) return;
+    await supabaseClient.from('event_resources').delete().eq('id', resId);
+    openEventMedia(eventId);
+};
+
+// --- LOGIQUE DE CRÉATION CLASSIQUE ---
+
 window.openNewEventModal = () => {
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
@@ -689,6 +784,6 @@ window.askDeleteEvent = (id, title) => {
 };
 
 window.execDeleteEvent = async (id) => {
-    const { error } = await supabaseClient.from('events').delete().eq('id', id);
-    if (!error) loadEvents();
+    await supabaseClient.from('events').delete().eq('id', id);
+    loadEvents();
 };
