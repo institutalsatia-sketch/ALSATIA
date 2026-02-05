@@ -3,65 +3,95 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CRM & Portail Alsatia V20</title>
+    <title>Portail Alsatia V24</title>
     <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
     <nav class="side-nav">
-        <div class="logo-area"><div style="font-size: 2.5rem; margin-bottom:10px;">⚜️</div><span class="portal-tag" id="current-portal-display">Portail Alsatia</span></div>
-        <ul>
-            <li id="nav-chat" class="active" onclick="switchTab('chat')">💬 Discussion</li>
-            <li id="nav-donors" onclick="switchTab('donors')">👥 Base Donateurs</li>
-            <li id="nav-campaigns" onclick="switchTab('campaigns')">📣 Campagnes</li>
-            <li id="nav-events" onclick="switchTab('events')">📅 Événements</li>
+        <div class="logo-area">
+            <img src="https://votre-domaine.com/logo-alsatia.png" alt="⚜️" class="alsatia-logo">
+            <div class="brand-name">ALSATIA</div>
+            <span class="portal-tag" id="current-portal-display">...</span>
+        </div>
+        <ul id="main-nav">
+            <li id="nav-chat" class="active" onclick="switchTab('chat')">
+                <i data-lucide="message-square"></i> Discussion 
+                <span id="chat-badge" class="badge" style="display:none;"></span>
+            </li>
+            <li id="nav-campaigns" onclick="switchTab('campaigns')"><i data-lucide="megaphone"></i> Campagnes</li>
+            <li id="nav-events" onclick="switchTab('events')"><i data-lucide="calendar"></i> Événements</li>
         </ul>
-        <div class="user-bottom"><span id="user-name-display">Utilisateur</span><button onclick="logout()" class="btn-logout">Déconnexion</button></div>
+        <div class="user-bottom">
+            <div class="user-info">
+                <i data-lucide="user"></i>
+                <span id="user-name-display">...</span>
+            </div>
+            <button onclick="logout()" class="btn-logout"><i data-lucide="log-out"></i> Quitter</button>
+        </div>
     </nav>
 
     <main class="main-content">
         <section id="tab-chat" class="tab-content active">
-            <div class="header-tab" style="display:flex; justify-content:space-between; align-items:center;">
-                <h1>Salon de Discussion</h1>
-                <div style="display:flex; gap:10px; align-items:center;">
-                    <select id="chat-subject-filter" class="luxe-input" style="width:180px; margin:0;" onchange="loadChatMessages()"></select>
-                    <button onclick="showNewSubjectModal()" class="btn-sm" style="background:var(--gold); color:white; border:none;">+ Sujet</button>
+            <div class="header-tab">
+                <h1>Discussion</h1>
+                <div class="chat-controls">
+                    <select id="chat-subject-filter" class="luxe-input" onchange="loadChatMessages()"></select>
+                    <button onclick="showNewSubjectModal()" class="btn-gold"><i data-lucide="plus-circle"></i> Nouveau Sujet</button>
                 </div>
             </div>
             <div class="chat-container">
                 <div id="chat-box" class="chat-box"></div>
-                <div class="chat-input-area" style="position:relative;">
+                <div class="chat-input-area">
                     <div id="mention-suggestions" class="mention-list"></div>
-                    <div id="target-selector" style="font-size: 0.75rem; display: flex; gap: 10px; color: #64748b; margin-bottom:8px;">
-                        <span>Diffuser à : </span>
+                    <div id="target-selector" class="target-grid">
                         <label><input type="checkbox" class="target-check" value="Institut Alsatia"> Institut</label>
                         <label><input type="checkbox" class="target-check" value="Academia Alsatia"> Academia</label>
                         <label><input type="checkbox" class="target-check" value="Cours Herrade de Landsberg"> Herrade</label>
+                        <label><input type="checkbox" class="target-check" value="Collège Saints Louis et Zélie Martin"> Martin</label>
                     </div>
-                    <div style="display: flex; gap: 10px; align-items: center;">
-                        <input type="text" id="chat-input" placeholder="Message..." autocomplete="off">
-                        <label for="chat-file" style="cursor:pointer; font-size:1.5rem;">📎</label>
+                    <div class="input-wrapper">
+                        <input type="text" id="chat-input" placeholder="Écrivez ici... (utilisez @ pour mentionner)" autocomplete="off">
+                        <label for="chat-file" class="icon-btn"><i data-lucide="paperclip"></i></label>
                         <input type="file" id="chat-file" style="display:none;" onchange="handleFileUpload(this)">
                         <input type="hidden" id="editing-msg-id" value="">
-                        <button id="btn-chat-send" onclick="sendChatMessage()">Envoyer</button>
+                        <button id="btn-chat-send" onclick="sendChatMessage()" class="btn-send"><i data-lucide="send"></i></button>
                     </div>
-                    <div id="file-preview" style="font-size:0.7rem; color:var(--gold); margin-top:5px;"></div>
+                    <div id="file-preview"></div>
                 </div>
             </div>
         </section>
 
         <section id="tab-donors" class="tab-content">
-            <div class="header-tab"><h1>Base Donateurs</h1><button onclick="openNewDonorModal()" class="btn-save" style="background:var(--gold);">+ Nouveau</button></div>
+            <div class="header-tab">
+                <h1>Base Donateurs</h1>
+                <button onclick="openNewDonorModal()" class="btn-gold"><i data-lucide="user-plus"></i> Nouveau</button>
+            </div>
             <div id="pending-thanks-alert"></div>
-            <div class="search-container" style="margin:20px 0;"><input type="text" id="search-donor" class="luxe-input" placeholder="Rechercher..." onkeyup="filterDonors()"></div>
-            <div class="table-container"><table class="luxe-table-main" style="width:100%; border-collapse:collapse;"><thead style="background:#f8fafc;"><tr><th style="padding:15px; text-align:left;">Identité</th><th style="padding:15px; text-align:left;">Entité</th><th style="padding:15px; text-align:left;">Cumul</th><th style="padding:15px; text-align:left;">Action</th></tr></thead><tbody id="donors-list"></tbody></table></div>
+            <div class="search-bar">
+                <i data-lucide="search"></i>
+                <input type="text" id="search-donor" placeholder="Rechercher un nom, une ville ou une entreprise..." onkeyup="filterDonors()">
+            </div>
+            <div class="table-container">
+                <table class="luxe-table">
+                    <thead>
+                        <tr><th>Identité</th><th>Origine</th><th>Dernière Note</th><th>Cumul</th><th>Action</th></tr>
+                    </thead>
+                    <tbody id="donors-list"></tbody>
+                </table>
+            </div>
         </section>
-        <section id="tab-campaigns" class="tab-content"><div class="header-tab"><h1>Campagnes</h1><button onclick="openNewCampaignModal()" class="btn-save" style="background:var(--gold);">+ Nouvelle</button></div><div id="campaigns-list" class="events-grid" style="margin-top:20px;"></div></section>
-        <section id="tab-events" class="tab-content"><div class="header-tab"><h1>Événements</h1><button onclick="openNewEventModal()" class="btn-save" style="background:#1e293b;">+ Créer</button></div><div id="events-grid" class="events-grid"></div></section>
+
+        <section id="tab-campaigns" class="tab-content"><div class="header-tab"><h1>Campagnes</h1></div><div id="campaigns-list" class="grid-cards"></div></section>
+        <section id="tab-events" class="tab-content"><div class="header-tab"><h1>Événements</h1></div><div id="events-grid" class="grid-cards"></div></section>
     </main>
 
-    <div id="custom-modal" class="modal-overlay"><div class="modal-content"><div id="modal-body"></div></div></div>
+    <div id="custom-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div id="modal-body"></div>
+        </div>
+    </div>
 
     <script src="app.js"></script>
 </body>
