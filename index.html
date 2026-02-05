@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Portail Alsatia - V36 Intégral & Export</title>
+    <title>Portail Alsatia - Intégral</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -35,7 +35,7 @@
                 <div class="header-actions">
                     <select id="chat-subject-filter" class="luxe-input" onchange="loadChatMessages()"></select>
                     <button onclick="showNewSubjectModal()" class="btn-gold"><i data-lucide="plus-circle"></i> Nouveau Sujet</button>
-                    <button onclick="askDeleteSubject()" class="btn-danger-icon"><i data-lucide="trash-2"></i></button>
+                    <button onclick="askDeleteSubject()" class="btn-danger-icon" title="Supprimer ce sujet"><i data-lucide="trash-2"></i></button>
                 </div>
             </div>
             <div class="chat-container">
@@ -80,7 +80,6 @@
                     <option value="Cours Herrade de Landsberg">Herrade</option>
                     <option value="Collège Saints Louis et Zélie Martin">Martin</option>
                 </select>
-                <button onclick="exportFilteredDonors()" class="btn-gold" title="Exporter le filtre actuel"><i data-lucide="file-spreadsheet"></i></button>
             </div>
             <div class="table-container">
                 <table class="luxe-table">
@@ -98,8 +97,13 @@
         </section>
 
         <section id="tab-events" class="page-content">
-            <div class="header-tab"><h1>Événements</h1></div>
-            <div id="events-grid" class="grid-cards"></div>
+            <div class="header-tab">
+                <h1>Événements & Agenda</h1>
+                <div class="header-actions">
+                    <button onclick="openNewEventModal()" class="btn-gold"><i data-lucide="calendar-plus"></i> Programmer un événement</button>
+                </div>
+            </div>
+            <div id="events-container" class="grid-cards"></div>
         </section>
     </main>
 
