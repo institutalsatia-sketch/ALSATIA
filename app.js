@@ -699,14 +699,23 @@ window.uploadEventFile = async (eventId) => {
 window.saveEventContent = async (eventId) => {
     const text = document.getElementById('res-text').value;
     
-    // On cherche si une ligne de texte existe déjà (ligne où file_url est nul)
-    const { data: existing } = await supabaseClient.from('event_resources')
-        .select('*').eq('event_id', eventId).is('file_url', null).single();
+    // On récupère toutes les ressources et on cherche le texte en local (plus sûr)
+    const { data: resources } = await supabaseClient
+        .from('event_resources')
+        .select('*')
+        .eq('event_id', eventId);
     
-    if(existing) {
-        await supabaseClient.from('event_resources').update({ description: text }).eq('id', existing.id);
+    const existingText = resources ? resources.find(r => !r.file_url) : null;
+    
+    if(existingText) {
+        // Mise à jour
+        await supabaseClient.from('event_resources')
+            .update({ description: text })
+            .eq('id', existingText.id);
     } else {
-        await supabaseClient.from('event_resources').insert([{ event_id: eventId, description: text }]);
+        // Insertion
+        await supabaseClient.from('event_resources')
+            .insert([{ event_id: eventId, description: text }]);
     }
     
     alert("Contenu sauvegardé. L'équipe de communication peut maintenant l'utiliser !");
