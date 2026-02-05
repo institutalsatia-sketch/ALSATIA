@@ -1,237 +1,226 @@
-/* --- 1. FONDATIONS & RESET --- */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
+/* --- CRM INSTITUT ALSATIA - FEUILLE DE STYLE PRO --- */
 
 :root {
-    --primary: #0f172a;      /* Bleu Nuit Profond */
-    --gold: #b99d65;         /* Or Institut */
+    --primary: #0f172a;       /* Bleu Nuit Profond */
+    --gold: #b99d65;          /* Or Institut */
     --gold-light: #d4c197;
-    --bg-light: #f1f5f9;     /* Fond de page gris bleuté */
+    --bg-light: #f8fafc;
     --white: #ffffff;
-    --text-main: #1e293b;
-    --text-muted: #64748b;
+    --danger: #ef4444;
+    --success: #10b981;
     --border: #e2e8f0;
-    --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    --shadow-luxe: 0 10px 25px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
-body {
-    font-family: 'Inter', -apple-system, sans-serif;
-    background-color: var(--bg-light);
-    color: var(--text-main);
-    line-height: 1.6;
-}
-
-/* --- 2. HEADER & NAVIGATION --- */
-header {
-    background: var(--primary);
-    color: var(--white);
-    padding: 0 2rem;
-    height: 70px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 3px solid var(--gold);
-    position: sticky;
-    top: 0;
-    z-index: 100;
-}
-
-.logo-gold {
-    color: var(--gold);
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 2px;
-    font-size: 1.2rem;
-}
-
-nav ul {
-    display: flex;
-    list-style: none;
-    gap: 20px;
-}
-
-nav li {
-    cursor: pointer;
-    padding: 10px 15px;
-    border-radius: 6px;
-    font-weight: 600;
-    font-size: 0.9rem;
-    transition: 0.3s;
-    color: var(--white);
-}
-
-nav li:hover, nav li.active {
-    background: var(--gold);
+/* --- STRUCTURE DE LA FICHE PRO --- */
+.pro-fiche {
+    padding: 10px;
     color: var(--primary);
 }
 
-/* --- 3. MISE EN PAGE & GRILLES --- */
-.container {
-    max-width: 1200px;
-    margin: 2rem auto;
-    padding: 0 1rem;
-}
-
-.grid-2 {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
-    gap: 25px;
+.fiche-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 2px solid var(--gold);
+    padding-bottom: 15px;
     margin-bottom: 25px;
 }
 
-.card {
-    background: var(--white);
-    padding: 25px;
-    border-radius: 12px;
-    box-shadow: var(--shadow);
-    border: 1px solid var(--border);
-}
-
-h2, h3 {
-    color: var(--primary);
-    margin-bottom: 1.5rem;
-    font-weight: 700;
-}
-
-/* --- 4. GESTION DES ONGLETS (LOGIQUE D'AFFICHAGE) --- */
-.tab-content {
-    display: none; /* Cache tout par défaut */
-}
-
-.tab-content.active {
-    display: block; /* Affiche seulement l'onglet actif */
-    animation: fadeIn 0.3s ease;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-/* --- 5. TABLEAUX ET LISTES --- */
-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 1rem;
-}
-
-th {
-    text-align: left;
-    padding: 12px;
-    background: #f8fafc;
-    color: var(--text-muted);
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    border-bottom: 2px solid var(--border);
-}
-
-td {
-    padding: 15px 12px;
-    border-bottom: 1px solid var(--border);
-    font-size: 0.9rem;
-}
-
-tr:hover {
-    background-color: #fdfaf3; /* Teinte dorée très légère au survol */
-}
-
-/* --- 6. BOUTONS --- */
-.btn-primary {
-    background: var(--primary);
+.gold-title {
     color: var(--gold);
-    border: 1px solid var(--gold);
-    padding: 10px 20px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: 700;
-    transition: 0.3s;
     text-transform: uppercase;
-    font-size: 0.8rem;
+    letter-spacing: 1px;
+    font-weight: 700;
 }
 
-.btn-primary:hover {
-    background: var(--gold);
-    color: var(--primary);
+/* --- GRILLES ET CARTES --- */
+.grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 25px;
 }
 
-.btn-danger {
-    background: #be123c;
-    color: white;
-    border: none;
-    padding: 8px 12px;
-    border-radius: 6px;
-    cursor: pointer;
+.full-width {
+    grid-column: span 2;
 }
 
-/* --- 7. MODALES --- */
-.modal {
-    display: none;
-    position: fixed;
-    z-index: 1000;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(15, 23, 42, 0.85); /* Fond bleu nuit transparent */
-    backdrop-filter: blur(4px);
-}
-
-.modal-content {
-    background: var(--white);
-    margin: 5vh auto;
-    padding: 30px;
-    border-radius: 15px;
-    width: 90%;
-    max-width: 800px;
-    max-height: 90vh;
-    overflow-y: auto;
-    border: 2px solid var(--gold);
-}
-
-/* --- 8. ÉLÉMENTS SPÉCIFIQUES (FEEDS, CHAT) --- */
-.feed-container {
-    max-height: 300px;
-    overflow-y: auto;
-}
-
-.donation-item {
-    padding: 12px;
-    border-left: 4px solid var(--gold);
-    background: #f8fafc;
-    margin-bottom: 10px;
-    border-radius: 0 8px 8px 0;
-}
-
-.status-tag {
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 0.7rem;
-    font-weight: bold;
-    background: #fee2e2;
-    color: #be123c;
-}
-
-.status-tag.status-done {
-    background: #dcfce7;
-    color: #15803d;
-}
-
-/* --- 9. FORMULAIRES --- */
-.luxe-input, input[type="text"], input[type="date"], select, textarea {
-    width: 100%;
-    padding: 12px;
-    margin-top: 8px;
-    margin-bottom: 15px;
+.card-inner {
+    background: #ffffff;
     border: 1px solid var(--border);
-    border-radius: 8px;
-    font-size: 1rem;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
 }
 
-input:focus {
+.card-inner h3 {
+    font-size: 0.95rem;
+    color: var(--gold);
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 8px;
+}
+
+/* --- FORMULAIRES LUXE --- */
+.input-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: -8px;
+}
+
+.luxe-input {
+    width: 100%;
+    padding: 12px;
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    background: #fdfdfd;
+}
+
+.luxe-input:focus {
     outline: none;
     border-color: var(--gold);
-    box-shadow: 0 0 0 3px rgba(185, 157, 101, 0.2);
+    box-shadow: 0 0 0 3px rgba(185, 157, 101, 0.15);
+}
+
+/* --- TRAÇABILITÉ ET SIGNATURES --- */
+.signature-info {
+    margin-top: 15px;
+    font-size: 0.8rem;
+    font-style: italic;
+    color: var(--gold);
+    background: #fefce8;
+    padding: 8px;
+    border-radius: 6px;
+    border-left: 3px solid var(--gold);
+}
+
+.notes-container {
+    max-height: 250px;
+    overflow-y: auto;
+    background: #f8fafc;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+}
+
+.note-item {
+    background: white;
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    border: 1px solid var(--border);
+}
+
+.note-meta {
+    font-size: 0.7rem;
+    color: var(--gold);
+    margin-bottom: 5px;
+    border-bottom: 1px dashed #eee;
+    padding-bottom: 3px;
+}
+
+.note-body {
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+
+/* --- TABLEAUX DE DONS --- */
+.luxe-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    font-size: 0.85rem;
+}
+
+.luxe-table th {
+    text-align: left;
+    padding: 12px;
+    background: #f1f5f9;
+    color: var(--primary);
+    text-transform: uppercase;
+    font-size: 0.7rem;
+}
+
+.luxe-table td {
+    padding: 12px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.table-input {
+    border: 1px solid transparent;
+    padding: 4px 8px;
+    border-radius: 4px;
+    width: 100%;
+    background: #f8fafc;
+}
+
+.table-input:hover, .table-input:focus {
+    border-color: var(--gold);
+    background: white;
+}
+
+/* --- BOUTONS D'ACTION --- */
+.btn-save {
+    background: var(--primary);
+    color: white;
+    padding: 12px 25px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: 0.3s;
+}
+
+.btn-save:hover {
+    background: #1e293b;
+    transform: translateY(-1px);
+}
+
+.btn-sm-gold {
+    background: var(--gold);
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+
+.btn-outline-gold {
+    background: transparent;
+    color: var(--gold);
+    border: 1.5px solid var(--gold);
+    padding: 8px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.btn-outline-gold:hover {
+    background: var(--gold);
+    color: white;
+}
+
+.gold-text {
+    color: var(--gold);
+    font-weight: 700;
+}
+
+/* --- RESPONSIVE --- */
+@media (max-width: 768px) {
+    .grid-2 { grid-template-columns: 1fr; }
+    .full-width { grid-column: span 1; }
 }
