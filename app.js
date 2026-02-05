@@ -111,17 +111,28 @@ window.openNewDonorModal = () => {
 
 window.handleNewDonor = async () => {
     const ln = document.getElementById('n-lname').value.trim();
-    if(!ln) return showNotify("Le nom est obligatoire", "error");
+    if(!ln) { showNotify("Le nom est obligatoire", "error"); return; }
 
-    const { error } = await supabaseClient.from('donors').insert([{
+    const { data, error } = await supabaseClient.from('donors').insert([{
         last_name: ln,
         first_name: document.getElementById('n-fname').value,
         entities: document.getElementById('n-ent').value,
-        last_modified_by: currentUser.last_name
-    }]);
+        last_modified_by: currentUser ? currentUser.last_name : "Admin"
+    }]).select(); // On demande le retour des données pour vérifier
 
-    if(error) showNotify("Erreur lors de la création", "error");
-    else { showNotify("Donateur créé !"); closeModal('donor-modal'); loadDonors(); }
+    if(error) {
+        console.error("Erreur Supabase:", error);
+        showNotify("Erreur : " + error.message, "error");
+    } else {
+        console.log("Donateur créé avec succès:", data);
+        showNotify("Donateur créé !");
+        closeModal('donor-modal');
+        
+        // Attendre un court instant que la BDD respire et recharger
+        setTimeout(() => {
+            loadDonors(); 
+        }, 500);
+    }
 };
 
 // --- FICHE DÉTAILLÉE ---
