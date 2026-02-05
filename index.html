@@ -3,77 +3,106 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CRM - Institut Alsatia</title>
+    <title>Portail Institut Alsatia - CRM & Gestion</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
     <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
-    <header>
-        <div class="logo-gold" id="current-portal-display">Institut Alsatia</div>
-        <nav>
-            <ul>
-                <li id="nav-dashboard" class="active" onclick="switchTab('dashboard')">📊 Dashboard</li>
-                <li id="nav-donors" onclick="switchTab('donors')">👥 Donateurs</li>
-                <li id="nav-events" onclick="switchTab('events')">📅 Événements</li>
-                <li id="nav-chat" onclick="switchTab('chat')">💬 Salon</li>
-            </ul>
-        </nav>
-        <div class="user-profile">
-            <span id="user-name-display">...</span>
-            <button onclick="logout()" class="btn-danger" style="margin-left:15px; padding:5px 10px;">Quitter</button>
+    <nav class="side-nav">
+        <div class="logo-area">
+            <img src="logo_alsatia.png" alt="Institut Alsatia" class="logo">
+            <span class="portal-tag" id="current-portal-display">Chargement...</span>
         </div>
-    </header>
+        
+        <ul>
+            <li id="nav-chat" class="active" onclick="switchTab('chat')">💬 Salon de discussion</li>
+            <li id="nav-donors" onclick="switchTab('donors')">👥 Gestion Donateurs (CRM)</li>
+            <li id="nav-events" onclick="switchTab('events')">📅 Événements</li>
+        </ul>
 
-    <div class="container">
-        <section id="tab-dashboard" class="tab-content active">
-            <div class="grid-2">
-                <div class="card">
-                    <h3>🎁 Remerciements à traiter</h3>
-                    <div id="urgent-donations-feed" class="feed-container">Chargement...</div>
-                </div>
-                <div class="card">
-                    <h3>📅 Événements</h3>
-                    <div id="events-container" class="feed-container"></div>
-                </div>
+        <div class="user-bottom">
+            <span id="user-name-display">Utilisateur</span>
+            <button onclick="logout()" class="btn-logout">Déconnexion</button>
+        </div>
+    </nav>
+
+    <main class="main-content">
+        
+        <section id="tab-chat" class="tab-content active">
+            <div class="header-tab">
+                <h1>Salon de Discussion</h1>
+                <p>Échanges en temps réel entre les entités.</p>
+            </div>
+            <div id="global-chat-history" class="chat-box"></div>
+            <div class="chat-input-area">
+                <input type="text" id="global-chat-input" placeholder="Votre message pour l'équipe...">
+                <button onclick="sendGlobalMessage()" class="btn-save">Envoyer</button>
             </div>
         </section>
 
         <section id="tab-donors" class="tab-content">
-            <div class="card">
-                <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
-                    <h2>Base Donateurs</h2>
-                    <button class="btn-primary" onclick="openNewDonorModal()">+ Nouveau Donateur</button>
+            <div class="header-tab">
+                <h1>Base de Données Donateurs</h1>
+                <div class="header-actions">
+                    <button onclick="openNewDonorModal()" class="btn-save">+ Nouveau Donateur</button>
+                    <button onclick="exportGlobalExcel()" class="btn-outline-gold">📊 Export Global Annuel</button>
                 </div>
-                <table>
+            </div>
+
+            <div class="search-container">
+                <input type="text" id="search-donor" class="search-input" placeholder="Rechercher par nom, prénom ou entreprise..." onkeyup="filterDonors()">
+            </div>
+
+            <div class="table-container">
+                <table class="luxe-table-main">
                     <thead>
-                        <tr><th>Nom</th><th>Entités</th><th>Total</th><th>Action</th><th>Dossier</th></tr>
+                        <tr>
+                            <th>Identité / Raison Sociale</th>
+                            <th>Entité Principale</th>
+                            <th>Total Dons</th>
+                            <th>Action</th>
+                        </tr>
                     </thead>
-                    <tbody id="donors-list"></tbody>
+                    <tbody id="donors-list">
+                        </tbody>
                 </table>
             </div>
         </section>
 
-        <section id="tab-chat" class="tab-content">
-            <div class="card">
-                <div id="global-chat-history" style="height:400px; overflow-y:auto; border:1px solid #eee; padding:15px; margin-bottom:10px;"></div>
-                <div style="display:flex; gap:10px;">
-                    <input type="text" id="global-chat-input" placeholder="Message..." class="luxe-input">
-                    <button onclick="sendGlobalMessage()" class="btn-primary">Envoyer</button>
-                </div>
+        <section id="tab-events" class="tab-content">
+            <div class="header-tab">
+                <h1>Gestion des Événements</h1>
+                <p>À venir : Organisation, invitations et pointage.</p>
             </div>
         </section>
-    </div>
 
-    <div id="donor-modal" class="modal">
+    </main>
+
+    <div id="donor-modal" class="modal-overlay">
         <div class="modal-content">
-            <span class="close" onclick="closeModal('donor-modal')" style="float:right; cursor:pointer; font-size:24px;">&times;</span>
             <div id="donor-detail-content"></div>
         </div>
     </div>
 
-    <div id="toast-notification">Notification</div>
+    <div id="confirm-modal" class="confirm-overlay">
+        <div class="confirm-box">
+            <h3 class="gold-title">Confirmation Requise</h3>
+            <p id="confirm-msg">Êtes-vous sûr de vouloir effectuer cette action ?</p>
+            <div class="confirm-btns">
+                <button id="confirm-yes" class="btn-danger-action">Confirmer la suppression</button>
+                <button onclick="document.getElementById('confirm-modal').style.display='none'" class="btn-outline">Annuler</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="notification-container"></div>
 
     <script src="app.js"></script>
 </body>
