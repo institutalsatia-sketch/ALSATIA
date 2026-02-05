@@ -95,13 +95,72 @@ function setupMentionLogic() {
     });
 }
 
+// ========================== GESTION DES SUJETS (CHANNELS) ==========================
+
 async function loadSubjects() {
     const { data } = await supabaseClient.from('chat_subjects').select('*').order('name');
     const select = document.getElementById('chat-subject-filter');
-    const mySubjects = (data || []).filter(s => s.entity === currentUser.portal || s.entity === "Tous" || !s.entity);
+    
+    // Filtrage : Sujets de mon entité OU sujets publics ("Tous")
+    const mySubjects = (data || []).filter(s => 
+        s.entity === currentUser.portal || s.entity === "Tous" || !s.entity
+    );
+
     select.innerHTML = mySubjects.map(s => `<option value="${s.name}"># ${s.name}</option>`).join('');
     loadChatMessages();
 }
+
+window.showNewSubjectModal = () => {
+    // Sécurité : Seul l'admin de l'Institut peut créer des sujets
+    if (currentUser.portal !== "Institut Alsatia") {
+        alert("⚠️ Accès refusé : Seul l'administrateur peut créer de nouveaux salons.");
+        return;
+    }
+
+    document.getElementById('custom-modal').style.display = 'flex';
+    document.getElementById('modal-body').innerHTML = `
+        <h3>Nouveau Sujet</h3>
+        <input type="text" id="n-subject-name" placeholder="Nom du salon (ex: Travaux)..." class="luxe-input">
+        <label class="mini-label">Confidentialité :</label>
+        <select id="n-subject-entity" class="luxe-input">
+            <option value="${currentUser.portal}">Privé (${currentUser.portal})</option>
+            <option value="Tous">Public (Toutes les entités)</option>
+        </select>
+        <button onclick="execCreateSubject()" class="btn-gold" style="width:100%; margin-top:10px;">CRÉER LE SUJET</button>
+    `;
+};
+
+window.execCreateSubject = async () => {
+    const name = document.getElementById('n-subject-name').value.trim();
+    const entity = document.getElementById('n-subject-entity').value;
+    if(!name) return;
+    
+    const { error } = await supabaseClient.from('chat_subjects').insert([{ name, entity }]);
+    if(!error) { 
+        closeCustomModal(); 
+        loadSubjects(); 
+    } else {
+        alert("Erreur lors de la création.");
+    }
+};
+
+window.askDeleteSubject = () => {
+    if (currentUser.portal !== "Institut Alsatia") return alert("Droits insuffisants.");
+    const subj = document.getElementById('chat-subject-filter').value;
+    if (subj === "Général") return alert("Impossible de supprimer le salon par défaut.");
+
+    document.getElementById('custom-modal').style.display = 'flex';
+    document.getElementById('modal-body').innerHTML = `
+        <h3 style="color:var(--danger);">Supprimer #${subj} ?</h3>
+        <p>Cette action est irréversible.</p>
+        <button onclick="execDeleteSubject('${subj}')" class="btn-danger" style="width:100%">CONFIRMER LA SUPPRESSION</button>
+    `;
+};
+
+window.execDeleteSubject = async (name) => {
+    const { error } = await supabaseClient.from('chat_subjects').delete().eq('name', name);
+    if(!error) { closeCustomModal(); loadSubjects(); }
+};
 
 async function loadChatMessages() {
     const subj = document.getElementById('chat-subject-filter').value;
@@ -268,25 +327,24 @@ window.exportSingleDonor = (id) => {
 
 window.addDonation = async (id) => {
     const amt = document.getElementById('d-amt').value;
-    const date = document.getElementById('d-date').value;
-    const tax = document.getElementById('d-tax').value; // Récupère le numéro fiscal
+    const date = document.getElementById('d-date').value; // Récupère la date saisie
+    const tax = document.getElementById('d-tax').value;  // Récupère le reçu fiscal
     
-    if(!amt || !date) return alert("Saisissez au moins le montant et la date.");
+    if(!amt || !date) return alert("Veuillez saisir le montant et la date.");
 
     const { error } = await supabaseClient.from('donations').insert([{ 
         donor_id: id, 
         amount: parseFloat(amt), 
         date: date, 
-        tax_receipt_number: tax, // Envoie vers la colonne tax_receipt_number
+        tax_receipt_number: tax,
         thanked: false 
     }]);
 
     if(error) {
-        console.error("Erreur:", error);
-        alert("Erreur. Vérifiez que la colonne 'tax_receipt_number' existe dans Supabase.");
+        alert("Erreur. Avez-vous créé la colonne 'tax_receipt_number' sur Supabase ?");
     } else {
-        openDonorFile(id); // Recharge la modale
-        loadDonors();      // Recharge la liste en fond
+        openDonorFile(id); 
+        loadDonors();
     }
 };
 
