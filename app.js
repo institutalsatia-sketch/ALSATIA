@@ -202,43 +202,58 @@ window.exportAllDonors = () => {
 window.openDonorFile = async (id) => {
     const { data: d } = await supabaseClient.from('donors').select('*, donations(*)').eq('id', id).single();
     document.getElementById('custom-modal').style.display = 'flex';
+    
+    // Date du jour par défaut
+    const today = new Date().toISOString().split('T')[0];
+
     document.getElementById('modal-body').innerHTML = `
         <div style="display:flex; justify-content:space-between; border-bottom:2px solid var(--gold); padding-bottom:10px;">
-            <h3>Fiche Donateur</h3>
-            <div style="display:flex; gap:5px;">
-                <button onclick="exportSingleDonor('${d.id}')" class="btn-gold" style="background:#107c10; font-size:0.7rem;">Excel</button>
-                <button onclick="closeCustomModal()" class="btn-gold">X</button>
-            </div>
+            <h3>Fiche Donateur : ${d.last_name}</h3>
+            <button onclick="closeCustomModal()" class="btn-gold">X</button>
         </div>
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:15px; max-height:450px; overflow-y:auto; padding-right:5px;">
+        
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:15px;">
             <div class="col">
                 <label class="mini-label">Société</label><input type="text" id="e-company" value="${d.company_name||''}" class="luxe-input">
                 <label class="mini-label">Nom *</label><input type="text" id="e-last" value="${d.last_name||''}" class="luxe-input">
-                <label class="mini-label">Prénom</label><input type="text" id="e-first" value="${d.first_name||''}" class="luxe-input">
                 <label class="mini-label">Email</label><input type="text" id="e-email" value="${d.email||''}" class="luxe-input">
-                <label class="mini-label">Téléphone</label><input type="text" id="e-phone" value="${d.phone||''}" class="luxe-input">
             </div>
             <div class="col">
-                <label class="mini-label">Adresse</label><input type="text" id="e-address" value="${d.address||''}" class="luxe-input">
-                <label class="mini-label">Code Postal</label><input type="text" id="e-zip" value="${d.zip_code||''}" class="luxe-input">
                 <label class="mini-label">Ville</label><input type="text" id="e-city" value="${d.city||''}" class="luxe-input">
-                <label class="mini-label">Origine / Entité</label><input type="text" id="e-origin" value="${d.origin||d.entities||''}" class="luxe-input">
-                <label class="mini-label">Prochaine Action</label><input type="text" id="e-next" value="${d.next_action||''}" class="luxe-input">
-            </div>
-            <div style="grid-column: span 2;">
-                <label class="mini-label">Notes privées</label><textarea id="e-notes" class="luxe-input" style="height:60px;">${d.notes||''}</textarea>
+                <label class="mini-label">Origine</label><input type="text" id="e-origin" value="${d.origin||d.entities||''}" class="luxe-input">
+                <label class="mini-label">Notes</label><textarea id="e-notes" class="luxe-input" style="height:35px;">${d.notes||''}</textarea>
             </div>
         </div>
-        <div style="background:#f8fafc; padding:10px; border-radius:8px; margin-top:10px;">
-            <div style="display:flex; gap:5px;">
-                <input type="number" id="d-amt" placeholder="Montant €" class="luxe-input" style="margin:0">
-                <button onclick="addDonation('${d.id}')" class="btn-gold">Ajouter Don</button>
+
+        <div style="background:#f8fafc; padding:15px; border-radius:8px; margin-top:15px; border:1px solid #e2e8f0;">
+            <h4 style="margin:0 0 10px 0; color:var(--primary); font-size:0.85rem;">NOUVEAU DON</h4>
+            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
+                <div>
+                    <label class="mini-label">Montant (€)</label>
+                    <input type="number" id="d-amt" class="luxe-input" style="margin:0">
+                </div>
+                <div>
+                    <label class="mini-label">Date</label>
+                    <input type="date" id="d-date" value="${today}" class="luxe-input" style="margin:0">
+                </div>
+                <div>
+                    <label class="mini-label">N° Reçu Fiscal</label>
+                    <input type="text" id="d-tax" placeholder="Optionnel" class="luxe-input" style="margin:0">
+                </div>
             </div>
-            <div style="margin-top:10px; font-size:0.75rem;">
-                ${(d.donations||[]).map(don => `<div>${don.date} : <b>${don.amount}€</b> - <input type="checkbox" ${don.thanked?'checked':''} onchange="updateThanks('${don.id}','${d.id}',this.checked)"> Merci</div>`).join('')}
+            <button onclick="addDonation('${d.id}')" class="btn-gold" style="width:100%; margin-top:10px; height:35px;">VALIDER LE DON</button>
+            
+            <div style="margin-top:15px; font-size:0.75rem; border-top:1px solid #ddd; padding-top:10px;">
+                <label class="mini-label">HISTORIQUE</label>
+                ${(d.donations||[]).sort((a,b) => new Date(b.date) - new Date(a.date)).map(don => `
+                    <div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px dashed #eee;">
+                        <span>${don.date} : <b>${don.amount}€</b> ${don.tax_receipt_number ? `(RF: ${don.tax_receipt_number})` : ''}</span>
+                        <span><input type="checkbox" ${don.thanked?'checked':''} onchange="updateThanks('${don.id}','${d.id}',this.checked)"> Merci</span>
+                    </div>
+                `).join('')}
             </div>
         </div>
-        <button onclick="saveDonor('${d.id}')" class="btn-gold" style="width:100%; margin-top:15px; background:var(--primary);">ENREGISTRER LES MODIFICATIONS</button>
+        <button onclick="saveDonor('${d.id}')" class="btn-gold" style="width:100%; margin-top:15px; background:var(--primary);">ENREGISTRER LA FICHE</button>
     `;
 };
 
@@ -253,9 +268,26 @@ window.exportSingleDonor = (id) => {
 
 window.addDonation = async (id) => {
     const amt = document.getElementById('d-amt').value;
-    if(!amt) return;
-    await supabaseClient.from('donations').insert([{ donor_id: id, amount: parseFloat(amt), date: new Date().toISOString().split('T')[0], thanked: false }]);
-    openDonorFile(id); loadDonors();
+    const date = document.getElementById('d-date').value;
+    const tax = document.getElementById('d-tax').value; // Récupère le numéro fiscal
+    
+    if(!amt || !date) return alert("Saisissez au moins le montant et la date.");
+
+    const { error } = await supabaseClient.from('donations').insert([{ 
+        donor_id: id, 
+        amount: parseFloat(amt), 
+        date: date, 
+        tax_receipt_number: tax, // Envoie vers la colonne tax_receipt_number
+        thanked: false 
+    }]);
+
+    if(error) {
+        console.error("Erreur:", error);
+        alert("Erreur. Vérifiez que la colonne 'tax_receipt_number' existe dans Supabase.");
+    } else {
+        openDonorFile(id); // Recharge la modale
+        loadDonors();      // Recharge la liste en fond
+    }
 };
 
 window.updateThanks = async (donId, donorId, val) => {
