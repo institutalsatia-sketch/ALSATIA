@@ -226,15 +226,36 @@ async function loadChatMessages() {
     const subj = document.getElementById('chat-subject-filter').value;
     if(!subj) return;
     const { data } = await supabaseClient.from('chat_global').select('*').eq('subject', subj).order('created_at', { ascending: true });
+    
     const box = document.getElementById('chat-box');
-    const filtered = (data || []).filter(m => currentUser.portal === "Institut Alsatia" || m.author_name === currentUser.first_name || (m.recipients && m.recipients.includes(currentUser.portal)) || (m.portal === currentUser.portal && !m.recipients));
+    
+    // Filtrage des messages selon les droits d'accès
+    const filtered = (data || []).filter(m => 
+        currentUser.portal === "Institut Alsatia" || 
+        m.author_name === currentUser.first_name || 
+        (m.recipients && m.recipients.includes(currentUser.portal)) || 
+        (m.portal === currentUser.portal && !m.recipients)
+    );
+    
     box.innerHTML = filtered.map(m => {
         const isMe = m.author_name === currentUser.first_name;
-        return `<div class="message ${isMe ? 'my-msg' : ''}"><div style="font-size:0.6rem; opacity:0.7; margin-bottom:4px;"><b>${m.author_name}</b> • ${m.portal}</div><div onclick="${isMe ? `askEditMsg('${m.id}','${m.content.replace(/'/g, "\\'")}')` : ''}">${m.content}</div>${m.file_url ? `<a href="${m.file_url}" target="_blank" style="color:var(--gold); display:block; margin-top:5px; font-size:0.8rem;">📄 Document</a>` : ''}${isMe ? `<div style="text-align:right"><span onclick="askDeleteMsg('${m.id}')" style="cursor:pointer; font-size:0.6rem; opacity:0.5;">Supprimer</span></div>` : ''}</div>`;
+        
+        // --- LOGIQUE MENTION STYLE WHATSAPP ---
+        // Remplace @Nom ou @Entité par un badge visuel
+        const formattedContent = m.content.replace(/@([\wÀ-ÿ-]+)/g, '<span class="mention-badge">@$1</span>');
+        
+        return `
+            <div class="message ${isMe ? 'my-msg' : ''}">
+                <div style="font-size:0.6rem; opacity:0.7; margin-bottom:4px;">
+                    <b>${m.author_name}</b> • ${m.portal}
+                </div>
+                <div class="msg-text">${formattedContent}</div>
+                ${m.file_url ? `<a href="${m.file_url}" target="_blank" class="chat-file-link">📄 Document</a>` : ''}
+            </div>
+        `;
     }).join('');
     box.scrollTop = box.scrollHeight;
 }
-
 window.sendChatMessage = async () => {
     const input = document.getElementById('chat-input');
     const subj = document.getElementById('chat-subject-filter').value;
