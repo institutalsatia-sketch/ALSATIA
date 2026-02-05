@@ -1,6 +1,5 @@
 /**
- * CRM INSTITUT ALSATIA - V8.0
- * Système Complet : Profils, Notes, Dons avancés (Destinations = Entités), Reçus fiscaux & Exports.
+ * CRM INSTITUT ALSATIA - MASTER VERSION FINALISÉE
  */
 
 const supabaseUrl = 'https://ptiosrmpliffsjooedle.supabase.co';
@@ -10,7 +9,6 @@ const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 let currentUser = JSON.parse(localStorage.getItem('alsatia_user'));
 let allDonorsData = [];
 
-// Configuration des listes
 const ENTITIES = [
     "Institut Alsatia", 
     "Cours Herrade de Landsberg", 
@@ -64,8 +62,10 @@ async function loadDonors() {
 
 function renderDonorsTable(data) {
     const list = document.getElementById('donors-list');
+    if(!list) return;
     list.innerHTML = data.map(d => {
-        const total = (d.donations || []).reduce((s, n) => s + Number(n.amount), 0);
+        // Sécurité sur le calcul du total
+        const total = (d.donations || []).reduce((s, n) => s + Number(n.amount || 0), 0);
         return `
         <tr>
             <td><strong>${(d.last_name || '').toUpperCase()}</strong> ${d.first_name || ''}</td>
@@ -85,11 +85,49 @@ window.filterDonors = () => {
     renderDonorsTable(filtered);
 };
 
-// --- GESTION FICHE DÉTAILLÉE ---
+// --- CRÉATION NOUVEAU DONATEUR ---
+window.openNewDonorModal = () => {
+    document.getElementById('donor-modal').style.display = 'flex';
+    document.getElementById('donor-detail-content').innerHTML = `
+        <div class="pro-fiche">
+            <header class="fiche-header">
+                <h2 class="gold-title">⚜️ Nouveau Donateur</h2>
+                <button onclick="closeModal('donor-modal')" class="btn-icon">✖</button>
+            </header>
+            <div class="grid-2">
+                <div><label>Nom (Obligatoire)</label><input type="text" id="n-lname" class="luxe-input"></div>
+                <div><label>Prénom</label><input type="text" id="n-fname" class="luxe-input"></div>
+                <div class="full-width">
+                    <label>Entité de rattachement</label>
+                    <select id="n-ent" class="luxe-input">
+                        ${ENTITIES.map(e => `<option value="${e}">${e}</option>`).join('')}
+                    </select>
+                </div>
+            </div>
+            <button onclick="handleNewDonor()" class="btn-save" style="width:100%; margin-top:20px;">Créer la fiche</button>
+        </div>
+    `;
+};
+
+window.handleNewDonor = async () => {
+    const ln = document.getElementById('n-lname').value.trim();
+    if(!ln) return showNotify("Le nom est obligatoire", "error");
+
+    const { error } = await supabaseClient.from('donors').insert([{
+        last_name: ln,
+        first_name: document.getElementById('n-fname').value,
+        entities: document.getElementById('n-ent').value,
+        last_modified_by: currentUser.last_name
+    }]);
+
+    if(error) showNotify("Erreur lors de la création", "error");
+    else { showNotify("Donateur créé !"); closeModal('donor-modal'); loadDonors(); }
+};
+
+// --- FICHE DÉTAILLÉE ---
 window.openDonorFile = async (donorId) => {
     const { data: donor } = await supabaseClient.from('donors').select('*, donations(*), messages(*)').eq('id', donorId).single();
     document.getElementById('donor-modal').style.display = 'flex';
-    
     const donations = donor.donations || [];
     const notes = donor.messages || [];
 
@@ -98,7 +136,7 @@ window.openDonorFile = async (donorId) => {
             <header class="fiche-header">
                 <div>
                     <h2>${donor.last_name.toUpperCase()} ${donor.first_name || ''}</h2>
-                    <span class="signature-tag">Modifié par : ${donor.last_modified_by || 'Système'}</span>
+                    <span class="signature-tag">👤 Modifié par : ${donor.last_modified_by || 'Système'}</span>
                 </div>
                 <button onclick="closeModal('donor-modal')" class="btn-icon">✖</button>
             </header>
@@ -106,10 +144,8 @@ window.openDonorFile = async (donorId) => {
             <div class="grid-2">
                 <div class="card-inner">
                     <h3>📍 Coordonnées</h3>
-                    <label>Email</label>
-                    <input type="email" id="e-mail" value="${donor.email || ''}" class="luxe-input">
-                    <label>Adresse</label>
-                    <input type="text" id="e-addr" value="${donor.address || ''}" class="luxe-input">
+                    <label>Email</label><input type="email" id="e-mail" value="${donor.email || ''}" class="luxe-input">
+                    <label>Adresse</label><input type="text" id="e-addr" value="${donor.address || ''}" class="luxe-input">
                     <div style="display:flex; gap:10px;">
                         <input type="text" id="e-zip" placeholder="CP" value="${donor.zip_code || ''}" class="luxe-input" style="width:80px;">
                         <input type="text" id="e-city" placeholder="Ville" value="${donor.city || ''}" class="luxe-input">
@@ -121,8 +157,7 @@ window.openDonorFile = async (donorId) => {
                     <select id="e-ent" class="luxe-input">
                         ${ENTITIES.map(e => `<option value="${e}" ${donor.entities === e ? 'selected' : ''}>${e}</option>`).join('')}
                     </select>
-                    <label>Introduit par / Lien</label>
-                    <input type="text" id="e-link" value="${donor.next_action || ''}" class="luxe-input">
+                    <label>Lien / Origine</label><input type="text" id="e-link" value="${donor.next_action || ''}" class="luxe-input">
                 </div>
             </div>
 
@@ -136,13 +171,13 @@ window.openDonorFile = async (donorId) => {
                             ${PAYMENT_METHODS.map(m => `<option value="${m}">${m}</option>`).join('')}
                         </select>
                     </div>
-                    <div style="grid-column: span 2;"><label>Destination du don (Entité)</label>
+                    <div style="grid-column: span 2;"><label>Destination (Entité Alsatia)</label>
                         <select id="new-dest" class="luxe-input">
                             ${ENTITIES.map(e => `<option value="${e}">${e}</option>`).join('')}
                         </select>
                     </div>
                     <div style="display:flex; align-items:center; gap:10px; padding-top:20px;">
-                        <input type="checkbox" id="new-thanks" style="width:20px; height:20px;"> <label for="new-thanks">Remercié ?</label>
+                        <input type="checkbox" id="new-thanks"> <label>Remercié ?</label>
                     </div>
                     <button onclick="submitDonation('${donor.id}')" class="btn-save" style="grid-column: span 3; background: var(--gold);">✅ Valider le don</button>
                 </div>
@@ -150,16 +185,16 @@ window.openDonorFile = async (donorId) => {
 
             <div class="card-inner full-width" style="margin-top:20px;">
                 <h3>📜 Historique des Dons</h3>
-                <div class="table-scroll" style="max-height: 200px; overflow-y: auto;">
-                    <table class="luxe-table">
-                        <thead><tr><th>Date</th><th>Montant</th><th>Destination</th><th>Reçu N°</th><th>Action</th></tr></thead>
+                <div class="table-scroll" style="max-height:150px; overflow-y:auto;">
+                    <table class="luxe-table" style="width:100%;">
+                        <thead><tr><th>Date</th><th>Montant</th><th>Destination</th><th>Reçu</th><th>Action</th></tr></thead>
                         <tbody>
                             ${donations.map(d => `
                                 <tr>
                                     <td>${d.date}</td>
                                     <td><strong>${d.amount} €</strong></td>
                                     <td><small>${d.destination || '-'}</small></td>
-                                    <td><input type="text" value="${d.tax_receipt_id || ''}" onchange="updateReceipt('${d.id}', this.value)" class="table-input" style="width:80px;" placeholder="N°"></td>
+                                    <td><input type="text" value="${d.tax_receipt_id || ''}" onchange="updateReceipt('${d.id}', this.value)" class="table-input" style="width:60px;"></td>
                                     <td><button onclick="deleteDonation('${d.id}', '${donor.id}')" class="btn-icon">🗑️</button></td>
                                 </tr>`).join('')}
                         </tbody>
@@ -169,44 +204,44 @@ window.openDonorFile = async (donorId) => {
 
             <div class="card-inner full-width" style="margin-top:20px;">
                 <h3>💬 Notes de suivi</h3>
-                <div class="notes-list" style="max-height: 120px; overflow-y: auto; background: #f8fafc; padding: 10px; border-radius: 8px; margin-bottom: 10px;">
-                    ${notes.map(n => `<div class="note-row" style="margin-bottom:5px; border-bottom:1px solid #eee; padding-bottom:5px;"><strong>${n.author_name}</strong>: ${n.content} <button onclick="deleteNote('${n.id}', '${donor.id}')" class="btn-icon" style="float:right;">🗑️</button></div>`).join('')}
+                <div class="notes-list" style="max-height:100px; overflow-y:auto; background:#f8fafc; padding:10px; border-radius:8px;">
+                    ${notes.map(n => `<div class="note-row"><strong>${n.author_name}</strong>: ${n.content} <button onclick="deleteNote('${n.id}', '${donor.id}')" class="btn-icon" style="float:right;">🗑️</button></div>`).join('')}
                 </div>
-                <div style="display:flex; gap:5px;"><input type="text" id="n-txt" class="luxe-input" placeholder="Nouvelle note..."><button onclick="addNote('${donor.id}')" class="btn-save">OK</button></div>
+                <div style="display:flex; gap:5px; margin-top:10px;"><input type="text" id="n-txt" class="luxe-input" placeholder="Ajouter une note..."><button onclick="addNote('${donor.id}')" class="btn-save">OK</button></div>
             </div>
 
             <div style="margin-top:30px; display:flex; gap:10px;">
                 <button onclick="saveDonorChanges('${donor.id}')" class="btn-save" style="flex:2;">💾 Sauvegarder Profil</button>
-                <button onclick="deleteFullDonor('${donor.id}')" class="btn-danger-action" style="flex:1;">⚠️ Supprimer Fiche</button>
+                <button onclick="deleteFullDonor('${donor.id}')" class="btn-danger-action" style="flex:1;">Supprimer Fiche</button>
             </div>
         </div>
     `;
 };
 
-// --- ACTIONS CRUD ---
+// --- CRUD ---
 window.submitDonation = async (donorId) => {
     const amount = document.getElementById('new-amount').value;
-    const date = document.getElementById('new-date').value;
-    const method = document.getElementById('new-method').value;
-    const dest = document.getElementById('new-dest').value;
-    const thanked = document.getElementById('new-thanks').checked;
-
     if(!amount || amount <= 0) return showNotify("Indiquez un montant", "error");
-
-    const { error } = await supabaseClient.from('donations').insert([{
-        donor_id: donorId, amount: amount, date: date, payment_method: method, destination: dest, thanked: thanked
+    
+    await supabaseClient.from('donations').insert([{
+        donor_id: donorId,
+        amount: amount,
+        date: document.getElementById('new-date').value,
+        payment_method: document.getElementById('new-method').value,
+        destination: document.getElementById('new-dest').value,
+        thanked: document.getElementById('new-thanks').checked
     }]);
-
-    if(!error) { showNotify("Don enregistré"); openDonorFile(donorId); loadDonors(); }
+    
+    showNotify("Don enregistré"); openDonorFile(donorId); loadDonors();
 };
 
-window.updateReceipt = async (donationId, value) => {
-    await supabaseClient.from('donations').update({ tax_receipt_id: value }).eq('id', donationId);
-    showNotify("Reçu fiscal mis à jour");
+window.updateReceipt = async (id, val) => {
+    await supabaseClient.from('donations').update({ tax_receipt_id: val }).eq('id', id);
+    showNotify("N° Reçu mis à jour");
 };
 
 window.addNote = async (id) => {
-    const val = document.getElementById('n-txt').value;
+    const val = document.getElementById('n-txt').value.trim();
     if(!val) return;
     await supabaseClient.from('messages').insert([{ donor_id: id, content: val, author_name: currentUser.first_name }]);
     openDonorFile(id);
@@ -223,30 +258,26 @@ window.saveDonorChanges = async (id) => {
         last_modified_by: currentUser.last_name
     };
     await supabaseClient.from('donors').update(up).eq('id', id);
-    showNotify("Fiche mise à jour");
-    loadDonors();
-    closeModal('donor-modal');
+    showNotify("Fiche sauvegardée"); loadDonors(); closeModal('donor-modal');
 };
 
-window.deleteNote = (noteId, donorId) => customConfirm("Supprimer cette note ?", async () => { await supabaseClient.from('messages').delete().eq('id', noteId); openDonorFile(donorId); });
-window.deleteDonation = (donId, donorId) => customConfirm("Supprimer ce don ?", async () => { await supabaseClient.from('donations').delete().eq('id', donId); openDonorFile(donorId); loadDonors(); });
-window.deleteFullDonor = (id) => customConfirm("DÉTRUIRE cette fiche ?", async () => { 
+window.deleteNote = (nId, dId) => customConfirm("Supprimer cette note ?", async () => { await supabaseClient.from('messages').delete().eq('id', nId); openDonorFile(dId); });
+window.deleteDonation = (donId, dId) => customConfirm("Supprimer ce don ?", async () => { await supabaseClient.from('donations').delete().eq('id', donId); openDonorFile(dId); loadDonors(); });
+window.deleteFullDonor = (id) => customConfirm("SUPPRIMER DÉFINITIVEMENT ?", async () => { 
     await supabaseClient.from('donations').delete().eq('donor_id', id);
     await supabaseClient.from('messages').delete().eq('donor_id', id);
     await supabaseClient.from('donors').delete().eq('id', id);
-    showNotify("Dossier supprimé");
-    closeModal('donor-modal');
-    loadDonors();
+    showNotify("Donneur supprimé"); closeModal('donor-modal'); loadDonors();
 });
 
 window.exportGlobalExcel = () => {
     const rows = [["Nom", "Prénom", "Email", "Ville", "Entité", "Total Dons"]];
     allDonorsData.forEach(d => {
-        const total = d.donations.reduce((s, n) => s + Number(n.amount), 0);
+        const total = (d.donations || []).reduce((s, n) => s + Number(n.amount), 0);
         rows.push([d.last_name, d.first_name, d.email, d.city, d.entities, total]);
     });
     const ws = XLSX.utils.aoa_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Donateurs");
-    XLSX.writeFile(wb, `Alsatia_Export_${new Date().getFullYear()}.xlsx`);
+    XLSX.writeFile(wb, `Export_Alsatia_${new Date().toLocaleDateString()}.xlsx`);
 };
