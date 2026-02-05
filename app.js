@@ -64,6 +64,19 @@ window.switchTab = (id) => {
 window.logout = () => { localStorage.clear(); window.location.href = 'login.html'; };
 window.closeCustomModal = () => { document.getElementById('custom-modal').style.display = 'none'; };
 
+window.showNotice = (title, message) => {
+    // Si vous n'avez pas d'élément toast, on le crée
+    let toast = document.getElementById('notification-toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'notification-toast';
+        document.body.appendChild(toast);
+    }
+    toast.innerHTML = `<strong>${title}</strong><br>${message}`;
+    toast.style.display = 'block';
+    setTimeout(() => { toast.style.display = 'none'; }, 3000);
+};
+
 // ==========================================
 // MESSAGERIE & MENTIONS @
 // ==========================================
@@ -570,8 +583,8 @@ window.handleFileUpload = (input) => {
     } 
 };
 
-// ==========================================
-// GESTION DES ÉVÉNEMENTS
+/// ==========================================
+// GESTION DES ÉVÉNEMENTS (VUE KANBAN)
 // ==========================================
 
 window.loadEvents = async () => {
@@ -589,15 +602,14 @@ function renderEvents(events) {
     if (!container) return;
 
     if (!events || events.length === 0) {
-        container.innerHTML = `<div style="text-align:center; padding:40px; opacity:0.5;">Aucun événement programmé.</div>`;
+        container.innerHTML = `<div style="text-align:center; padding:40px; grid-column: 1 / -1; opacity:0.5;">Aucun événement programmé.</div>`;
         return;
     }
 
-    // Séparation des événements par statut
     const categories = {
-        todo: { title: "À PLANIFIER", items: [], icon: "calendar" },
-        progress: { title: "EN PRÉPARATION", items: [], icon: "loader" },
-        ready: { title: "PRÊT POUR COM", items: [], icon: "check-circle" }
+        todo: { title: "À PLANIFIER", items: [], icon: "calendar", color: "#64748b" },
+        progress: { title: "EN PRÉPARATION", items: [], icon: "loader", color: "#b45309" },
+        ready: { title: "PRÊT POUR COM", items: [], icon: "check-circle", color: "#107c10" }
     };
 
     events.forEach(ev => {
@@ -609,48 +621,48 @@ function renderEvents(events) {
         else categories.todo.items.push(ev);
     });
 
-    container.innerHTML = `
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; align-items: start;">
-            ${Object.keys(categories).map(key => {
-                const cat = categories[key];
-                return `
-                    <div class="kanban-column" style="background: #f8fafc; border-radius: 12px; padding: 15px; border: 1px solid #e2e8f0;">
-                        <h3 style="font-size: 0.9rem; color: #64748b; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
-                            <i data-lucide="${cat.icon}" style="width:16px;"></i> ${cat.title} (${cat.items.length})
-                        </h3>
-                        <div style="display: flex; flex-direction: column; gap: 12px;">
-                            ${cat.items.map(ev => renderMiniCard(ev)).join('')}
-                        </div>
-                    </div>
-                `;
-            }).join('')}
-        </div>
-    `;
+    container.style.display = "grid";
+    container.style.gridTemplateColumns = "repeat(auto-fit, minmax(300px, 1fr))";
+    container.style.gap = "20px";
+
+    container.innerHTML = Object.keys(categories).map(key => {
+        const cat = categories[key];
+        return `
+            <div class="kanban-column">
+                <h3 style="font-size: 0.85rem; color: ${cat.color}; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; font-weight:800; letter-spacing:1px;">
+                    <i data-lucide="${cat.icon}" style="width:16px;"></i> ${cat.title} (${cat.items.length})
+                </h3>
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    ${cat.items.map(ev => renderMiniCard(ev)).join('')}
+                </div>
+            </div>
+        `;
+    }).join('');
     lucide.createIcons();
 }
 
-// Fonction pour générer une petite carte compacte dans le Kanban
 function renderMiniCard(ev) {
     const canManage = (currentUser.portal === "Institut Alsatia" || currentUser.portal === ev.entity);
     const dateFr = new Date(ev.event_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
     
     return `
-        <div class="event-card-mini" style="background:white; padding:12px; border-radius:8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-left: 4px solid ${getColorByEntity(ev.entity)};">
-            <div style="font-size: 0.7rem; color: ${getColorByEntity(ev.entity)}; font-weight: bold; margin-bottom: 5px;">
-                ${ev.entity.toUpperCase()}
+        <div class="event-card-mini" style="border-left: 4px solid ${getColorByEntity(ev.entity)};">
+            <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:5px;">
+                <span style="font-size: 0.65rem; color: ${getColorByEntity(ev.entity)}; font-weight: bold; background:${getColorByEntity(ev.entity)}15; padding:2px 6px; border-radius:4px;">
+                    ${ev.entity.split(' ')[0]}...
+                </span>
+                <span style="font-size:0.7rem; font-weight:700; color:#64748b;">${dateFr}</span>
             </div>
-            <h4 style="margin: 0 0 8px 0; font-size: 0.95rem;">${ev.title}</h4>
-            <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 10px;">
-                <i data-lucide="calendar" style="width:12px; display:inline;"></i> ${dateFr}
-            </div>
-            <div style="display: flex; gap: 5px;">
-                <button onclick="openEventMedia('${ev.id}')" class="btn-mini-gold" style="flex:1; padding:4px 0;"><i data-lucide="camera" style="width:12px;"></i> COM</button>
-                <button onclick="openEventGuests('${ev.id}')" class="btn-mini-gold" style="flex:1; padding:4px 0; background:#f1f5f9; color:black; border:1px solid #ddd;"><i data-lucide="users" style="width:12px;"></i></button>
-                ${canManage ? `<button onclick="askDeleteEvent('${ev.id}', '${ev.title.replace(/'/g, "\\'")}')" style="background:none; border:none; color:#ef4444; cursor:pointer;"><i data-lucide="trash-2" style="width:14px;"></i></button>` : ''}
+            <h4 style="margin: 5px 0 10px 0; font-size: 0.9rem; line-height:1.2; color:#1e293b;">${ev.title}</h4>
+            <div style="display: flex; gap: 4px;">
+                <button onclick="openEventMedia('${ev.id}')" class="btn-mini-gold" style="flex:2; font-size:0.7rem; padding:5px;"><i data-lucide="camera" style="width:12px;"></i> COM</button>
+                <button onclick="openEventGuests('${ev.id}')" class="btn-mini-gold" style="flex:1; padding:5px; background:#f1f5f9; color:black; border:1px solid #ddd;"><i data-lucide="users" style="width:12px;"></i></button>
+                ${canManage ? `<button onclick="askDeleteEvent('${ev.id}', '${ev.title.replace(/'/g, "\\'")}')" style="padding:5px; background:none; border:none; color:#ef4444; cursor:pointer;"><i data-lucide="trash-2" style="width:14px;"></i></button>` : ''}
             </div>
         </div>
     `;
 }
+
 
 // --- DOSSIER MÉDIA ---
 window.openEventMedia = async (eventId) => {
