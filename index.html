@@ -3,85 +3,57 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ALSATIA CRM - Gestion Institutionnelle</title>
-    
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
-    
+    <title>Institut Alsatia - CRM</title>
     <link rel="stylesheet" href="style.css">
-
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-    
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-
     <nav class="side-nav">
         <div class="logo-area">
             <img src="logo_alsatia.png" alt="⚜️" class="main-logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-            <div class="logo-fallback" style="display:none; font-size: 2.5rem; margin-bottom: 10px;">⚜️</div>
-            <span class="portal-tag" id="current-portal-display">Chargement...</span>
+            <div style="display:none; font-size: 2.5rem; margin-bottom:10px;">⚜️</div>
+            <span class="portal-tag" id="current-portal-display">...</span>
         </div>
-        
         <ul>
-            <li id="nav-chat" class="active" onclick="switchTab('chat')">💬 Discussion</li>
-            <li id="nav-donors" onclick="switchTab('donors')">👥 Donateurs (CRM)</li>
+            <li id="nav-chat" class="active" onclick="switchTab('chat')">💬 Salon Discussion</li>
+            <li id="nav-donors" onclick="switchTab('donors')">👥 Base Donateurs</li>
             <li id="nav-events" onclick="switchTab('events')">📅 Événements</li>
         </ul>
-
         <div class="user-bottom">
-            <span id="user-name-display" style="display:block; margin-bottom:5px; font-weight:600; color: #fff;">...</span>
+            <span id="user-name-display" style="color:white; font-weight:bold;">...</span>
             <button onclick="logout()" class="btn-logout">Déconnexion</button>
         </div>
     </nav>
 
     <main class="main-content">
-        
         <section id="tab-chat" class="tab-content active">
-            <div class="header-tab">
-                <h1>Salon de Discussion</h1>
-            </div>
-            <div id="global-chat-history" class="chat-box" style="height: 400px; background: white; border-radius: 10px; padding: 20px; border: 1px solid #e2e8f0; overflow-y: auto; margin-bottom: 15px;">
-                </div>
+            <h1>Salon de Discussion</h1>
+            <div class="chat-box" style="background:white; height:300px; border-radius:10px; border:1px solid #ddd;"></div>
         </section>
 
         <section id="tab-donors" class="tab-content">
-            <div class="header-tab" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
-                <h1>Base Donateurs</h1>
-                <div class="header-actions">
-                    <button onclick="openNewDonorModal()" class="btn-save">+ Nouveau Donateur</button>
-                    <button onclick="exportGlobalExcel()" class="btn-outline-gold" style="margin-left: 10px;">📊 Export Excel</button>
+            <div class="header-tab" style="display:flex; justify-content:space-between; align-items:center;">
+                <h1>Gestion des Donateurs</h1>
+                <div>
+                    <button onclick="exportGlobalExcel()" class="btn-outline-gold">📊 Export Excel</button>
                 </div>
             </div>
-
-            <div class="search-container">
-                <input type="text" id="search-donor" class="search-input" placeholder="Rechercher un nom ou une entreprise..." onkeyup="filterDonors()">
-            </div>
-
+            <input type="text" id="search-donor" class="search-input" placeholder="Rechercher un donateur..." onkeyup="filterDonors()">
             <div class="table-container">
                 <table class="luxe-table-main">
                     <thead>
-                        <tr>
-                            <th>Identité / Entreprise</th>
-                            <th>Rattachement</th>
-                            <th>Cumul Dons</th>
-                            <th>Action</th>
-                        </tr>
+                        <tr><th>Identité</th><th>Entité</th><th>Cumul</th><th>Action</th></tr>
                     </thead>
-                    <tbody id="donors-list">
-                        </tbody>
+                    <tbody id="donors-list"></tbody>
                 </table>
             </div>
         </section>
 
         <section id="tab-events" class="tab-content">
-            <div class="header-tab">
-                <h1>Événements</h1>
-            </div>
-            <div class="card-inner">
-                <p>Module de gestion des présences en cours de développement.</p>
-            </div>
+            <h1>Événements</h1>
+            <p>Module en préparation.</p>
         </section>
-
     </main>
 
     <div id="donor-modal" class="modal-overlay">
@@ -92,9 +64,9 @@
 
     <div id="confirm-modal" class="confirm-overlay">
         <div class="confirm-box">
-            <h3 class="gold-title">Confirmation</h3>
-            <p id="confirm-msg" style="margin: 20px 0; color: #475569;"></p>
-            <div class="confirm-btns" style="display: flex; gap: 10px; justify-content: center;">
+            <h3>Confirmation</h3>
+            <p id="confirm-msg"></p>
+            <div style="margin-top:20px; display:flex; gap:10px; justify-content:center;">
                 <button id="confirm-yes" class="btn-danger-action">Confirmer</button>
                 <button onclick="closeConfirm()" class="btn-outline">Annuler</button>
             </div>
@@ -102,7 +74,6 @@
     </div>
 
     <div id="notification-container"></div>
-
     <script src="app.js"></script>
 </body>
 </html>
