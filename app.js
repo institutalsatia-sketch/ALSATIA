@@ -575,9 +575,10 @@ window.handleFileUpload = (input) => {
 // ==========================================
 
 async function loadEvents() {
+    // On récupère les événements et on joint les ressources pour le badge de statut
     const { data, error } = await supabaseClient
         .from('events')
-        .select('*')
+        .select('*, event_resources(id, file_url, description)')
         .order('event_date', { ascending: true });
 
     if (error) return console.error("Erreur events:", error);
@@ -595,34 +596,141 @@ function renderEvents(events) {
 
     container.innerHTML = events.map(ev => {
         const canManage = (currentUser.portal === "Institut Alsatia" || currentUser.portal === ev.entity);
+        
+        // Badge intelligent : Prêt si texte > 10 car. ET au moins une image
+        const hasText = ev.event_resources?.some(r => r.description && r.description.length > 10);
+        const hasPhoto = ev.event_resources?.some(r => r.file_url);
+        const isReady = hasText && hasPhoto;
+
         const dateFr = new Date(ev.event_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
         
         return `
             <div class="event-card" style="border-left: 5px solid ${getColorByEntity(ev.entity)};">
                 <div class="event-info">
-                    <span class="event-entity-badge" style="background:${getColorByEntity(ev.entity)}20; color:${getColorByEntity(ev.entity)};">
-                        ${ev.entity}
-                    </span>
+                    <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:10px;">
+                        <span class="event-entity-badge" style="background:${getColorByEntity(ev.entity)}20; color:${getColorByEntity(ev.entity)};">
+                            ${ev.entity}
+                        </span>
+                        ${isReady ? '<span class="badge-ready" style="background:#107c10; color:white; padding:2px 8px; border-radius:10px; font-size:0.7rem; font-weight:800;">✅ PRÊT COM</span>' : ''}
+                    </div>
                     <h4>${ev.title}</h4>
-                    <p><i data-lucide="calendar"></i> ${dateFr} ${ev.event_time ? ' à ' + ev.event_time : ''}</p>
-                    <p><i data-lucide="map-pin"></i> ${ev.location || 'Lieu non défini'}</p>
-                    ${ev.description ? `<p class="event-desc">${ev.description}</p>` : ''}
+                    <p><i data-lucide="calendar" style="width:14px;"></i> ${dateFr} ${ev.event_time ? ' à ' + ev.event_time : ''}</p>
+                    <p><i data-lucide="map-pin" style="width:14px;"></i> ${ev.location || 'Lieu non défini'}</p>
                 </div>
-                <div class="event-actions">
-                    <button onclick="openEventMedia('${ev.id}')" class="btn-gold" title="Dossier Com / Réseaux" style="padding:5px 10px;">
-                        <i data-lucide="camera"></i> CONTENU
-                    </button>
-                    ${canManage ? `
-                        <button onclick="askDeleteEvent('${ev.id}', '${ev.title.replace(/'/g, "\\'")}')" class="btn-mini-danger">
-                            <i data-lucide="trash-2"></i>
-                        </button>` 
-                    : ''}
+                <div class="event-actions" style="margin-top:15px; display:flex; gap:5px; flex-wrap:wrap;">
+                    <button onclick="openEventMedia('${ev.id}')" class="btn-gold" style="flex:1; padding:6px;"><i data-lucide="camera"></i> COM</button>
+                    <button onclick="openEventGuests('${ev.id}')" class="btn-gold" style="flex:1; padding:6px; background:#f1f5f9; color:#1e293b; border:1px solid #cbd5e1;"><i data-lucide="users"></i> INVITES</button>
+                    ${canManage ? `<button onclick="askDeleteEvent('${ev.id}', '${ev.title.replace(/'/g, "\\'")}')" class="btn-mini-danger"><i data-lucide="trash-2"></i></button>` : ''}
                 </div>
             </div>
         `;
     }).join('');
     lucide.createIcons();
 }
+
+// --- DOSSIER MÉDIA & RÉSEAUX SOCIAUX ---
+window.openEventMedia = async (eventId) => {
+    const { data: ev } = await supabaseClient.from('events').select('*').eq('id', eventId).single();
+    const { data: res } = await supabaseClient.from('event_resources').select('*').eq('event_id', eventId);
+
+    const textData = res.find(r => !r.file_url);
+    const photos = res.filter(r => r.file_url);
+
+    document.getElementById('custom-modal').style.display = 'flex';
+    document.getElementById('modal-body').innerHTML = `
+        <div style="display:flex; justify-content:space-between; border-bottom:2px solid var(--gold); padding-bottom:10px;">
+            <h3>Dossier Com' : ${ev.title}</h3>
+            <button onclick="closeCustomModal()" class="btn-gold">X</button>
+        </div>
+        
+        <div style="margin-top:15px; max-height:75vh; overflow-y:auto; padding-right:5px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label class="mini-label">LÉGENDE / POST RÉSEAUX</label>
+                <button onclick="copyEventText()" class="btn-mini-gold" style="font-size:0.65rem; padding:2px 8px;">COPIER LE TEXTE</button>
+            </div>
+            <textarea id="res-text" class="luxe-input" style="height:120px; font-size:0.9rem;" 
+                placeholder="Rédigez ici le post Instagram/Facebook...">${textData ? textData.description : ''}</textarea>
+            
+            <label class="mini-label" style="margin-top:15px;">PHOTOS & VISUELS</label>
+            <input type="file" id="res-file" class="luxe-input" onchange="uploadEventFile('${eventId}')" accept="image/*">
+            
+            <div id="media-gallery" style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:10px;">
+                ${photos.map(r => `
+                    <div class="gallery-item" style="position:relative; height:80px;">
+                        <img src="${r.file_url}" style="width:100%; height:100%; object-fit:cover; border-radius:5px;">
+                        <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.6); display:flex; justify-content:space-around; padding:2px; border-radius:0 0 5px 5px;">
+                            <button onclick="downloadPhoto('${r.file_url}', 'event_${eventId}')" style="background:none; border:none; color:white; cursor:pointer;"><i data-lucide="download" style="width:12px;"></i></button>
+                            <button onclick="deleteResource('${r.id}', '${eventId}')" style="background:none; border:none; color:#ff4d4d; cursor:pointer;"><i data-lucide="trash-2" style="width:12px;"></i></button>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+
+            <button onclick="saveEventContent('${eventId}')" class="btn-gold" style="width:100%; margin-top:20px; background:var(--primary);">
+                ENREGISTRER LE DOSSIER
+            </button>
+        </div>
+    `;
+    lucide.createIcons();
+};
+
+// --- GESTION DES INVITÉS ---
+window.openEventGuests = async (eventId) => {
+    const { data: donors } = await supabaseClient.from('donors').select('id, last_name, first_name, company_name').order('last_name');
+    const { data: guests } = await supabaseClient.from('event_guests').select('donor_id').eq('event_id', eventId);
+    const guestIds = guests.map(g => g.donor_id);
+
+    document.getElementById('custom-modal').style.display = 'flex';
+    document.getElementById('modal-body').innerHTML = `
+        <div style="display:flex; justify-content:space-between; border-bottom:2px solid var(--gold); padding-bottom:10px;">
+            <h3>Liste des Invités</h3>
+            <button onclick="closeCustomModal()" class="btn-gold">X</button>
+        </div>
+        <div style="margin-top:15px;">
+            <p class="mini-label">Cochez les donateurs invités à cet événement</p>
+            <div id="guest-list-scroll" style="max-height:400px; overflow-y:auto; margin-top:10px; border:1px solid #eee; border-radius:8px; background:#fff;">
+                ${donors.map(d => `
+                    <label style="display:flex; align-items:center; padding:10px; border-bottom:1px solid #f9f9f9; cursor:pointer; font-size:0.85rem;">
+                        <input type="checkbox" style="margin-right:12px; width:16px; height:16px;" 
+                            ${guestIds.includes(d.id) ? 'checked' : ''} 
+                            onchange="toggleGuest('${eventId}', '${d.id}', this.checked)">
+                        <div>
+                            <strong>${d.last_name} ${d.first_name || ''}</strong>
+                            <br><small style="color:gray;">${d.company_name || 'Particulier'}</small>
+                        </div>
+                    </label>
+                `).join('')}
+            </div>
+        </div>
+    `;
+};
+
+window.toggleGuest = async (eventId, donorId, isChecked) => {
+    if (isChecked) {
+        await supabaseClient.from('event_guests').insert([{ event_id: eventId, donor_id: donorId }]);
+    } else {
+        await supabaseClient.from('event_guests').delete().eq('event_id', eventId).eq('donor_id', donorId);
+    }
+};
+
+// --- FONCTIONS OUTILS ---
+window.copyEventText = () => {
+    const text = document.getElementById('res-text').value;
+    if(!text) return;
+    navigator.clipboard.writeText(text);
+    // On utilise showNotice si vous l'avez déjà implémenté, sinon alert
+    if(window.showNotice) showNotice("Copié !", "Le texte est dans votre presse-papier.");
+    else alert("Texte copié !");
+};
+
+window.downloadPhoto = (url, filename) => {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+};
 
 function getColorByEntity(entity) {
     const colors = {
@@ -633,100 +741,6 @@ function getColorByEntity(entity) {
     };
     return colors[entity] || "#666";
 }
-
-// --- DOSSIER MÉDIA & RÉSEAUX SOCIAUX ---
-window.openEventMedia = async (eventId) => {
-    // Vérification : L'admin Institut peut tout voir, les autres voient leur entité
-    const { data: ev } = await supabaseClient.from('events').select('*').eq('id', eventId).single();
-    if (currentUser.portal !== "Institut Alsatia" && currentUser.portal !== ev.entity) {
-        return alert("Accès restreint aux membres de " + ev.entity);
-    }
-
-    const { data: res } = await supabaseClient.from('event_resources').select('*').eq('event_id', eventId);
-
-    // Extraction du texte s'il existe (on stocke le texte dans une ligne sans file_url)
-    const textData = res.find(r => !r.file_url);
-    const photos = res.filter(r => r.file_url);
-
-    document.getElementById('custom-modal').style.display = 'flex';
-    document.getElementById('modal-body').innerHTML = `
-        <div style="display:flex; justify-content:space-between; border-bottom:2px solid var(--gold); padding-bottom:10px;">
-            <h3>Dossier de Publication : ${ev.title}</h3>
-            <button onclick="closeCustomModal()" class="btn-gold">X</button>
-        </div>
-        
-        <div style="margin-top:15px; max-height:70vh; overflow-y:auto;">
-            <label class="mini-label">TEXTE POUR LES RÉSEAUX SOCIAUX</label>
-            <textarea id="res-text" class="luxe-input" style="height:120px;" 
-                placeholder="Rédigez ici le texte, les hashtags et les infos pour le post...">${textData ? textData.description : ''}</textarea>
-            
-            <label class="mini-label" style="margin-top:15px;">AJOUTER DES PHOTOS / DOCUMENTS</label>
-            <input type="file" id="res-file" class="luxe-input" onchange="uploadEventFile('${eventId}')" accept="image/*,.pdf">
-            
-            <div id="media-gallery" style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:15px;">
-                ${photos.map(r => `
-                    <div class="gallery-item" style="position:relative;">
-                        <img src="${r.file_url}" style="width:100%; height:80px; object-fit:cover; border-radius:5px; border:1px solid #ddd;">
-                        <button onclick="deleteResource('${r.id}', '${eventId}')" 
-                            style="position:absolute; top:2px; right:2px; background:rgba(225,29,72,0.8); color:white; border:none; border-radius:3px; cursor:pointer;">×</button>
-                    </div>
-                `).join('')}
-            </div>
-
-            <button onclick="saveEventContent('${eventId}')" class="btn-gold" style="width:100%; margin-top:20px; background:var(--primary);">
-                VALIDER LE CONTENU POUR PUBLICATION
-            </button>
-        </div>
-    `;
-};
-
-window.uploadEventFile = async (eventId) => {
-    const file = document.getElementById('res-file').files[0];
-    if(!file) return;
-
-    const path = `events_media/${eventId}/${Date.now()}_${file.name}`;
-    const { data, error } = await supabaseClient.storage.from('documents').upload(path, file);
-    
-    if (data) {
-        const url = supabaseClient.storage.from('documents').getPublicUrl(path).data.publicUrl;
-        await supabaseClient.from('event_resources').insert([{ event_id: eventId, file_url: url }]);
-        openEventMedia(eventId); 
-    } else {
-        alert("Erreur lors de l'envoi du fichier.");
-    }
-};
-
-window.saveEventContent = async (eventId) => {
-    const text = document.getElementById('res-text').value;
-    
-    // On récupère toutes les ressources et on cherche le texte en local (plus sûr)
-    const { data: resources } = await supabaseClient
-        .from('event_resources')
-        .select('*')
-        .eq('event_id', eventId);
-    
-    const existingText = resources ? resources.find(r => !r.file_url) : null;
-    
-    if(existingText) {
-        // Mise à jour
-        await supabaseClient.from('event_resources')
-            .update({ description: text })
-            .eq('id', existingText.id);
-    } else {
-        // Insertion
-        await supabaseClient.from('event_resources')
-            .insert([{ event_id: eventId, description: text }]);
-    }
-    
-    alert("Contenu sauvegardé. L'équipe de communication peut maintenant l'utiliser !");
-    closeCustomModal();
-};
-
-window.deleteResource = async (resId, eventId) => {
-    if(!confirm("Supprimer ce média ?")) return;
-    await supabaseClient.from('event_resources').delete().eq('id', resId);
-    openEventMedia(eventId);
-};
 
 // --- LOGIQUE DE CRÉATION CLASSIQUE ---
 
