@@ -33,22 +33,14 @@
         </section>
 
         <section id="tab-donors" class="tab-content">
-            <div class="header-tab" style="display:flex; justify-content:space-between; align-items:center;">
-                <h1>Gestion des Donateurs</h1>
-                <div>
-                    <button onclick="exportGlobalExcel()" class="btn-outline-gold">📊 Export Excel</button>
-                </div>
-            </div>
-            <input type="text" id="search-donor" class="search-input" placeholder="Rechercher un donateur..." onkeyup="filterDonors()">
-            <div class="table-container">
-                <table class="luxe-table-main">
-                    <thead>
-                        <tr><th>Identité</th><th>Entité</th><th>Cumul</th><th>Action</th></tr>
-                    </thead>
-                    <tbody id="donors-list"></tbody>
-                </table>
-            </div>
-        </section>
+    <div class="header-tab" style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px;">
+        <h1>Gestion des Donateurs</h1>
+        <div class="header-actions">
+            <button onclick="openNewDonorModal()" class="btn-save" style="background-color: #b99d65;">+ Nouveau Donateur</button>
+            <button onclick="exportGlobalExcel()" class="btn-outline-gold">📊 Export Excel</button>
+        </div>
+    </div>
+    </section>
 
         <section id="tab-events" class="tab-content">
             <h1>Événements</h1>
