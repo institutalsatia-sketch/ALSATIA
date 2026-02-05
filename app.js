@@ -713,9 +713,26 @@ window.deleteResource = async (resId, eventId) => {
 
 // --- GESTION DES INVITÉS ---
 window.openEventGuests = async (eventId) => {
-    const { data: donors } = await supabaseClient.from('donors').select('id, last_name, first_name, company_name').order('last_name');
-    const { data: guests } = await supabaseClient.from('event_guests').select('donor_id').eq('event_id', eventId);
-    const guestIds = guests.map(g => g.donor_id);
+    // 1. Récupération des donateurs
+    const { data: donors, error: errDonors } = await supabaseClient
+        .from('donors')
+        .select('id, last_name, first_name, company_name')
+        .order('last_name');
+
+    // 2. Récupération des invités actuels
+    const { data: guests, error: errGuests } = await supabaseClient
+        .from('event_guests')
+        .select('donor_id')
+        .eq('event_id', eventId);
+
+    if (errGuests || errDonors) {
+        console.error("Erreur de chargement:", errGuests || errDonors);
+        alert("La table 'event_guests' n'existe pas ou est inaccessible. Vérifiez le SQL.");
+        return;
+    }
+
+    // Sécurisation : si guests est null, on utilise un tableau vide
+    const guestIds = (guests || []).map(g => g.donor_id);
 
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
@@ -726,7 +743,7 @@ window.openEventGuests = async (eventId) => {
         <div style="margin-top:15px;">
             <p class="mini-label">Cochez les donateurs invités à cet événement</p>
             <div id="guest-list-scroll" style="max-height:400px; overflow-y:auto; margin-top:10px; border:1px solid #eee; border-radius:8px; background:#fff;">
-                ${donors.map(d => `
+                ${(donors || []).map(d => `
                     <label style="display:flex; align-items:center; padding:10px; border-bottom:1px solid #f9f9f9; cursor:pointer; font-size:0.85rem;">
                         <input type="checkbox" style="margin-right:12px; width:16px; height:16px;" 
                             ${guestIds.includes(d.id) ? 'checked' : ''} 
