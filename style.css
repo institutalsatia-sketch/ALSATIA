@@ -28,6 +28,17 @@ body { font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; background
 .btn-sm { padding: 6px 12px; border-radius: 6px; border: 1px solid #e2e8f0; background: white; cursor: pointer; font-size: 0.8rem; }
 .table-input { border: 1px solid #e2e8f0; padding: 4px; border-radius: 4px; width: 100%; box-sizing: border-box; }
 
+/* Animation de clignotement rouge doux */
+@keyframes pulse-red {
+    0% { background-color: rgba(255, 255, 255, 1); }
+    50% { background-color: rgba(254, 226, 226, 1); } /* Rouge très clair */
+    100% { background-color: rgba(255, 255, 255, 1); }
+}
+
+/* Classe appliquée à la ligne du donateur */
+.blink-warning {
+    animation: pulse-red 2s infinite;
+}
 .chat-box { height: 450px; overflow-y: auto; background: white; border-radius: 12px; padding: 20px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 10px; }
 .message { padding: 12px; border-radius: 12px; background: #f1f5f9; max-width: 75%; align-self: flex-start; }
 .my-msg { background: #dcfce7; align-self: flex-end; border-bottom-right-radius: 2px; }
