@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Portail Alsatia - V34 Intégral</title>
+    <title>Portail Alsatia - V36 Intégral & Export</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
     <nav class="side-nav">
@@ -61,12 +62,25 @@
         <section id="tab-donors" class="page-content">
             <div class="header-tab">
                 <h1>Fichier Donateurs</h1>
-                <button onclick="openNewDonorModal()" class="btn-gold"><i data-lucide="user-plus"></i> Nouveau Donateur</button>
+                <div style="display:flex; gap:10px;">
+                    <button onclick="exportAllDonors()" class="btn-gold" style="background:#107c10;"><i data-lucide="download"></i> Excel Global</button>
+                    <button onclick="openNewDonorModal()" class="btn-gold"><i data-lucide="user-plus"></i> Nouveau Donateur</button>
+                </div>
             </div>
             <div id="pending-thanks-alert"></div>
-            <div class="search-bar-box">
-                <i data-lucide="search"></i>
-                <input type="text" id="search-donor" placeholder="Filtrer par nom, ville, origine..." onkeyup="filterDonors()">
+            <div class="search-bar-box" style="display:flex; gap:10px; margin-bottom:20px;">
+                <div style="flex:1; position:relative;">
+                    <i data-lucide="search" style="position:absolute; left:10px; top:12px; color:#94a3b8;"></i>
+                    <input type="text" id="search-donor" placeholder="Filtrer par nom, ville, origine..." onkeyup="filterDonors()" class="luxe-input" style="padding-left:40px; margin-bottom:0;">
+                </div>
+                <select id="filter-entity" class="luxe-input" style="width:250px; margin-bottom:0;" onchange="filterDonors()">
+                    <option value="ALL">Toutes les entités</option>
+                    <option value="Institut Alsatia">Institut Alsatia</option>
+                    <option value="Academia Alsatia">Academia Alsatia</option>
+                    <option value="Cours Herrade de Landsberg">Herrade</option>
+                    <option value="Collège Saints Louis et Zélie Martin">Martin</option>
+                </select>
+                <button onclick="exportFilteredDonors()" class="btn-gold" title="Exporter le filtre actuel"><i data-lucide="file-spreadsheet"></i></button>
             </div>
             <div class="table-container">
                 <table class="luxe-table">
