@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Portail Alsatia - V30 Pro</title>
+    <title>Portail Alsatia - V33 Système Intégral</title>
     <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
@@ -13,46 +14,49 @@
         <div class="logo-area">
             <div id="entity-logo-container"></div>
             <div class="brand-name">ALSATIA</div>
-            <span class="portal-tag" id="current-portal-display">...</span>
+            <span class="portal-tag" id="current-portal-display">Chargement...</span>
         </div>
         <ul id="main-nav">
-            <li id="nav-chat" class="active" onclick="switchTab('chat')"><i data-lucide="message-square"></i> Discussion <span id="chat-badge" class="badge-notif"></span></li>
+            <li id="nav-chat" class="active" onclick="switchTab('chat')">
+                <i data-lucide="message-square"></i> Discussion 
+                <span id="chat-badge" class="badge-notif"></span>
+            </li>
             <li id="nav-campaigns" onclick="switchTab('campaigns')"><i data-lucide="megaphone"></i> Campagnes</li>
             <li id="nav-events" onclick="switchTab('events')"><i data-lucide="calendar"></i> Événements</li>
         </ul>
         <div class="user-bottom">
             <div class="user-info">
                 <i data-lucide="user-circle"></i>
-                <span id="user-name-display">...</span>
+                <span id="user-name-display">Utilisateur</span>
             </div>
             <button onclick="logout()" class="btn-logout"><i data-lucide="log-out"></i> Quitter</button>
         </div>
     </nav>
 
     <main class="main-content">
-        <section id="tab-chat" class="tab-content active">
+        <section id="tab-chat" class="page-content active">
             <div class="header-tab">
                 <h1>Salon de Discussion</h1>
                 <div class="header-actions">
                     <select id="chat-subject-filter" class="luxe-input" onchange="loadChatMessages()"></select>
-                    <button onclick="showNewSubjectModal()" class="btn-gold"><i data-lucide="plus"></i> Nouveau Sujet</button>
+                    <button onclick="showNewSubjectModal()" class="btn-gold"><i data-lucide="plus-circle"></i> Nouveau Sujet</button>
+                    <button onclick="deleteCurrentSubject()" class="btn-danger-icon" title="Supprimer ce sujet"><i data-lucide="trash-2"></i></button>
                 </div>
             </div>
             <div class="chat-container">
                 <div id="chat-box" class="chat-box"></div>
                 <div class="chat-footer">
-                    <div class="target-selector">
-                        <span class="mini-label">DIFFUSER À :</span>
-                        <div class="check-group">
-                            <label><input type="checkbox" class="target-check" value="Institut Alsatia"> Institut</label>
-                            <label><input type="checkbox" class="target-check" value="Academia Alsatia"> Academia</label>
-                            <label><input type="checkbox" class="target-check" value="Cours Herrade de Landsberg"> Herrade</label>
-                            <label><input type="checkbox" class="target-check" value="Collège Saints Louis et Zélie Martin"> Martin</label>
-                        </div>
+                    <div id="mention-suggestions" class="mention-list"></div>
+                    <div class="target-grid">
+                        <span class="mini-label">VISIBILITÉ :</span>
+                        <label><input type="checkbox" class="target-check" value="Institut Alsatia"> Institut</label>
+                        <label><input type="checkbox" class="target-check" value="Academia Alsatia"> Academia</label>
+                        <label><input type="checkbox" class="target-check" value="Cours Herrade de Landsberg"> Herrade</label>
+                        <label><input type="checkbox" class="target-check" value="Collège Saints Louis et Zélie Martin"> Martin</label>
                     </div>
-                    <div class="input-bar">
-                        <input type="text" id="chat-input" placeholder="Votre message... (@ pour mentionner)" autocomplete="off">
-                        <label for="chat-file" class="file-btn"><i data-lucide="paperclip"></i></label>
+                    <div class="input-wrapper">
+                        <input type="text" id="chat-input" placeholder="Écrire un message... (@ pour mentionner)" autocomplete="off">
+                        <label for="chat-file" class="icon-btn" title="Joindre un fichier"><i data-lucide="paperclip"></i></label>
                         <input type="file" id="chat-file" style="display:none;" onchange="handleFileUpload(this)">
                         <button onclick="sendChatMessage()" class="btn-send"><i data-lucide="send"></i></button>
                     </div>
@@ -61,32 +65,39 @@
             </div>
         </section>
 
-        <section id="tab-donors" class="tab-content">
+        <section id="tab-donors" class="page-content">
             <div class="header-tab">
-                <h1>Base Donateurs</h1>
+                <h1>Fichier Donateurs</h1>
                 <button onclick="openNewDonorModal()" class="btn-gold"><i data-lucide="user-plus"></i> Nouveau Donateur</button>
             </div>
             <div id="pending-thanks-alert"></div>
-            <div class="search-bar">
+            <div class="search-bar-box">
                 <i data-lucide="search"></i>
-                <input type="text" id="search-donor" placeholder="Rechercher un nom, une ville, une origine..." onkeyup="filterDonors()">
+                <input type="text" id="search-donor" placeholder="Filtrer par nom, ville, origine..." onkeyup="filterDonors()">
             </div>
-            <div class="table-card">
+            <div class="table-container">
                 <table class="luxe-table">
                     <thead>
-                        <tr><th>Identité / Entreprise</th><th>Origine</th><th>Dernière Note</th><th>Cumul</th><th>Actions</th></tr>
+                        <tr><th>Identité / Société</th><th>Origine</th><th>Dernière Note</th><th>Total</th><th>Actions</th></tr>
                     </thead>
                     <tbody id="donors-list"></tbody>
                 </table>
             </div>
         </section>
 
-        <section id="tab-campaigns" class="tab-content"><div class="header-tab"><h1>Campagnes</h1></div><div id="campaigns-list" class="grid-layout"></div></section>
-        <section id="tab-events" class="tab-content"><div class="header-tab"><h1>Événements</h1></div><div id="events-grid" class="grid-layout"></div></section>
+        <section id="tab-campaigns" class="page-content">
+            <div class="header-tab"><h1>Campagnes de Levée</h1></div>
+            <div id="campaigns-list" class="grid-cards"></div>
+        </section>
+
+        <section id="tab-events" class="page-content">
+            <div class="header-tab"><h1>Événements Alsatia</h1></div>
+            <div id="events-grid" class="grid-cards"></div>
+        </section>
     </main>
 
     <div id="custom-modal" class="modal-overlay">
-        <div class="modal-window">
+        <div class="modal-card">
             <div id="modal-body"></div>
         </div>
     </div>
