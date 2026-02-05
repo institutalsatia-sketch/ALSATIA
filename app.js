@@ -589,39 +589,67 @@ function renderEvents(events) {
     if (!container) return;
 
     if (!events || events.length === 0) {
-        container.innerHTML = `<div style="text-align:center; padding:20px; opacity:0.5;">Aucun événement prévu.</div>`;
+        container.innerHTML = `<div style="text-align:center; padding:40px; opacity:0.5;">Aucun événement programmé.</div>`;
         return;
     }
 
-    container.innerHTML = events.map(ev => {
-        const canManage = (currentUser.portal === "Institut Alsatia" || currentUser.portal === ev.entity);
+    // Séparation des événements par statut
+    const categories = {
+        todo: { title: "À PLANIFIER", items: [], icon: "calendar" },
+        progress: { title: "EN PRÉPARATION", items: [], icon: "loader" },
+        ready: { title: "PRÊT POUR COM", items: [], icon: "check-circle" }
+    };
+
+    events.forEach(ev => {
         const hasText = ev.event_resources?.some(r => r.description && r.description.length > 10);
         const hasPhoto = ev.event_resources?.some(r => r.file_url);
-        const isReady = hasText && hasPhoto;
-        const dateFr = new Date(ev.event_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
         
-        return `
-            <div class="event-card" style="border-left: 5px solid ${getColorByEntity(ev.entity)};">
-                <div class="event-info">
-                    <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:10px;">
-                        <span class="event-entity-badge" style="background:${getColorByEntity(ev.entity)}20; color:${getColorByEntity(ev.entity)};">
-                            ${ev.entity}
-                        </span>
-                        ${isReady ? '<span class="badge-ready" style="background:#107c10; color:white; padding:2px 8px; border-radius:10px; font-size:0.7rem; font-weight:800;">✅ PRÊT COM</span>' : ''}
+        if (hasText && hasPhoto) categories.ready.items.push(ev);
+        else if (hasText || hasPhoto) categories.progress.items.push(ev);
+        else categories.todo.items.push(ev);
+    });
+
+    container.innerHTML = `
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; align-items: start;">
+            ${Object.keys(categories).map(key => {
+                const cat = categories[key];
+                return `
+                    <div class="kanban-column" style="background: #f8fafc; border-radius: 12px; padding: 15px; border: 1px solid #e2e8f0;">
+                        <h3 style="font-size: 0.9rem; color: #64748b; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+                            <i data-lucide="${cat.icon}" style="width:16px;"></i> ${cat.title} (${cat.items.length})
+                        </h3>
+                        <div style="display: flex; flex-direction: column; gap: 12px;">
+                            ${cat.items.map(ev => renderMiniCard(ev)).join('')}
+                        </div>
                     </div>
-                    <h4>${ev.title}</h4>
-                    <p><i data-lucide="calendar" style="width:14px;"></i> ${dateFr} ${ev.event_time ? ' à ' + ev.event_time : ''}</p>
-                    <p><i data-lucide="map-pin" style="width:14px;"></i> ${ev.location || 'Lieu non défini'}</p>
-                </div>
-                <div class="event-actions" style="margin-top:15px; display:flex; gap:5px; flex-wrap:wrap;">
-                    <button onclick="openEventMedia('${ev.id}')" class="btn-gold" style="flex:1; padding:6px;"><i data-lucide="camera"></i> COM</button>
-                    <button onclick="openEventGuests('${ev.id}')" class="btn-gold" style="flex:1; padding:6px; background:#f1f5f9; color:#1e293b; border:1px solid #cbd5e1;"><i data-lucide="users"></i> INVITES</button>
-                    ${canManage ? `<button onclick="askDeleteEvent('${ev.id}', '${ev.title.replace(/'/g, "\\'")}')" class="btn-mini-danger"><i data-lucide="trash-2"></i></button>` : ''}
-                </div>
-            </div>
-        `;
-    }).join('');
+                `;
+            }).join('')}
+        </div>
+    `;
     lucide.createIcons();
+}
+
+// Fonction pour générer une petite carte compacte dans le Kanban
+function renderMiniCard(ev) {
+    const canManage = (currentUser.portal === "Institut Alsatia" || currentUser.portal === ev.entity);
+    const dateFr = new Date(ev.event_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+    
+    return `
+        <div class="event-card-mini" style="background:white; padding:12px; border-radius:8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-left: 4px solid ${getColorByEntity(ev.entity)};">
+            <div style="font-size: 0.7rem; color: ${getColorByEntity(ev.entity)}; font-weight: bold; margin-bottom: 5px;">
+                ${ev.entity.toUpperCase()}
+            </div>
+            <h4 style="margin: 0 0 8px 0; font-size: 0.95rem;">${ev.title}</h4>
+            <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 10px;">
+                <i data-lucide="calendar" style="width:12px; display:inline;"></i> ${dateFr}
+            </div>
+            <div style="display: flex; gap: 5px;">
+                <button onclick="openEventMedia('${ev.id}')" class="btn-mini-gold" style="flex:1; padding:4px 0;"><i data-lucide="camera" style="width:12px;"></i> COM</button>
+                <button onclick="openEventGuests('${ev.id}')" class="btn-mini-gold" style="flex:1; padding:4px 0; background:#f1f5f9; color:black; border:1px solid #ddd;"><i data-lucide="users" style="width:12px;"></i></button>
+                ${canManage ? `<button onclick="askDeleteEvent('${ev.id}', '${ev.title.replace(/'/g, "\\'")}')" style="background:none; border:none; color:#ef4444; cursor:pointer;"><i data-lucide="trash-2" style="width:14px;"></i></button>` : ''}
+            </div>
+        </div>
+    `;
 }
 
 // --- DOSSIER MÉDIA ---
