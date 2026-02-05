@@ -665,7 +665,7 @@ function renderMiniCard(ev) {
     `;
 }
 
-// --- DOSSIER MÉDIA ---
+// --- DOSSIER MÉDIA (AVEC TÉLÉCHARGEMENT & COPIE) ---
 window.openEventMedia = async (eventId) => {
     const { data: ev } = await supabaseClient.from('events').select('*').eq('id', eventId).single();
     const { data: res } = await supabaseClient.from('event_resources').select('*').eq('event_id', eventId);
@@ -680,69 +680,73 @@ window.openEventMedia = async (eventId) => {
             <button onclick="closeCustomModal()" class="btn-gold">X</button>
         </div>
         <div style="margin-top:15px; max-height:75vh; overflow-y:auto; padding-right:5px;">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <label class="mini-label">LÉGENDE / POST RÉSEAUX</label>
-                <button onclick="copyEventText()" class="btn-mini-gold" style="font-size:0.65rem; padding:2px 8px;">COPIER</button>
-            </div>
-            <textarea id="res-text" class="luxe-input" style="height:120px; font-size:0.9rem;" placeholder="Rédigez ici le post...">${textData ? textData.description : ''}</textarea>
             
-            <label class="mini-label" style="margin-top:15px;">PHOTOS & VISUELS</label>
-            <input type="file" id="res-file" class="luxe-input" onchange="uploadEventFile('${eventId}')" accept="image/*">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                <label class="mini-label" style="margin:0;">LÉGENDE / POST RÉSEAUX</label>
+                <button onclick="window.copyEventText()" class="btn-mini-gold" style="font-size:0.65rem; padding:2px 8px; background:#1e293b; color:white;">
+                    <i data-lucide="copy" style="width:10px; display:inline;"></i> COPIER LE TEXTE
+                </button>
+            </div>
+            
+            <textarea id="res-text" class="luxe-input" style="height:120px; font-size:0.9rem; margin-bottom:15px;" placeholder="Rédigez ici le post...">${textData ? textData.description : ''}</textarea>
+            
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                <label class="mini-label" style="margin:0;">PHOTOS & VISUELS</label>
+                <input type="file" id="res-file" style="display:none;" onchange="window.uploadEventFile('${eventId}')" accept="image/*">
+                <button onclick="document.getElementById('res-file').click()" class="btn-mini-gold" style="font-size:0.65rem;">+ AJOUTER PHOTO</button>
+            </div>
             
             <div id="media-gallery" style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:10px;">
                 ${photos.map(r => `
-                    <div class="gallery-item" style="position:relative; height:80px; border:1px solid #eee; border-radius:5px; overflow:hidden;">
+                    <div class="gallery-item" style="position:relative; height:100px; border:1px solid #eee; border-radius:5px; overflow:hidden; background:#f8fafc;">
                         <img src="${r.file_url}" style="width:100%; height:100%; object-fit:cover;">
-                        <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.6); display:flex; justify-content:space-around; padding:2px;">
-                            <button onclick="deleteResource('${r.id}', '${eventId}')" style="background:none; border:none; color:#ff4d4d; cursor:pointer;"><i data-lucide="trash-2" style="width:12px;"></i></button>
+                        <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.7); display:flex; justify-content:space-around; padding:5px;">
+                            <button onclick="window.downloadImage('${r.file_url}', 'photo_${eventId}')" title="Télécharger" style="background:none; border:none; color:white; cursor:pointer;">
+                                <i data-lucide="download" style="width:14px;"></i>
+                            </button>
+                            <button onclick="window.deleteResource('${r.id}', '${eventId}')" title="Supprimer" style="background:none; border:none; color:#ff4d4d; cursor:pointer;">
+                                <i data-lucide="trash-2" style="width:14px;"></i>
+                            </button>
                         </div>
                     </div>
                 `).join('')}
             </div>
-            <button onclick="saveEventContent('${eventId}')" class="btn-gold" style="width:100%; margin-top:20px; background:var(--primary);">ENREGISTRER LE TEXTE</button>
+            
+            <button onclick="window.saveEventContent('${eventId}')" class="btn-gold" style="width:100%; margin-top:20px; background:#107c10; border:none;">
+                ENREGISTRER LES MODIFICATIONS
+            </button>
         </div>
     `;
     lucide.createIcons();
 };
 
-window.uploadEventFile = async (eventId) => {
-    const fileInput = document.getElementById('res-file');
-    const file = fileInput.files[0];
-    if(!file) return;
-
-    const path = `events/${eventId}/${Date.now()}_${file.name}`;
-    const { data, error } = await supabaseClient.storage.from('documents').upload(path, file);
-    
-    if (data) {
-        const url = supabaseClient.storage.from('documents').getPublicUrl(path).data.publicUrl;
-        await supabaseClient.from('event_resources').insert([{ event_id: eventId, file_url: url }]);
-        showNotice("Succès", "Photo ajoutée.");
-        openEventMedia(eventId); // Rafraîchir la modale
-        loadEvents(); // Rafraîchir le Kanban
-    } else {
-        showNotice("Erreur", "Upload impossible.");
+// --- FONCTION DE TÉLÉCHARGEMENT ---
+window.downloadImage = async (url, filename) => {
+    try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = filename || 'image_institut_alsatia';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+        window.showNotice("Erreur", "Impossible de télécharger l'image.");
     }
 };
 
-window.saveEventContent = async (eventId) => {
-    const text = document.getElementById('res-text').value;
-    const { data: resources } = await supabaseClient.from('event_resources').select('*').eq('event_id', eventId);
-    const existingText = resources ? resources.find(r => !r.file_url) : null;
-    
-    if(existingText) {
-        await supabaseClient.from('event_resources').update({ description: text }).eq('id', existingText.id);
-    } else {
-        await supabaseClient.from('event_resources').insert([{ event_id: eventId, description: text }]);
+// --- FONCTION DE COPIE DU TEXTE ---
+window.copyEventText = () => {
+    const textArea = document.getElementById('res-text');
+    if (!textArea || !textArea.value) {
+        return window.showNotice("Info", "Rien à copier.");
     }
-    showNotice("Succès", "Texte enregistré.");
-    loadEvents();
-};
-
-window.deleteResource = async (resId, eventId) => {
-    if (!confirm("Supprimer ce média ?")) return;
-    await supabaseClient.from('event_resources').delete().eq('id', resId);
-    openEventMedia(eventId);
-    loadEvents();
+    textArea.select();
+    navigator.clipboard.writeText(textArea.value);
+    window.showNotice("Copié !", "Le texte est prêt à être collé.");
 };
 
 // --- GESTION DES INVITÉS ---
