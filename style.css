@@ -1,23 +1,308 @@
+/* --- VARIABLES ET THÈME INSTITUT ALSATIA --- */
 :root {
-    --primary: #0f172a; --gold: #b99d65; --bg: #f1f5f9; --danger: #ef4444;
+    --primary: #0f172a;       /* Bleu Nuit */
+    --gold: #b99d65;          /* Or Alsatia */
+    --gold-hover: #d4c197;
+    --bg-main: #f8fafc;
+    --white: #ffffff;
+    --text-dark: #1e293b;
+    --text-muted: #64748b;
+    --danger: #ef4444;
+    --success: #10b981;
+    --border: #e2e8f0;
+    --shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
 }
-body { font-family: 'Inter', sans-serif; background: var(--bg); display: flex; height: 100vh; margin: 0; }
-.side-nav { width: 260px; background: var(--primary); color: white; padding: 20px; }
-.side-nav li { padding: 12px; cursor: pointer; border-radius: 8px; margin-bottom: 5px; list-style: none; }
-.side-nav li.active, .side-nav li:hover { background: var(--gold); }
-.main-content { flex: 1; padding: 40px; overflow-y: auto; }
-.tab-content { display: none; }
-.tab-content.active { display: block; }
-.search-input { width: 100%; padding: 15px; border-radius: 10px; border: 1px solid #ccc; margin-bottom: 20px; }
-.luxe-table-main { width: 100%; background: white; border-radius: 10px; border-collapse: collapse; overflow: hidden; }
-.luxe-table-main th { text-align: left; padding: 15px; background: #f8fafc; color: #64748b; font-size: 0.8rem; }
-.luxe-table-main td { padding: 15px; border-bottom: 1px solid #f1f5f9; }
-.modal-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.7); display:none; justify-content:center; align-items:center; z-index:1000; }
-.modal-content { background: white; padding: 30px; border-radius: 15px; width: 600px; max-height: 90vh; overflow-y: auto; }
-.luxe-input { width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ddd; border-radius: 5px; }
-.btn-save { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; }
-.btn-sm-danger { background: var(--danger); color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; }
-.toast { position: fixed; top: 20px; right: 20px; background: var(--primary); color: white; padding: 15px; border-radius: 10px; transform: translateX(150%); transition: 0.4s; border-left: 5px solid var(--gold); }
-.toast.show { transform: translateX(0); }
-.confirm-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.8); display:none; justify-content:center; align-items:center; z-index:2000; }
-.confirm-box { background: white; padding: 30px; border-radius: 15px; text-align: center; }
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-main);
+    color: var(--text-dark);
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* --- NAVIGATION LATERALE --- */
+.side-nav {
+    width: 260px;
+    background-color: var(--primary);
+    color: white;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    box-shadow: 4px 0 10px rgba(0,0,0,0.1);
+    z-index: 10;
+}
+
+.logo-area {
+    text-align: center;
+    padding-bottom: 25px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.main-logo {
+    max-width: 120px;
+    height: auto;
+    margin-bottom: 10px;
+}
+
+.portal-tag {
+    display: block;
+    font-size: 0.7rem;
+    color: var(--gold);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    font-weight: 700;
+}
+
+.side-nav ul {
+    list-style: none;
+    flex-grow: 1;
+}
+
+.side-nav li {
+    padding: 12px 15px;
+    margin-bottom: 5px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-weight: 500;
+    color: #cbd5e1;
+}
+
+.side-nav li:hover, .side-nav li.active {
+    background-color: var(--gold);
+    color: white;
+}
+
+.btn-logout {
+    width: 100%;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: white;
+    padding: 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.btn-logout:hover {
+    background: var(--danger);
+    border-color: var(--danger);
+}
+
+/* --- CONTENU PRINCIPAL --- */
+.main-content {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: 40px;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+h1 {
+    font-size: 1.8rem;
+    color: var(--primary);
+    margin-bottom: 20px;
+}
+
+/* --- RECHERCHE ET TABLEAUX --- */
+.search-input {
+    width: 100%;
+    padding: 14px 20px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    margin-bottom: 25px;
+    font-size: 1rem;
+    outline: none;
+}
+
+.search-input:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(185, 157, 101, 0.1);
+}
+
+.table-container {
+    background: white;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+}
+
+.luxe-table-main {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.luxe-table-main th {
+    background: #f8fafc;
+    padding: 15px;
+    text-align: left;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.luxe-table-main td {
+    padding: 15px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.gold-text {
+    color: var(--gold);
+    font-weight: 700;
+}
+
+/* --- MODALES (CENTREES PARFAITEMENT) --- */
+.modal-overlay, .confirm-overlay {
+    position: fixed;
+    top: 0; left: 0; 
+    width: 100%; height: 100%;
+    background: rgba(15, 23, 42, 0.8);
+    backdrop-filter: blur(3px);
+    display: none; /* Piloté par JS display: flex */
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+}
+
+.modal-content, .confirm-box {
+    background: white;
+    width: 100%;
+    max-width: 650px;
+    border-radius: 16px;
+    padding: 30px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    position: relative;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.fiche-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid var(--gold);
+    padding-bottom: 15px;
+    margin-bottom: 20px;
+}
+
+/* --- FORMULAIRES --- */
+.luxe-input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-top: 5px;
+    margin-bottom: 15px;
+    font-size: 0.95rem;
+}
+
+label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+.btn-save {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.btn-save:hover {
+    background: #1e293b;
+}
+
+.btn-outline-gold {
+    border: 2px solid var(--gold);
+    color: var(--gold);
+    background: transparent;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-sm {
+    padding: 6px 12px;
+    background: #f1f5f9;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+
+.btn-sm:hover {
+    background: var(--gold);
+    color: white;
+}
+
+/* --- NOTIFICATIONS --- */
+#notification-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 2000;
+}
+
+.toast {
+    background: var(--primary);
+    color: white;
+    padding: 15px 25px;
+    border-radius: 10px;
+    margin-bottom: 10px;
+    box-shadow: var(--shadow);
+    border-left: 5px solid var(--gold);
+    transform: translateX(120%);
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.toast.show {
+    transform: translateX(0);
+}
+
+.toast-error { border-left-color: var(--danger); }
+
+/* --- NOTES & DONS --- */
+.note-row {
+    background: #f8fafc;
+    padding: 10px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+    border: 1px solid #e2e8f0;
+}
+
+.btn-icon {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.2rem;
+}
