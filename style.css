@@ -1,29 +1,18 @@
 :root { --primary: #1e293b; --gold: #b99d65; --bg: #f8fafc; }
-body { font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; background: var(--bg); color: #334155; }
-.side-nav { width: 250px; height: 100vh; background: var(--primary); color: white; padding: 20px; position: fixed; z-index: 10; }
-.portal-tag { font-weight: bold; color: var(--gold); text-transform: uppercase; font-size: 0.8rem; }
-.side-nav ul { list-style: none; padding: 0; margin-top: 40px; }
-.side-nav li { padding: 15px; cursor: pointer; border-radius: 8px; margin-bottom: 5px; }
-.side-nav li.active { background: rgba(255,255,255,0.1); color: var(--gold); }
+body { font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; background: var(--bg); }
+.side-nav { width: 250px; height: 100vh; background: var(--primary); color: white; padding: 20px; position: fixed; }
 .main-content { margin-left: 250px; padding: 40px; width: calc(100% - 250px); box-sizing: border-box; }
 .tab-content { display: none; }
 .tab-content.active { display: block; }
-.table-container { background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); overflow: hidden; }
-.luxe-table-main td { padding: 15px; border-bottom: 1px solid #f1f5f9; }
-.events-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
-.event-card { background: white; padding: 20px; border-radius: 12px; border-left: 5px solid var(--gold); }
-.modal-overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); justify-content:center; align-items:center; z-index:1000; }
-.modal-content { background:white; padding:30px; border-radius:15px; width:850px; max-height:95vh; overflow-y:auto; }
-.luxe-input { width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; box-sizing: border-box; }
-.btn-save { padding: 12px 24px; border: none; border-radius: 8px; color: white; cursor: pointer; font-weight: 600; }
-.btn-sm { padding: 6px 12px; border-radius: 6px; border: 1px solid #e2e8f0; background: white; cursor: pointer; }
-@keyframes pulse-red { 0% { background-color: #ffffff; } 50% { background-color: #fef2f2; } 100% { background-color: #ffffff; } }
-.blink-warning { animation: pulse-red 2s infinite; }
-.thanks-pending { background: #fee2e2; border-left: 4px solid #ef4444; padding: 10px; margin-bottom: 20px; border-radius: 8px; color: #b91c1c; font-weight: bold; }
-.chat-box { height: 450px; overflow-y: auto; background: white; border-radius: 12px; padding: 20px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;}
-.message { padding: 10px; border-radius: 10px; background: #f1f5f9; max-width: 80%; align-self: flex-start; position: relative; }
+.modal-overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); justify-content:center; align-items:center; z-index:9999; }
+.modal-content { background:white; padding:30px; border-radius:12px; min-width:400px; max-width:800px; }
+.chat-box { height: 500px; overflow-y: auto; background: white; border-radius: 12px; padding: 20px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 10px; }
+.message { padding: 12px; border-radius: 12px; background: #f1f5f9; max-width: 75%; align-self: flex-start; }
 .my-msg { background: #dcfce7; align-self: flex-end; }
-.msg-actions { font-size: 0.65rem; margin-top: 5px; display: flex; gap: 8px; color: #64748b; }
-.msg-actions span { cursor: pointer; text-decoration: underline; }
-.mention-list { position: absolute; bottom: 100%; left: 0; width: 250px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; display: none; z-index: 100; }
-.mention-item { padding: 10px; cursor: pointer; }
+.msg-img { max-width: 200px; border-radius: 8px; margin-top: 10px; display: block; }
+.msg-file { display: block; margin-top: 10px; color: var(--gold); text-decoration: none; font-weight: bold; font-size: 0.8rem; }
+.blink-warning { animation: pulse-red 2s infinite; }
+@keyframes pulse-red { 0%, 100% { background-color: #ffffff; } 50% { background-color: #fee2e2; } }
+.luxe-input { width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; margin: 5px 0; }
+.btn-save { padding: 10px 20px; border: none; border-radius: 8px; color: white; cursor: pointer; }
+.mention-list { position: absolute; bottom: 100%; left: 0; background: white; border: 1px solid #ddd; border-radius: 8px; display: none; width: 200px; }
