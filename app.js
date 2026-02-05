@@ -6,6 +6,7 @@ const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 // ETAT GLOBAL
 let currentUser = JSON.parse(localStorage.getItem('alsatia_user'));
 let allDonorsData = [];
+let allUsersForMentions = []; // Stockera les noms et entités
 let selectedFile = null;
 
 const SUGGESTIONS = [
@@ -28,6 +29,22 @@ document.addEventListener('DOMContentLoaded', () => {
     loadSubjects();
     setupMentionLogic();
 });
+
+async function loadUsersForMentions() {
+    // On récupère les utilisateurs depuis votre table de profils/utilisateurs
+    const { data } = await supabaseClient.from('profiles').select('first_name, last_name, portal');
+    if (data) {
+        // On combine les noms d'utilisateurs et les noms des 4 entités fixes
+        const entities = [
+            "Institut Alsatia", 
+            "Academia Alsatia", 
+            "Cours Herrade de Landsberg", 
+            "Collège Saints Louis et Zélie Martin"
+        ];
+        const users = data.map(u => `${u.first_name} ${u.last_name} (${u.portal})`);
+        allUsersForMentions = [...entities, ...users];
+    }
+}
 
 function initInterface() {
     document.getElementById('entity-logo-container').innerHTML = `<img src="${LOGOS[currentUser.portal] || 'logo_alsatia.png'}" class="entity-logo">`;
@@ -78,12 +95,16 @@ function setupMentionLogic() {
 
         if (lastWord.startsWith('@')) {
             const query = lastWord.substring(1).toLowerCase();
-            const matches = SUGGESTIONS.filter(s => s.toLowerCase().includes(query));
+            // Filtrage dans la liste globale (Utilisateurs + Entités)
+            const matches = allUsersForMentions.filter(s => s.toLowerCase().includes(query));
+            
             if (matches.length > 0) {
                 suggestList.innerHTML = matches.map(m => `<div class="suggest-item">${m}</div>`).join('');
                 suggestList.style.display = 'block';
+                
                 document.querySelectorAll('.suggest-item').forEach(item => {
                     item.onclick = () => {
+                        // On insère la mention choisie
                         words[words.length - 1] = `@${item.innerText} `;
                         input.value = words.join(' ');
                         suggestList.style.display = 'none';
@@ -185,33 +206,48 @@ window.execDeleteSubject = async (name) => {
 async function loadChatMessages() {
     const subj = document.getElementById('chat-subject-filter').value;
     if(!subj) return;
+    
+    // On s'assure de récupérer le nom complet et le portail
     const { data } = await supabaseClient.from('chat_global').select('*').eq('subject', subj).order('created_at');
+    
     const box = document.getElementById('chat-box');
     box.innerHTML = (data || []).map(m => {
-        const isMe = m.author_name === currentUser.first_name;
-        const content = m.content.replace(/@([\wÀ-ÿ-\s]+)/g, '<span class="mention-badge">@$1</span>');
-        return `<div class="message ${isMe ? 'my-msg' : ''}">
-            <div style="font-size:0.6rem; opacity:0.7;"><b>${m.author_name}</b> • ${m.portal}</div>
-            <div class="msg-body" onclick="${isMe ? `askEditMsg('${m.id}','${m.content.replace(/'/g, "\\'")}')` : ''}">${content}</div>
-            ${m.file_url ? `<a href="${m.file_url}" target="_blank" class="file-link">📄 Fichier</a>` : ''}
-            ${isMe ? `<div style="text-align:right"><span class="delete-link" onclick="askDeleteMsg('${m.id}')">Supprimer</span></div>` : ''}
-        </div>`;
+        const isMe = m.author_name === currentUser.first_name; // ou ID pour plus de précision
+        
+        // Style WhatsApp pour les mentions dans le texte
+        const contentWithMentions = m.content.replace(/@([\wÀ-ÿ-\s()]+)/g, '<span class="mention-badge">@$1</span>');
+        
+        return `
+            <div class="message ${isMe ? 'my-msg' : ''}">
+                <div class="msg-meta" style="font-size:0.7rem; margin-bottom:3px;">
+                    <span style="color:var(--gold); font-weight:bold;">${m.author_full_name || m.author_name}</span> 
+                    <span style="opacity:0.6; font-style:italic;"> • ${m.portal}</span>
+                </div>
+                <div class="msg-body" onclick="${isMe ? `askEditMsg('${m.id}','${m.content.replace(/'/g, "\\'")}')` : ''}">
+                    ${contentWithMentions}
+                </div>
+                ${m.file_url ? `<a href="${m.file_url}" target="_blank" class="file-link">📄 Document joint</a>` : ''}
+                ${isMe ? `<div class="msg-actions"><span onclick="askDeleteMsg('${m.id}')">Supprimer</span></div>` : ''}
+            </div>
+        `;
     }).join('');
     box.scrollTop = box.scrollHeight;
 }
-
 window.sendChatMessage = async () => {
     const input = document.getElementById('chat-input');
-    const subj = document.getElementById('chat-subject-filter').value;
-    if(!input.value.trim() && !selectedFile) return;
-    let fUrl = null;
-    if (selectedFile) {
-        const path = `chat/${Date.now()}_${selectedFile.name}`;
-        const { data } = await supabaseClient.storage.from('documents').upload(path, selectedFile);
-        if (data) fUrl = supabaseClient.storage.from('documents').getPublicUrl(path).data.publicUrl;
-    }
-    await supabaseClient.from('chat_global').insert([{ content: input.value, author_name: currentUser.first_name, portal: currentUser.portal, subject: subj, file_url: fUrl }]);
-    input.value = ''; selectedFile = null; document.getElementById('file-preview').innerText = ""; loadChatMessages();
+    const fullName = `${currentUser.first_name} ${currentUser.last_name}`; // Préparation du nom complet
+    
+    // ... reste du code d'upload ...
+
+    await supabaseClient.from('chat_global').insert([{ 
+        content: input.value, 
+        author_name: currentUser.first_name,
+        author_full_name: fullName, // On stocke le nom complet pour l'affichage
+        portal: currentUser.portal, 
+        subject: subj, 
+        file_url: fUrl 
+    }]);
+    // ...
 };
 
 window.askEditMsg = (id, old) => {
