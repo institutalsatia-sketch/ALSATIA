@@ -101,44 +101,33 @@ async function loadSubjects() {
     const { data } = await supabaseClient.from('chat_subjects').select('*').order('name');
     const select = document.getElementById('chat-subject-filter');
     
-    // LOGIQUE DE FILTRAGE :
-    // On garde le sujet si :
-    // 1. Il est marqué pour "Tous"
-    // 2. OU il correspond exactement au portail de l'utilisateur connecté
-    // 3. OU (sécurité) il n'a pas d'entité définie (sujets anciens)
+    // Filtrage : Sujets publics OU sujets de mon entité
     const mySubjects = (data || []).filter(s => 
         s.entity === "Tous" || 
         s.entity === currentUser.portal || 
         !s.entity
     );
 
-    select.innerHTML = mySubjects.map(s => `<option value="${s.name}"># ${s.name}</option>`).join('');
+    select.innerHTML = mySubjects.map(s => {
+        const icon = (s.entity === "Tous") ? "🌍" : "🔒";
+        return `<option value="${s.name}">${icon} # ${s.name}</option>`;
+    }).join('');
     
-    // On charge les messages du premier sujet de la liste par défaut
     loadChatMessages();
 }
 
 window.showNewSubjectModal = () => {
-    // Sécurité : Seul l'admin de l'Institut peut créer des sujets pour organiser l'espace
-    if (currentUser.portal !== "Institut Alsatia") {
-        alert("⚠️ Accès refusé : Seul l'administrateur de l'Institut peut créer de nouveaux salons.");
-        return;
-    }
-
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
         <h3 style="color:var(--primary); border-bottom:1px solid var(--gold); padding-bottom:10px;">Créer un nouveau salon</h3>
         
         <label class="mini-label">NOM DU SALON</label>
-        <input type="text" id="n-subject-name" placeholder="ex: Travaux Été 2024..." class="luxe-input">
+        <input type="text" id="n-subject-name" placeholder="ex: Réunion pédagogique..." class="luxe-input">
         
-        <label class="mini-label">VISIBILITÉ (QUI PEUT VOIR CE SUJET ?)</label>
+        <label class="mini-label">VISIBILITÉ DU SUJET</label>
         <select id="n-subject-entity" class="luxe-input">
-            <option value="Tous">🌍 Toutes les entités (Public)</option>
-            <option value="Institut Alsatia">🏛️ Institut Alsatia uniquement</option>
-            <option value="Academia Alsatia">🎓 Academia Alsatia uniquement</option>
-            <option value="Cours Herrade de Landsberg">📜 Cours Herrade de Landsberg uniquement</option>
-            <option value="Collège Saints Louis et Zélie Martin">⛪ Collège Saints Louis et Zélie Martin uniquement</option>
+            <option value="Tous">🌍 Public (Toutes les entités)</option>
+            <option value="${currentUser.portal}">🔒 Privé (${currentUser.portal} uniquement)</option>
         </select>
         
         <div style="margin-top:20px; display:flex; gap:10px;">
@@ -171,15 +160,20 @@ window.execCreateSubject = async () => {
 };
 
 window.askDeleteSubject = () => {
-    if (currentUser.portal !== "Institut Alsatia") return alert("Droits insuffisants.");
+    // SEUL L'ADMIN PEUT SUPPRIMER
+    if (currentUser.portal !== "Institut Alsatia") {
+        alert("⚠️ Action réservée à l'administrateur de l'Institut.");
+        return;
+    }
+
     const subj = document.getElementById('chat-subject-filter').value;
-    if (subj === "Général") return alert("Impossible de supprimer le salon par défaut.");
+    if (subj === "Général") return alert("Le salon principal ne peut être supprimé.");
 
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
         <h3 style="color:var(--danger);">Supprimer #${subj} ?</h3>
-        <p>Cette action est irréversible.</p>
-        <button onclick="execDeleteSubject('${subj}')" class="btn-danger" style="width:100%">CONFIRMER LA SUPPRESSION</button>
+        <p style="font-size:0.8rem;">Cela retirera le salon de la liste pour tout le monde.</p>
+        <button onclick="execDeleteSubject('${subj}')" class="btn-danger" style="width:100%; margin-top:10px;">CONFIRMER LA SUPPRESSION</button>
     `;
 };
 
