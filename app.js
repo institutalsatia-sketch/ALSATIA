@@ -583,10 +583,11 @@ window.handleFileUpload = (input) => {
     } 
 };
 
-/// ==========================================
+// ==========================================
 // GESTION DES ÉVÉNEMENTS (VUE KANBAN)
 // ==========================================
 
+// --- CHARGEMENT ---
 window.loadEvents = async () => {
     const { data, error } = await supabaseClient
         .from('events')
@@ -597,6 +598,7 @@ window.loadEvents = async () => {
     renderEvents(data);
 };
 
+// --- RENDER PRINCIPAL ---
 function renderEvents(events) {
     const container = document.getElementById('events-container'); 
     if (!container) return;
@@ -663,11 +665,11 @@ function renderMiniCard(ev) {
     `;
 }
 
-
 // --- DOSSIER MÉDIA ---
 window.openEventMedia = async (eventId) => {
     const { data: ev } = await supabaseClient.from('events').select('*').eq('id', eventId).single();
     const { data: res } = await supabaseClient.from('event_resources').select('*').eq('event_id', eventId);
+    
     const textData = (res || []).find(r => !r.file_url);
     const photos = (res || []).filter(r => r.file_url);
 
@@ -680,108 +682,115 @@ window.openEventMedia = async (eventId) => {
         <div style="margin-top:15px; max-height:75vh; overflow-y:auto; padding-right:5px;">
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <label class="mini-label">LÉGENDE / POST RÉSEAUX</label>
-                <button onclick="copyEventText()" class="btn-mini-gold" style="font-size:0.65rem; padding:2px 8px;">COPIER LE TEXTE</button>
+                <button onclick="copyEventText()" class="btn-mini-gold" style="font-size:0.65rem; padding:2px 8px;">COPIER</button>
             </div>
             <textarea id="res-text" class="luxe-input" style="height:120px; font-size:0.9rem;" placeholder="Rédigez ici le post...">${textData ? textData.description : ''}</textarea>
+            
             <label class="mini-label" style="margin-top:15px;">PHOTOS & VISUELS</label>
             <input type="file" id="res-file" class="luxe-input" onchange="uploadEventFile('${eventId}')" accept="image/*">
+            
             <div id="media-gallery" style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:10px;">
                 ${photos.map(r => `
-                    <div class="gallery-item" style="position:relative; height:80px;">
-                        <img src="${r.file_url}" style="width:100%; height:100%; object-fit:cover; border-radius:5px;">
-                        <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.6); display:flex; justify-content:space-around; padding:2px; border-radius:0 0 5px 5px;">
-                            <button onclick="downloadPhoto('${r.file_url}', 'event_${eventId}')" style="background:none; border:none; color:white; cursor:pointer;"><i data-lucide="download" style="width:12px;"></i></button>
+                    <div class="gallery-item" style="position:relative; height:80px; border:1px solid #eee; border-radius:5px; overflow:hidden;">
+                        <img src="${r.file_url}" style="width:100%; height:100%; object-fit:cover;">
+                        <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.6); display:flex; justify-content:space-around; padding:2px;">
                             <button onclick="deleteResource('${r.id}', '${eventId}')" style="background:none; border:none; color:#ff4d4d; cursor:pointer;"><i data-lucide="trash-2" style="width:12px;"></i></button>
                         </div>
                     </div>
                 `).join('')}
             </div>
-            <button onclick="saveEventContent('${eventId}')" class="btn-gold" style="width:100%; margin-top:20px; background:var(--primary);">ENREGISTRER</button>
+            <button onclick="saveEventContent('${eventId}')" class="btn-gold" style="width:100%; margin-top:20px; background:var(--primary);">ENREGISTRER LE TEXTE</button>
         </div>
     `;
     lucide.createIcons();
+};
+
+window.uploadEventFile = async (eventId) => {
+    const fileInput = document.getElementById('res-file');
+    const file = fileInput.files[0];
+    if(!file) return;
+
+    const path = `events/${eventId}/${Date.now()}_${file.name}`;
+    const { data, error } = await supabaseClient.storage.from('documents').upload(path, file);
+    
+    if (data) {
+        const url = supabaseClient.storage.from('documents').getPublicUrl(path).data.publicUrl;
+        await supabaseClient.from('event_resources').insert([{ event_id: eventId, file_url: url }]);
+        showNotice("Succès", "Photo ajoutée.");
+        openEventMedia(eventId); // Rafraîchir la modale
+        loadEvents(); // Rafraîchir le Kanban
+    } else {
+        showNotice("Erreur", "Upload impossible.");
+    }
 };
 
 window.saveEventContent = async (eventId) => {
     const text = document.getElementById('res-text').value;
     const { data: resources } = await supabaseClient.from('event_resources').select('*').eq('event_id', eventId);
     const existingText = resources ? resources.find(r => !r.file_url) : null;
+    
     if(existingText) {
         await supabaseClient.from('event_resources').update({ description: text }).eq('id', existingText.id);
     } else {
         await supabaseClient.from('event_resources').insert([{ event_id: eventId, description: text }]);
     }
-    showNotice("Succès", "Dossier mis à jour.");
-    closeCustomModal();
+    showNotice("Succès", "Texte enregistré.");
+    loadEvents();
+};
+
+window.deleteResource = async (resId, eventId) => {
+    if (!confirm("Supprimer ce média ?")) return;
+    await supabaseClient.from('event_resources').delete().eq('id', resId);
+    openEventMedia(eventId);
     loadEvents();
 };
 
 // --- GESTION DES INVITÉS ---
 window.openEventGuests = async (eventId) => {
-    const { data: donors, error: dErr } = await supabaseClient.from('donors').select('id, last_name, first_name, company_name, entity').order('last_name');
-    const { data: guests, error: gErr } = await supabaseClient.from('event_guests').select('donor_id').eq('event_id', eventId);
-
-    if (dErr) return showNotice("Erreur", "Vérifiez la colonne 'entity' dans la table donors.");
-
+    const { data: donors } = await supabaseClient.from('donors').select('id, last_name, first_name, company_name, entity').order('last_name');
+    const { data: guests } = await supabaseClient.from('event_guests').select('donor_id').eq('event_id', eventId);
+    
     const guestIds = (guests || []).map(g => g.donor_id);
     const donorsList = donors || [];
 
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
         <div style="display:flex; justify-content:space-between; border-bottom:2px solid var(--gold); padding-bottom:10px;">
-            <h3>Gestion des Invités</h3>
+            <h3>Liste des Invités</h3>
             <button onclick="closeCustomModal()" class="btn-gold">X</button>
         </div>
-        
         <div style="margin-top:15px; display:flex; flex-direction:column; gap:10px;">
-            <input type="text" id="guest-search" class="luxe-input" placeholder="Rechercher..." oninput="filterGuestList()">
-            
-            <div style="display:flex; gap:5px;">
-                <select id="guest-filter-entity" class="luxe-input" style="flex:1;" onchange="filterGuestList()">
-                    <option value="ALL">Toutes les entités</option>
-                    <option value="Institut Alsatia">Institut Alsatia</option>
-                    <option value="Cours Herrade de Landsberg">Cours Herrade de Landsberg</option>
-                    <option value="Collège Saints Louis et Zélie Martin">Collège Saints Louis et Zélie Martin</option>
-                    <option value="Academia Alsatia">Academia Alsatia</option>
-                </select>
-            </div>
-
-            <div id="guest-list-scroll" style="max-height:350px; overflow-y:auto; border:1px solid #eee; border-radius:8px; background:#fff;">
+            <input type="text" id="guest-search" class="luxe-input" placeholder="Chercher un nom..." oninput="filterGuestList()">
+            <select id="guest-filter-entity" class="luxe-input" onchange="filterGuestList()">
+                <option value="ALL">Toutes les écoles</option>
+                <option value="Institut Alsatia">Institut Alsatia</option>
+                <option value="Cours Herrade de Landsberg">Cours Herrade de Landsberg</option>
+                <option value="Collège Saints Louis et Zélie Martin">Collège Saints Louis et Zélie Martin</option>
+                <option value="Academia Alsatia">Academia Alsatia</option>
+            </select>
+            <div id="guest-list-scroll" style="max-height:350px; overflow-y:auto; border:1px solid #eee; border-radius:8px;">
                 ${donorsList.map(d => `
-                    <label class="guest-item" data-name="${d.last_name} ${d.first_name}" data-company="${d.company_name || ''}" data-entity="${d.entity || 'Institut Alsatia'}"
-                        style="display:flex; align-items:center; padding:10px; border-bottom:1px solid #f9f9f9; cursor:pointer; font-size:0.85rem;">
-                        <input type="checkbox" style="margin-right:12px; width:18px; height:18px;" 
-                            ${guestIds.includes(d.id) ? 'checked' : ''} 
-                            onchange="toggleGuest('${eventId}', '${d.id}', this.checked)">
-                        <div style="flex:1;">
-                            <strong>${d.last_name} ${d.first_name || ''}</strong>
-                            <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:gray;">
-                                <span>${d.company_name || 'Particulier'}</span>
-                                <span style="color:${getColorByEntity(d.entity)}">${d.entity || ''}</span>
-                            </div>
+                    <label class="guest-item" data-name="${d.last_name} ${d.first_name}" data-entity="${d.entity || ''}" style="display:flex; align-items:center; padding:10px; border-bottom:1px solid #f9f9f9; cursor:pointer;">
+                        <input type="checkbox" ${guestIds.includes(d.id) ? 'checked' : ''} onchange="toggleGuest('${eventId}', '${d.id}', this.checked)" style="margin-right:12px; width:18px; height:18px;">
+                        <div style="flex:1; font-size:0.85rem;">
+                            <strong>${d.last_name} ${d.first_name || ''}</strong><br>
+                            <span style="color:gray; font-size:0.75rem;">${d.company_name || d.entity || 'Donateur'}</span>
                         </div>
                     </label>
                 `).join('')}
             </div>
-            <p id="guest-count" style="font-size:0.7rem; color:gray; text-align:right;">${donorsList.length} affichés</p>
         </div>
     `;
 };
 
 window.filterGuestList = () => {
-    const query = document.getElementById('guest-search').value.toLowerCase();
-    const entityFilter = document.getElementById('guest-filter-entity').value;
-    const items = document.querySelectorAll('.guest-item');
-    let count = 0;
-
-    items.forEach(item => {
-        const txt = item.getAttribute('data-name').toLowerCase() + item.getAttribute('data-company').toLowerCase();
-        const ent = item.getAttribute('data-entity');
-        const show = txt.includes(query) && (entityFilter === 'ALL' || ent === entityFilter);
-        item.style.display = show ? 'flex' : 'none';
-        if(show) count++;
+    const q = document.getElementById('guest-search').value.toLowerCase();
+    const ent = document.getElementById('guest-filter-entity').value;
+    document.querySelectorAll('.guest-item').forEach(item => {
+        const nameMatch = item.getAttribute('data-name').toLowerCase().includes(q);
+        const entMatch = ent === 'ALL' || item.getAttribute('data-entity') === ent;
+        item.style.display = (nameMatch && entMatch) ? 'flex' : 'none';
     });
-    document.getElementById('guest-count').innerText = `${count} affichés`;
 };
 
 window.toggleGuest = async (eventId, donorId, isChecked) => {
@@ -792,7 +801,7 @@ window.toggleGuest = async (eventId, donorId, isChecked) => {
     }
 };
 
-// --- OUTILS ---
+// --- OUTILS & ACTIONS ---
 function getColorByEntity(entity) {
     const colors = {
         "Institut Alsatia": "#1e3a8a",
@@ -807,70 +816,43 @@ window.copyEventText = () => {
     const t = document.getElementById('res-text').value;
     if(!t) return;
     navigator.clipboard.writeText(t);
-    showNotice("Copié !", "Texte prêt.");
+    showNotice("Copié !", "Texte dans le presse-papier.");
 };
 
-window.askDeleteEvent = (id, title) => {
-    if (confirm(`Supprimer "${title}" ?`)) {
-        supabaseClient.from('events').delete().eq('id', id).then(() => {
-            showNotice("Supprimé", "Événement retiré.");
-            loadEvents();
-        });
-    }
-};
-
-// --- MODALE AJOUT ÉVÉNEMENT ---
 window.openNewEventModal = () => {
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
-        <h3 style="color:var(--primary); border-bottom:1px solid var(--gold); padding-bottom:10px;">Programmer un événement</h3>
-        
-        <label class="mini-label">TITRE DE L'ÉVÉNEMENT</label>
-        <input type="text" id="ev-title" placeholder="ex: Portes Ouvertes" class="luxe-input">
-        
+        <h3 style="color:var(--primary); border-bottom:1px solid var(--gold); padding-bottom:10px;">Nouvel Événement</h3>
+        <label class="mini-label">TITRE</label>
+        <input type="text" id="ev-title" class="luxe-input">
         <div style="display:flex; gap:10px;">
-            <div style="flex:1;">
-                <label class="mini-label">DATE</label>
-                <input type="date" id="ev-date" class="luxe-input">
-            </div>
-            <div style="flex:1;">
-                <label class="mini-label">HEURE (Optionnel)</label>
-                <input type="time" id="ev-time" class="luxe-input">
-            </div>
+            <div style="flex:1;"><label class="mini-label">DATE</label><input type="date" id="ev-date" class="luxe-input"></div>
+            <div style="flex:1;"><label class="mini-label">HEURE</label><input type="time" id="ev-time" class="luxe-input"></div>
         </div>
-
-        <label class="mini-label">LIEU</label>
-        <input type="text" id="ev-loc" placeholder="ex: Salle d'honneur" class="luxe-input">
-
-        <label class="mini-label">ENTITÉ ORGANISATRICE</label>
+        <label class="mini-label">ENTITÉ</label>
         <select id="ev-entity" class="luxe-input">
-            <option value="${currentUser.portal}">${currentUser.portal} (Mon entité)</option>
-            ${currentUser.portal === "Institut Alsatia" ? `
-                <option value="Cours Herrade de Landsberg">Cours Herrade de Landsberg</option>
-                <option value="Collège Saints Louis et Zélie Martin">Collège Saints Louis et Zélie Martin</option>
-                <option value="Academia Alsatia">Academia Alsatia</option>
-            ` : ''}
+            <option value="Institut Alsatia">Institut Alsatia</option>
+            <option value="Cours Herrade de Landsberg">Cours Herrade de Landsberg</option>
+            <option value="Collège Saints Louis et Zélie Martin">Collège Saints Louis et Zélie Martin</option>
+            <option value="Academia Alsatia">Academia Alsatia</option>
         </select>
-
-        <label class="mini-label">DESCRIPTION</label>
-        <textarea id="ev-desc" class="luxe-input" style="height:60px;"></textarea>
-        
-        <button onclick="execCreateEvent()" class="btn-gold" style="width:100%; margin-top:15px;">PUBLIER L'ÉVÉNEMENT</button>
+        <label class="mini-label">LIEU</label>
+        <input type="text" id="ev-loc" class="luxe-input">
+        <button onclick="execCreateEvent()" class="btn-gold" style="width:100%; margin-top:15px;">CRÉER</button>
     `;
 };
 
 window.execCreateEvent = async () => {
-    const title = document.getElementById('ev-title').value.trim();
+    const title = document.getElementById('ev-title').value;
     const date = document.getElementById('ev-date').value;
     if (!title || !date) return showNotice("Erreur", "Titre et date requis.");
 
     const { error } = await supabaseClient.from('events').insert([{
         title,
         event_date: date,
-        event_time: document.getElementById('ev-time').value || null,
+        event_time: document.getElementById('ev-time').value,
         location: document.getElementById('ev-loc').value,
         entity: document.getElementById('ev-entity').value,
-        description: document.getElementById('ev-desc').value,
         created_by: currentUser.first_name + " " + currentUser.last_name
     }]);
 
@@ -882,16 +864,10 @@ window.execCreateEvent = async () => {
 };
 
 window.askDeleteEvent = (id, title) => {
-    if (!confirm(`Supprimer définitivement l'événement "${title}" ?`)) return;
-    execDeleteEvent(id);
-};
-
-window.execDeleteEvent = async (id) => {
-    await supabaseClient.from('events').delete().eq('id', id);
-    showNotice("Supprimé", "L'événement a été retiré.");
-    loadEvents();
-};
-window.execDeleteEvent = async (id) => {
-    await supabaseClient.from('events').delete().eq('id', id);
-    loadEvents();
+    if (confirm(`Supprimer "${title}" ?`)) {
+        supabaseClient.from('events').delete().eq('id', id).then(() => {
+            showNotice("Supprimé", "Événement retiré.");
+            loadEvents();
+        });
+    }
 };
