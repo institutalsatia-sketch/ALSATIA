@@ -82,8 +82,15 @@ function renderDonorsTable(data) {
     if (!list) return;
     list.innerHTML = data.map(d => {
         const total = (d.donations || []).reduce((s, n) => s + Number(n.amount || 0), 0);
+        
+        // --- NOUVELLE LOGIQUE : Détection des remerciements en attente ---
+        const hasPendingThanks = (d.donations || []).some(don => !don.thanked);
+        const warningClass = hasPendingThanks ? 'blink-warning' : '';
+        // -----------------------------------------------------------------
+
         const identity = d.company_name ? `🏢 <strong>${d.company_name}</strong><br><small>${d.last_name} ${d.first_name || ''}</small>` : `<strong>${d.last_name.toUpperCase()}</strong> ${d.first_name || ''}`;
-        return `<tr>
+        
+        return `<tr class="${warningClass}">
             <td style="padding:15px;">${identity}</td>
             <td style="padding:15px;"><span style="font-size:0.75rem; background:#f1f5f9; padding:4px 8px; border-radius:4px;">${d.entities || 'Alsatia'}</span></td>
             <td style="padding:15px; color:#b99d65;"><strong>${total} €</strong></td>
