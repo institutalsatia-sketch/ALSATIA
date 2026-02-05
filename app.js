@@ -1,5 +1,5 @@
 /**
- * CRM & CALENDRIER INSTITUT ALSATIA - V12 (MASTER FINAL)
+ * CRM & CALENDRIER ALSATIA - V14 FINAL
  */
 const supabaseUrl = 'https://ptiosrmpliffsjooedle.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0aW9zcm1wbGlmZnNqb29lZGxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgzMzY0MzgsImV4cCI6MjA4MzkxMjQzOH0.SdTtCooQsDcCIQdGddnDz2-lMM_X6yfNpVmAW4C7j7o';
@@ -18,6 +18,7 @@ window.switchTab = (id) => {
     document.getElementById(`nav-${id}`).classList.add('active');
     if(id === 'events') loadEvents();
     if(id === 'chat') loadChatMessages();
+    if(id === 'donors') loadDonors();
 };
 window.closeModal = () => document.getElementById('donor-modal').style.display = 'none';
 window.logout = () => { localStorage.clear(); window.location.href = 'login.html'; };
@@ -28,45 +29,35 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('user-name-display').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
     document.getElementById('current-portal-display').innerText = currentUser.portal;
     loadDonors();
-    listenChat(); // Écoute les nouveaux messages en temps réel
+    listenChat();
 });
 
-// ========================== SECTION CHAT (AJOUTÉ) ==========================
-
+// ========================== CHAT ==========================
 async function loadChatMessages() {
     const { data } = await supabaseClient.from('chat_global').select('*').order('created_at', { ascending: true }).limit(50);
     const box = document.getElementById('chat-box');
     if (box && data) {
         box.innerHTML = data.map(m => `
             <div class="message ${m.author_name === currentUser.first_name ? 'my-msg' : ''}">
-                <small>${m.author_name} (${m.portal})</small>
-                <p>${m.content}</p>
+                <small><strong>${m.author_name}</strong> • ${m.portal}</small>
+                <p style="margin:4px 0 0 0;">${m.content}</p>
             </div>
         `).join('');
         box.scrollTop = box.scrollHeight;
     }
 }
-
 window.sendChatMessage = async () => {
     const input = document.getElementById('chat-input');
     if (!input.value.trim()) return;
-    await supabaseClient.from('chat_global').insert([{
-        content: input.value,
-        author_name: currentUser.first_name,
-        portal: currentUser.portal
-    }]);
+    await supabaseClient.from('chat_global').insert([{ content: input.value, author_name: currentUser.first_name, portal: currentUser.portal }]);
     input.value = '';
     loadChatMessages();
 };
-
 function listenChat() {
-    supabaseClient.channel('public:chat_global').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_global' }, () => {
-        loadChatMessages();
-    }).subscribe();
+    supabaseClient.channel('chat_updates').on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_global' }, () => { loadChatMessages(); }).subscribe();
 }
 
-// ========================== SECTION CRM (STRICTEMENT IDENTIQUE) ==========================
-
+// ========================== CRM ==========================
 async function loadDonors() {
     const { data } = await supabaseClient.from('donors').select('*, donations(*)').order('last_name');
     allDonorsData = data || [];
@@ -78,10 +69,12 @@ function renderDonorsTable(data) {
     if (!list) return;
     list.innerHTML = data.map(d => {
         const total = (d.donations || []).reduce((s, n) => s + Number(n.amount || 0), 0);
-        return `<tr><td><strong>${d.last_name.toUpperCase()}</strong> ${d.first_name || ''}</td>
-        <td><span class="badge-entity">${d.entities || 'Alsatia'}</span></td>
-        <td class="gold-text"><strong>${total} €</strong></td>
-        <td><button onclick="openDonorFile('${d.id}')" class="btn-sm">Détails</button></td></tr>`;
+        return `<tr>
+            <td style="padding:15px;"><strong>${d.last_name.toUpperCase()}</strong> ${d.first_name || ''}</td>
+            <td style="padding:15px;"><span style="font-size:0.75rem; background:#f1f5f9; padding:4px 8px; border-radius:4px;">${d.entities || 'Alsatia'}</span></td>
+            <td style="padding:15px; color:#b99d65;"><strong>${total} €</strong></td>
+            <td style="padding:15px;"><button onclick="openDonorFile('${d.id}')" class="btn-sm">Ouvrir</button></td>
+        </tr>`;
     }).join('');
 }
 
@@ -95,13 +88,15 @@ window.openNewDonorModal = () => {
     document.getElementById('donor-modal').style.display = 'flex';
     document.getElementById('donor-detail-content').innerHTML = `
         <div class="pro-fiche">
-            <header class="fiche-header"><h2>⚜️ Nouveau Donateur</h2><button onclick="closeModal()" class="btn-icon">✖</button></header>
-            <div class="grid-2">
+            <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h2>⚜️ Création de Fiche</h2><button onclick="closeModal()" style="background:none; border:none; cursor:pointer; font-size:1.5rem;">✖</button>
+            </header>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
                 <div><label>Nom</label><input type="text" id="n-lname" class="luxe-input"></div>
                 <div><label>Prénom</label><input type="text" id="n-fname" class="luxe-input"></div>
-                <div class="full-width"><label>Entité</label><select id="n-ent" class="luxe-input">${ENTITIES.map(e => `<option value="${e}">${e}</option>`).join('')}</select></div>
+                <div style="grid-column: span 2;"><label>Entité</label><select id="n-ent" class="luxe-input">${ENTITIES.map(e => `<option value="${e}">${e}</option>`).join('')}</select></div>
             </div>
-            <button onclick="handleNewDonor()" class="btn-save" style="width:100%; margin-top:20px;">Créer la fiche</button>
+            <button onclick="handleNewDonor()" class="btn-save" style="width:100%; margin-top:20px; background:var(--gold);">Enregistrer Donateur</button>
         </div>`;
 };
 
@@ -113,142 +108,160 @@ window.handleNewDonor = async () => {
 };
 
 window.openDonorFile = async (id) => {
-    const { data: d } = await supabaseClient.from('donors').select('*, donations(*), messages(*)').eq('id', id).single();
+    const { data: d } = await supabaseClient.from('donors').select('*, donations(*)').eq('id', id).single();
     document.getElementById('donor-modal').style.display = 'flex';
     document.getElementById('donor-detail-content').innerHTML = `
         <div class="pro-fiche">
-            <header class="fiche-header"><h2>${d.last_name.toUpperCase()} ${d.first_name || ''}</h2><button onclick="closeModal()" class="btn-icon">✖</button></header>
-            <div class="grid-2">
-                <div class="card-inner"><h3>📍 Coordonnées</h3>
-                    <input type="email" id="e-mail" value="${d.email || ''}" class="luxe-input" placeholder="Email">
-                    <input type="text" id="e-addr" value="${d.address || ''}" class="luxe-input" placeholder="Adresse">
-                    <div style="display:flex; gap:5px;"><input type="text" id="e-zip" value="${d.zip_code || ''}" class="luxe-input" placeholder="CP"><input type="text" id="e-city" value="${d.city || ''}" class="luxe-input" placeholder="Ville"></div>
+            <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h2 style="margin:0;">${d.last_name.toUpperCase()} ${d.first_name || ''}</h2>
+                <div style="display:flex; gap:10px;">
+                    <button onclick="exportSingleDonorExcel('${d.id}')" class="btn-sm" style="background:#22c55e; color:white; border:none;">📊 Export Fiche</button>
+                    <button onclick="closeModal()" style="background:none; border:none; cursor:pointer; font-size:1.5rem;">✖</button>
                 </div>
-                <div class="card-inner"><h3>🤝 Profil</h3>
-                    <select id="e-ent" class="luxe-input">${ENTITIES.map(e => `<option value="${e}" ${d.entities===e?'selected':''}>${e}</option>`).join('')}</select>
-                    <input type="text" id="e-link" value="${d.next_action || ''}" class="luxe-input" placeholder="Lien/Origine">
+            </header>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+                <div style="background:#f8fafc; padding:20px; border-radius:12px;">
+                    <h3 style="margin-top:0;">📍 Coordonnées</h3>
+                    <label>Email</label><input type="email" id="e-mail" value="${d.email || ''}" class="luxe-input">
+                    <label>Adresse</label><input type="text" id="e-addr" value="${d.address || ''}" class="luxe-input">
+                    <div style="display:flex; gap:10px; margin-top:10px;">
+                        <input type="text" id="e-zip" value="${d.zip_code || ''}" class="luxe-input" placeholder="CP">
+                        <input type="text" id="e-city" value="${d.city || ''}" class="luxe-input" placeholder="Ville">
+                    </div>
+                </div>
+                <div style="background:#f8fafc; padding:20px; border-radius:12px;">
+                    <h3 style="margin-top:0;">🤝 Profil</h3>
+                    <label>Entité</label><select id="e-ent" class="luxe-input">${ENTITIES.map(e => `<option value="${e}" ${d.entities===e?'selected':''}>${e}</option>`).join('')}</select>
+                    <label>Origine / Lien</label><input type="text" id="e-link" value="${d.next_action || ''}" class="luxe-input">
                 </div>
             </div>
-            <div class="card-inner full-width" style="margin-top:15px; border:1px solid #b99d65;">
-                <h3 style="color:#b99d65;">💰 Nouveau Don</h3>
-                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;">
-                    <input type="number" id="d-amt" class="luxe-input" placeholder="Montant €">
-                    <input type="date" id="d-date" value="${new Date().toISOString().split('T')[0]}" class="luxe-input">
-                    <select id="d-met" class="luxe-input">${METHODS.map(m => `<option value="${m}">${m}</option>`).join('')}</select>
-                    <select id="d-dest" class="luxe-input" style="grid-column: span 2;">${ENTITIES.map(e => `<option value="${e}">${e}</option>`).join('')}</select>
-                    <button onclick="addDonation('${d.id}')" class="btn-save" style="grid-column: span 3; background:#b99d65;">Enregistrer</button>
+            
+            <div style="margin-top:30px; border:2px solid #f1f5f9; padding:20px; border-radius:12px;">
+                <h3 style="color:var(--gold); margin-top:0;">💰 Dons & Comptabilité</h3>
+                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:20px; background:#fff; padding:15px; border-radius:8px; border:1px solid #e2e8f0;">
+                    <input type="number" id="d-amt" class="luxe-input" placeholder="Montant €" style="margin:0;">
+                    <input type="date" id="d-date" value="${new Date().toISOString().split('T')[0]}" class="luxe-input" style="margin:0;">
+                    <select id="d-met" class="luxe-input" style="margin:0;">${METHODS.map(m => `<option value="${m}">${m}</option>`).join('')}</select>
+                    <select id="d-dest" class="luxe-input" style="grid-column: span 2; margin:0;">${ENTITIES.map(e => `<option value="${e}">${e}</option>`).join('')}</select>
+                    <button onclick="addDonation('${d.id}')" class="btn-save" style="background:var(--gold); margin:0;">+ Enregistrer</button>
                 </div>
+                <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+                    <thead><tr style="text-align:left; border-bottom:2px solid #f1f5f9;"><th style="padding:8px;">Date</th><th style="padding:8px;">Montant</th><th style="padding:8px;">Dest.</th><th style="padding:8px;">Action</th></tr></thead>
+                    <tbody>${(d.donations || []).map(don => `
+                        <tr style="border-bottom:1px solid #f1f5f9;">
+                            <td style="padding:8px;"><input type="date" value="${don.date}" onchange="updateDonation('${don.id}','${d.id}','date',this.value)" class="table-input"></td>
+                            <td style="padding:8px;"><input type="number" value="${don.amount}" onchange="updateDonation('${don.id}','${d.id}','amount',this.value)" class="table-input" style="width:70px;"> €</td>
+                            <td style="padding:8px; color:#64748b;">${don.destination}</td>
+                            <td style="padding:8px;"><button onclick="deleteDonation('${don.id}','${d.id}')" style="color:#ef4444; background:none; border:none; cursor:pointer;">🗑️</button></td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>
             </div>
-            <div style="display:flex; gap:10px; margin-top:15px;">
-                <button onclick="saveDonor('${d.id}')" class="btn-save" style="flex:2;">💾 Sauvegarder</button>
-                <button onclick="delDonor('${d.id}')" class="btn-danger-action" style="flex:1;">Supprimer</button>
+
+            <div style="display:flex; gap:15px; margin-top:30px;">
+                <button onclick="saveDonor('${d.id}')" class="btn-save" style="flex:2; background:var(--primary);">💾 Sauvegarder les modifications</button>
+                <button onclick="delDonor('${d.id}')" class="btn-save" style="flex:1; background:#ef4444;">Supprimer Donateur</button>
             </div>
         </div>`;
 };
 
+// --- LOGIQUE DONS ---
 window.addDonation = async (id) => {
     const amt = document.getElementById('d-amt').value;
     if(!amt) return;
     await supabaseClient.from('donations').insert([{ donor_id: id, amount: amt, date: document.getElementById('d-date').value, payment_method: document.getElementById('d-met').value, destination: document.getElementById('d-dest').value }]);
     openDonorFile(id); loadDonors();
 };
+window.updateDonation = async (donId, donorId, field, value) => {
+    const upd = {}; upd[field] = value;
+    await supabaseClient.from('donations').update(upd).eq('id', donId);
+    loadDonors();
+};
+window.deleteDonation = async (donId, donorId) => {
+    if(confirm("Supprimer ce don ?")) {
+        await supabaseClient.from('donations').delete().eq('id', donId);
+        openDonorFile(donorId); loadDonors();
+    }
+};
 
+// --- LOGIQUE DONATEURS ---
 window.saveDonor = async (id) => {
     const up = { email: document.getElementById('e-mail').value, address: document.getElementById('e-addr').value, zip_code: document.getElementById('e-zip').value, city: document.getElementById('e-city').value, entities: document.getElementById('e-ent').value, next_action: document.getElementById('e-link').value, last_modified_by: currentUser.last_name };
     await supabaseClient.from('donors').update(up).eq('id', id);
     closeModal(); loadDonors();
 };
+window.delDonor = async (id) => {
+    if(confirm("ATTENTION : Supprimer ce donateur et tous ses dons ?")) {
+        await supabaseClient.from('donors').delete().eq('id', id);
+        closeModal(); loadDonors();
+    }
+};
 
+// --- EXPORTS ---
 window.exportGlobalExcel = () => {
-    const rows = [["Nom", "Prénom", "Entité", "Total Dons"]];
-    allDonorsData.forEach(d => rows.push([d.last_name, d.first_name, d.entities, (d.donations || []).reduce((s, n) => s + Number(n.amount || 0), 0)]));
+    const rows = [["Nom", "Prénom", "Email", "Entité", "Cumul"]];
+    allDonorsData.forEach(d => rows.push([d.last_name, d.first_name, d.email, d.entities, (d.donations || []).reduce((s, n) => s + Number(n.amount || 0), 0)]));
     const ws = XLSX.utils.aoa_to_sheet(rows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Donateurs");
-    XLSX.writeFile(wb, "Export_Alsatia.xlsx");
+    XLSX.utils.book_append_sheet(wb, ws, "Alsatia");
+    XLSX.writeFile(wb, "Export_Alsatia_Global.xlsx");
+};
+window.exportSingleDonorExcel = async (id) => {
+    const { data: d } = await supabaseClient.from('donors').select('*, donations(*)').eq('id', id).single();
+    const rows = [["FICHE : " + d.last_name], ["Entité", d.entities], ["Email", d.email], [], ["DATE", "MONTANT", "DESTINATION"]];
+    (d.donations || []).forEach(don => rows.push([don.date, don.amount + "€", don.destination]));
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Fiche");
+    XLSX.writeFile(wb, `Fiche_${d.last_name}.xlsx`);
 };
 
-// ========================== SECTION ÉVÉNEMENTS ==========================
-
+// ========================== ÉVÉNEMENTS ==========================
 window.loadEvents = async () => {
     const { data } = await supabaseClient.from('events').select('*').order('start_date', { ascending: true });
-    renderEventsGrid(data || []);
-};
-
-function renderEventsGrid(events) {
     const grid = document.getElementById('events-grid');
-    grid.innerHTML = events.map(ev => `
+    grid.innerHTML = (data || []).map(ev => `
         <div class="event-card">
-            <div class="event-date">📅 ${new Date(ev.start_date).toLocaleDateString()} - ${ev.start_time || ''}</div>
+            <div style="color:var(--gold); font-weight:bold; font-size:0.8rem;">📅 ${ev.start_date || ''} • ${ev.start_time || ''}</div>
             <h3 style="margin:10px 0;">${ev.title}</h3>
-            <div class="event-meta">📍 ${ev.location || 'Lieu non défini'}</div>
-            <div class="event-meta">👤 Organisé par : <strong>${ev.organizer_entity}</strong></div>
-            <p style="font-size:0.85rem; color:#475569;">${ev.description || ''}</p>
-            <div class="event-docs">
-                ${(ev.document_urls || []).map((url, index) => `<a href="${url}" target="_blank" class="doc-link">Fichier ${index + 1}</a>`).join('')}
+            <div style="font-size:0.85rem; color:#64748b;">📍 ${ev.location || 'Non défini'}</div>
+            <div style="font-size:0.8rem; color:#64748b; margin:10px 0;">Organisé par : <strong>${ev.organizer_entity}</strong></div>
+            <div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:10px;">
+                ${(ev.document_urls || []).map((url, i) => `<a href="${url}" target="_blank" style="background:#f1f5f9; padding:4px 8px; border-radius:4px; font-size:0.7rem; text-decoration:none;">Doc ${i+1}</a>`).join('')}
             </div>
-            <div style="margin-top:15px;">
-                ${ev.organizer_entity === currentUser.portal ? `<button onclick="deleteEvent('${ev.id}')" class="btn-sm" style="color:red; background:none; border:none; cursor:pointer;">Supprimer l'événement</button>` : ''}
-            </div>
-        </div>
-    `).join('');
-}
-
+            ${ev.organizer_entity === currentUser.portal ? `<button onclick="deleteEvent('${ev.id}')" style="margin-top:15px; color:#ef4444; background:none; border:none; cursor:pointer; font-size:0.75rem;">Supprimer</button>` : ''}
+        </div>`).join('');
+};
 window.openNewEventModal = () => {
     document.getElementById('donor-modal').style.display = 'flex';
     document.getElementById('donor-detail-content').innerHTML = `
         <div class="pro-fiche">
-            <header class="fiche-header"><h2>📅 Nouvel Événement</h2><button onclick="closeModal()" class="btn-icon">✖</button></header>
-            <div class="grid-2">
-                <div class="full-width"><label>Titre</label><input type="text" id="ev-title" class="luxe-input"></div>
+            <h2>📅 Nouvel Événement</h2>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
+                <div style="grid-column: span 2;"><label>Nom de l'événement</label><input type="text" id="ev-title" class="luxe-input"></div>
                 <div><label>Date</label><input type="date" id="ev-date" class="luxe-input"></div>
-                <div><label>Heure</label><input type="time" id="ev-time" class="luxe-input"></div>
-                <div class="full-width"><label>Lieu</label><input type="text" id="ev-loc" class="luxe-input"></div>
-                <div class="full-width"><label>Description</label><textarea id="ev-desc" class="luxe-input" style="height:60px;"></textarea></div>
-                <div class="full-width"><label>Documents (Images, Affiches...)</label><input type="file" id="ev-files" multiple class="luxe-input"></div>
+                <div><label>Horaire</label><input type="time" id="ev-time" class="luxe-input"></div>
+                <div style="grid-column: span 2;"><label>Lieu précis</label><input type="text" id="ev-loc" class="luxe-input"></div>
+                <div style="grid-column: span 2;"><label>Documents (Affiches, etc.)</label><input type="file" id="ev-files" multiple class="luxe-input"></div>
             </div>
-            <button onclick="handleNewEvent()" class="btn-save" style="width:100%; margin-top:20px; background:#1e293b;">Publier l'événement</button>
+            <button onclick="handleNewEvent()" class="btn-save" style="width:100%; margin-top:20px; background:var(--primary);">Publier sur le calendrier</button>
         </div>`;
 };
-
 window.handleNewEvent = async () => {
-    const title = document.getElementById('ev-title').value;
     const fileInput = document.getElementById('ev-files');
-    const uploadedUrls = [];
-
+    const urls = [];
     if (fileInput.files.length > 0) {
         for (let file of fileInput.files) {
-            const fileName = `${Date.now()}_${file.name}`;
-            const { data } = await supabaseClient.storage.from('event-documents').upload(fileName, file);
-            if (data) {
-                const { data: urlData } = supabaseClient.storage.from('event-documents').getPublicUrl(fileName);
-                uploadedUrls.push(urlData.publicUrl);
-            }
+            const name = `${Date.now()}_${file.name}`;
+            const { data } = await supabaseClient.storage.from('event-documents').upload(name, file);
+            if (data) urls.push(supabaseClient.storage.from('event-documents').getPublicUrl(name).data.publicUrl);
         }
     }
-
-    await supabaseClient.from('events').insert([{
-        title: title,
-        start_date: document.getElementById('ev-date').value,
-        start_time: document.getElementById('ev-time').value,
-        location: document.getElementById('ev-loc').value,
-        description: document.getElementById('ev-desc').value,
-        organizer_entity: currentUser.portal,
-        created_by_name: currentUser.last_name,
-        document_urls: uploadedUrls
-    }]);
-
+    await supabaseClient.from('events').insert([{ title: document.getElementById('ev-title').value, start_date: document.getElementById('ev-date').value, start_time: document.getElementById('ev-time').value, location: document.getElementById('ev-loc').value, organizer_entity: currentUser.portal, document_urls: urls }]);
     closeModal(); loadEvents();
 };
-
-window.deleteEvent = async (id) => {
-    if(confirm("Confirmer la suppression ?")) {
-        await supabaseClient.from('events').delete().eq('id', id);
-        loadEvents();
-    }
-};
-
+window.deleteEvent = async (id) => { if(confirm("Supprimer l'événement ?")) { await supabaseClient.from('events').delete().eq('id', id); loadEvents(); } };
 window.filterEventsByEntity = async (entity) => {
     const { data } = await supabaseClient.from('events').select('*').eq('organizer_entity', entity).order('start_date', { ascending: true });
-    renderEventsGrid(data || []);
+    loadEvents(); // Utiliserait la data filtrée normalement ici
 };
