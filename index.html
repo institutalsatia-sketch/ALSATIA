@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CRM Institut Alsatia</title>
+    <title>CRM & Calendrier Institut Alsatia</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -38,22 +38,20 @@
         </section>
 
         <section id="tab-donors" class="tab-content">
-            <div class="header-tab">
+            <div class="header-tab" style="display:flex; justify-content:space-between; align-items:center;">
                 <h1>Gestion des Donateurs</h1>
                 <div class="header-actions">
                     <button onclick="openNewDonorModal()" class="btn-save" style="background:#b99d65;">+ Nouveau Donateur</button>
-                    <button onclick="exportGlobalExcel()" class="btn-outline-gold">📊 Export Excel</button>
+                    <button onclick="exportGlobalExcel()" class="btn-outline-gold" style="border:1px solid #b99d65; color:#b99d65; background:none; padding:10px; border-radius:6px; cursor:pointer;">📊 Export Global</button>
                 </div>
             </div>
-
-            <div class="search-container">
-                <input type="text" id="search-donor" class="search-input" placeholder="🔍 Rechercher un nom ou un prénom..." onkeyup="filterDonors()">
+            <div class="search-container" style="margin:20px 0;">
+                <input type="text" id="search-donor" class="luxe-input" placeholder="🔍 Rechercher un nom..." onkeyup="filterDonors()">
             </div>
-
             <div class="table-container">
-                <table class="luxe-table-main">
-                    <thead>
-                        <tr><th>Identité</th><th>Entité</th><th>Cumul des dons</th><th>Action</th></tr>
+                <table class="luxe-table-main" style="width:100%; border-collapse:collapse; background:white;">
+                    <thead style="background:#f8fafc;">
+                        <tr><th style="padding:15px; text-align:left;">Identité</th><th style="padding:15px; text-align:left;">Entité</th><th style="padding:15px; text-align:left;">Cumul des dons</th><th style="padding:15px; text-align:left;">Action</th></tr>
                     </thead>
                     <tbody id="donors-list"></tbody>
                 </table>
@@ -61,8 +59,16 @@
         </section>
 
         <section id="tab-events" class="tab-content">
-            <h1>Calendrier des Événements</h1>
-            <p>Module en cours de développement.</p>
+            <div class="header-tab">
+                <h1>Calendrier Partagé</h1>
+                <button onclick="openNewEventModal()" class="btn-save" style="background:#1e293b;">+ Créer un Événement</button>
+            </div>
+            <div class="filter-bar" style="margin: 20px 0; display: flex; gap: 10px;">
+                <button class="btn-sm" onclick="loadEvents()">Tous</button>
+                <button class="btn-sm" onclick="filterEventsByEntity('Institut Alsatia')">Institut</button>
+                <button class="btn-sm" onclick="filterEventsByEntity('Academia Alsatia')">Academia</button>
+            </div>
+            <div id="events-grid" class="events-grid"></div>
         </section>
     </main>
 
@@ -72,15 +78,6 @@
         </div>
     </div>
 
-    <div id="confirm-modal" class="confirm-overlay">
-        <div class="confirm-box">
-            <p id="confirm-msg"></p>
-            <button id="confirm-yes" class="btn-danger-action">Confirmer</button>
-            <button onclick="closeConfirm()" class="btn-outline">Annuler</button>
-        </div>
-    </div>
-
-    <div id="notification-container"></div>
     <script src="app.js"></script>
 </body>
 </html>
