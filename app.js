@@ -72,42 +72,81 @@ window.openDonorFile = async (id) => {
     const { data: d } = await supabaseClient.from('donors').select('*, donations(*)').eq('id', id).single();
     const modal = document.getElementById('custom-modal');
     modal.style.display = 'flex';
+    
     document.getElementById('modal-body').innerHTML = `
         <div style="display:flex; justify-content:space-between; border-bottom:2px solid var(--gold); padding-bottom:15px;">
-            <h2>${d.company_name || d.last_name}</h2>
+            <h2>${d.company_name ? d.company_name : (d.last_name + ' ' + (d.first_name || ''))}</h2>
             <button onclick="closeCustomModal()" class="btn-gold">Fermer</button>
         </div>
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-top:20px;">
             <div>
+                <label class="mini-label">Nom de l'Entreprise</label>
+                <input type="text" id="e-company" value="${d.company_name||''}" class="luxe-input">
+                
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                    <div><label class="mini-label">Nom</label><input type="text" id="e-last" value="${d.last_name||''}" class="luxe-input"></div>
+                    <div><label class="mini-label">Prénom</label><input type="text" id="e-first" value="${d.first_name||''}" class="luxe-input"></div>
+                </div>
+
                 <label class="mini-label">Email</label><input type="text" id="e-email" value="${d.email||''}" class="luxe-input">
                 <label class="mini-label">Téléphone</label><input type="text" id="e-phone" value="${d.phone||''}" class="luxe-input">
-                <label class="mini-label">Ville</label><input type="text" id="e-ville" value="${d.city||''}" class="luxe-input">
             </div>
             <div>
-                <label class="mini-label">Notes Privées</label><textarea id="e-notes" class="luxe-input" style="height:140px;">${d.notes||''}</textarea>
+                <label class="mini-label">Adresse</label><input type="text" id="e-addr" value="${d.address||''}" class="luxe-input">
+                <div style="display:grid; grid-template-columns: 80px 1fr; gap:10px;">
+                    <div><label class="mini-label">CP</label><input type="text" id="e-cp" value="${d.zip_code||''}" class="luxe-input"></div>
+                    <div><label class="mini-label">Ville</label><input type="text" id="e-ville" value="${d.city||''}" class="luxe-input"></div>
+                </div>
+                <label class="mini-label">Lien / Origine</label><input type="text" id="e-origin" value="${d.origin||''}" class="luxe-input">
+                <label class="mini-label">Notes Privées</label><textarea id="e-notes" class="luxe-input" style="height:80px;">${d.notes||''}</textarea>
             </div>
         </div>
-        <h3 style="color:var(--gold);">Nouveau Don</h3>
+
+        <h3 style="color:var(--gold); margin-top:20px;">Gestion des Dons</h3>
         <div style="display:grid; grid-template-columns: 1fr 1fr 1fr auto; gap:8px; background:#f1f5f9; padding:15px; border-radius:15px;">
             <input type="number" id="d-amt" placeholder="Montant €" class="luxe-input" style="margin:0">
             <input type="date" id="d-date" value="${new Date().toISOString().split('T')[0]}" class="luxe-input" style="margin:0">
             <select id="d-mode" class="luxe-input" style="margin:0"><option>Chèque</option><option>Virement</option></select>
             <button onclick="addDonation('${d.id}')" class="btn-gold">+</button>
         </div>
-        <div style="margin-top:15px; max-height:150px; overflow-y:auto;">
+
+        <div style="margin-top:15px; max-height:150px; overflow-y:auto; border:1px solid #eee; border-radius:10px;">
             <table style="width:100%; font-size:0.85rem;">
                 ${(d.donations||[]).map(don => `
-                    <tr>
-                        <td>${don.date}</td><td><b>${don.amount}€</b></td>
-                        <td><input type="checkbox" ${don.thanked?'checked':''} onchange="updateThanks('${don.id}','${d.id}',this.checked)"> Merci</td>
-                        <td><button onclick="askDeleteDonation('${don.id}','${d.id}')" style="color:red; border:none; background:none; cursor:pointer;">🗑️</button></td>
+                    <tr style="border-bottom:1px solid #f9f9f9;">
+                        <td style="padding:8px;">${don.date}</td>
+                        <td style="padding:8px;"><b>${don.amount}€</b></td>
+                        <td style="padding:8px;"><input type="checkbox" ${don.thanked?'checked':''} onchange="updateThanks('${don.id}','${d.id}',this.checked)"> Merci</td>
+                        <td style="padding:8px; text-align:right;"><button onclick="askDeleteDonation('${don.id}','${d.id}')" style="color:red; border:none; background:none; cursor:pointer;">🗑️</button></td>
                     </tr>
                 `).join('')}
             </table>
         </div>
-        <button onclick="saveDonor('${d.id}')" class="btn-gold" style="width:100%; margin-top:20px; justify-content:center; background:var(--primary);">Sauvegarder</button>
-        <button onclick="askDeleteDonor('${d.id}')" class="btn-danger" style="width:100%; margin-top:10px;">Supprimer le donateur</button>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:20px;">
+            <button onclick="saveDonor('${d.id}')" class="btn-gold" style="justify-content:center; background:var(--primary);">Sauvegarder la fiche</button>
+            <button onclick="askDeleteDonor('${d.id}')" class="btn-danger">Supprimer Donateur</button>
+        </div>
     `;
+    lucide.createIcons();
+};
+
+window.saveDonor = async (id) => {
+    const updateData = {
+        company_name: document.getElementById('e-company').value,
+        last_name: document.getElementById('e-last').value,
+        first_name: document.getElementById('e-first').value,
+        email: document.getElementById('e-email').value,
+        phone: document.getElementById('e-phone').value,
+        address: document.getElementById('e-addr').value,
+        zip_code: document.getElementById('e-cp').value,
+        city: document.getElementById('e-ville').value,
+        origin: document.getElementById('e-origin').value,
+        notes: document.getElementById('e-notes').value
+    };
+
+    const { error } = await supabaseClient.from('donors').update(updateData).eq('id', id);
+    if(!error) { closeCustomModal(); loadDonors(); }
 };
 
 window.addDonation = async (id) => {
