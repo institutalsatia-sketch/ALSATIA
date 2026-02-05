@@ -31,9 +31,19 @@
             <h1>Salon de Discussion</h1>
             <div class="chat-container">
                 <div id="chat-box" class="chat-box"></div>
-                <div class="chat-input-area">
-                    <input type="text" id="chat-input" placeholder="Votre message...">
-                    <button onclick="sendChatMessage()">Envoyer</button>
+                <div class="chat-input-area" style="position:relative;">
+                    <div id="mention-suggestions" class="mention-list"></div>
+                    <div id="target-selector" style="font-size: 0.8rem; display: flex; gap: 10px; color: #64748b; margin-bottom:10px;">
+                        <span>Diffuser à : </span>
+                        <label><input type="checkbox" class="target-check" value="Institut Alsatia"> Institut</label>
+                        <label><input type="checkbox" class="target-check" value="Academia Alsatia"> Academia</label>
+                        <label><input type="checkbox" class="target-check" value="Cours Herrade de Landsberg"> Herrade</label>
+                        <label><input type="checkbox" class="target-check" value="Collège Saints Louis et Zélie Martin"> Martin</label>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="chat-input" placeholder="Votre message (tapez @ pour mentionner)..." autocomplete="off">
+                        <button onclick="sendChatMessage()">Envoyer</button>
+                    </div>
                 </div>
             </div>
         </section>
@@ -73,19 +83,12 @@
                 <h1>Calendrier Partagé</h1>
                 <button onclick="openNewEventModal()" class="btn-save" style="background:#1e293b;">+ Créer un Événement</button>
             </div>
-            <div class="filter-bar" style="margin: 20px 0; display: flex; gap: 10px;">
-                <button class="btn-sm" onclick="loadEvents()">Tous</button>
-                <button class="btn-sm" onclick="filterEventsByEntity('Institut Alsatia')">Institut</button>
-                <button class="btn-sm" onclick="filterEventsByEntity('Academia Alsatia')">Academia</button>
-            </div>
             <div id="events-grid" class="events-grid"></div>
         </section>
     </main>
 
     <div id="donor-modal" class="modal-overlay">
-        <div class="modal-content">
-            <div id="donor-detail-content"></div>
-        </div>
+        <div class="modal-content"><div id="donor-detail-content"></div></div>
     </div>
 
     <script src="app.js"></script>
