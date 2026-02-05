@@ -17,6 +17,7 @@
         <ul>
             <li id="nav-chat" class="active" onclick="switchTab('chat')">💬 Discussion</li>
             <li id="nav-donors" onclick="switchTab('donors')">👥 Base Donateurs</li>
+            <li id="nav-campaigns" onclick="switchTab('campaigns')">📣 Campagnes</li>
             <li id="nav-events" onclick="switchTab('events')">📅 Événements</li>
         </ul>
         <div class="user-bottom">
@@ -45,17 +46,26 @@
                     <button onclick="exportGlobalExcel()" class="btn-outline-gold" style="border:1px solid #b99d65; color:#b99d65; background:none; padding:10px; border-radius:6px; cursor:pointer;">📊 Export Global</button>
                 </div>
             </div>
+            <div id="pending-thanks-alert"></div>
             <div class="search-container" style="margin:20px 0;">
-                <input type="text" id="search-donor" class="luxe-input" placeholder="🔍 Rechercher un nom..." onkeyup="filterDonors()">
+                <input type="text" id="search-donor" class="luxe-input" placeholder="🔍 Rechercher un nom ou une entreprise..." onkeyup="filterDonors()">
             </div>
             <div class="table-container">
                 <table class="luxe-table-main" style="width:100%; border-collapse:collapse; background:white;">
                     <thead style="background:#f8fafc;">
-                        <tr><th style="padding:15px; text-align:left;">Identité</th><th style="padding:15px; text-align:left;">Entité</th><th style="padding:15px; text-align:left;">Cumul des dons</th><th style="padding:15px; text-align:left;">Action</th></tr>
+                        <tr><th style="padding:15px; text-align:left;">Identité / Entreprise</th><th style="padding:15px; text-align:left;">Entité</th><th style="padding:15px; text-align:left;">Cumul des dons</th><th style="padding:15px; text-align:left;">Action</th></tr>
                     </thead>
                     <tbody id="donors-list"></tbody>
                 </table>
             </div>
+        </section>
+
+        <section id="tab-campaigns" class="tab-content">
+            <div class="header-tab">
+                <h1>Campagnes de Dons</h1>
+                <button onclick="openNewCampaignModal()" class="btn-save" style="background:#b99d65;">+ Nouvelle Campagne</button>
+            </div>
+            <div id="campaigns-list" class="events-grid" style="margin-top:20px;"></div>
         </section>
 
         <section id="tab-events" class="tab-content">
