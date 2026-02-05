@@ -588,7 +588,7 @@ function renderEvents(events) {
     const container = document.getElementById('events-container'); 
     if (!container) return;
 
-    if (events.length === 0) {
+    if (!events || events.length === 0) {
         container.innerHTML = `<div style="text-align:center; padding:20px; opacity:0.5;">Aucun événement prévu.</div>`;
         return;
     }
@@ -598,7 +598,6 @@ function renderEvents(events) {
         const hasText = ev.event_resources?.some(r => r.description && r.description.length > 10);
         const hasPhoto = ev.event_resources?.some(r => r.file_url);
         const isReady = hasText && hasPhoto;
-
         const dateFr = new Date(ev.event_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
         
         return `
@@ -625,13 +624,12 @@ function renderEvents(events) {
     lucide.createIcons();
 }
 
-// --- DOSSIER MÉDIA & RÉSEAUX SOCIAUX ---
+// --- DOSSIER MÉDIA ---
 window.openEventMedia = async (eventId) => {
     const { data: ev } = await supabaseClient.from('events').select('*').eq('id', eventId).single();
     const { data: res } = await supabaseClient.from('event_resources').select('*').eq('event_id', eventId);
-
-    const textData = res.find(r => !r.file_url);
-    const photos = res.filter(r => r.file_url);
+    const textData = (res || []).find(r => !r.file_url);
+    const photos = (res || []).filter(r => r.file_url);
 
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
@@ -639,18 +637,14 @@ window.openEventMedia = async (eventId) => {
             <h3>Dossier Com' : ${ev.title}</h3>
             <button onclick="closeCustomModal()" class="btn-gold">X</button>
         </div>
-        
         <div style="margin-top:15px; max-height:75vh; overflow-y:auto; padding-right:5px;">
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <label class="mini-label">LÉGENDE / POST RÉSEAUX</label>
                 <button onclick="copyEventText()" class="btn-mini-gold" style="font-size:0.65rem; padding:2px 8px;">COPIER LE TEXTE</button>
             </div>
-            <textarea id="res-text" class="luxe-input" style="height:120px; font-size:0.9rem;" 
-                placeholder="Rédigez ici le post Instagram/Facebook...">${textData ? textData.description : ''}</textarea>
-            
+            <textarea id="res-text" class="luxe-input" style="height:120px; font-size:0.9rem;" placeholder="Rédigez ici le post...">${textData ? textData.description : ''}</textarea>
             <label class="mini-label" style="margin-top:15px;">PHOTOS & VISUELS</label>
             <input type="file" id="res-file" class="luxe-input" onchange="uploadEventFile('${eventId}')" accept="image/*">
-            
             <div id="media-gallery" style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:10px;">
                 ${photos.map(r => `
                     <div class="gallery-item" style="position:relative; height:80px;">
@@ -662,60 +656,35 @@ window.openEventMedia = async (eventId) => {
                     </div>
                 `).join('')}
             </div>
-
-            <button onclick="saveEventContent('${eventId}')" class="btn-gold" style="width:100%; margin-top:20px; background:var(--primary);">
-                ENREGISTRER LE DOSSIER
-            </button>
+            <button onclick="saveEventContent('${eventId}')" class="btn-gold" style="width:100%; margin-top:20px; background:var(--primary);">ENREGISTRER</button>
         </div>
     `;
     lucide.createIcons();
-};
-
-window.uploadEventFile = async (eventId) => {
-    const file = document.getElementById('res-file').files[0];
-    if(!file) return;
-
-    const path = `events_media/${eventId}/${Date.now()}_${file.name}`;
-    const { data, error } = await supabaseClient.storage.from('documents').upload(path, file);
-    
-    if (data) {
-        const url = supabaseClient.storage.from('documents').getPublicUrl(path).data.publicUrl;
-        await supabaseClient.from('event_resources').insert([{ event_id: eventId, file_url: url }]);
-        openEventMedia(eventId); 
-    } else {
-        showNotice("Erreur", "L'envoi a échoué.");
-    }
 };
 
 window.saveEventContent = async (eventId) => {
     const text = document.getElementById('res-text').value;
     const { data: resources } = await supabaseClient.from('event_resources').select('*').eq('event_id', eventId);
     const existingText = resources ? resources.find(r => !r.file_url) : null;
-    
     if(existingText) {
         await supabaseClient.from('event_resources').update({ description: text }).eq('id', existingText.id);
     } else {
         await supabaseClient.from('event_resources').insert([{ event_id: eventId, description: text }]);
     }
-    
-    showNotice("Enregistré", "Dossier mis à jour.");
+    showNotice("Succès", "Dossier mis à jour.");
     closeCustomModal();
     loadEvents();
 };
 
-window.deleteResource = async (resId, eventId) => {
-    // Note: Utilisation de confirm() simplifié car showNotice est souvent informatif. 
-    // Si vous avez une modale de confirmation personnalisée, remplacez ici.
-    if(!confirm("Supprimer ce média ?")) return;
-    await supabaseClient.from('event_resources').delete().eq('id', resId);
-    openEventMedia(eventId);
-};
-
-// --- GESTION DES INVITÉS AVEC RECHERCHE ET FILTRE ---
+// --- GESTION DES INVITÉS ---
 window.openEventGuests = async (eventId) => {
-    const { data: donors } = await supabaseClient.from('donors').select('id, last_name, first_name, company_name, entity').order('last_name');
-    const { data: guests } = await supabaseClient.from('event_guests').select('donor_id').eq('event_id', eventId);
+    const { data: donors, error: dErr } = await supabaseClient.from('donors').select('id, last_name, first_name, company_name, entity').order('last_name');
+    const { data: guests, error: gErr } = await supabaseClient.from('event_guests').select('donor_id').eq('event_id', eventId);
+
+    if (dErr) return showNotice("Erreur", "Vérifiez la colonne 'entity' dans la table donors.");
+
     const guestIds = (guests || []).map(g => g.donor_id);
+    const donorsList = donors || [];
 
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
@@ -725,34 +694,36 @@ window.openEventGuests = async (eventId) => {
         </div>
         
         <div style="margin-top:15px; display:flex; flex-direction:column; gap:10px;">
-            <input type="text" id="guest-search" class="luxe-input" placeholder="Rechercher un nom ou une société..." oninput="filterGuestList()">
+            <input type="text" id="guest-search" class="luxe-input" placeholder="Rechercher..." oninput="filterGuestList()">
             
-            <select id="guest-filter-entity" class="luxe-input" onchange="filterGuestList()">
-                <option value="ALL">Toutes les entités</option>
-                <option value="Institut Alsatia">Institut Alsatia</option>
-                <option value="Cours Herrade de Landsberg">Cours Herrade de Landsberg</option>
-                <option value="Collège Saints Louis et Zélie Martin">Collège Saints Louis et Zélie Martin</option>
-                <option value="Academia Alsatia">Academia Alsatia</option>
-            </select>
+            <div style="display:flex; gap:5px;">
+                <select id="guest-filter-entity" class="luxe-input" style="flex:1;" onchange="filterGuestList()">
+                    <option value="ALL">Toutes les entités</option>
+                    <option value="Institut Alsatia">Institut Alsatia</option>
+                    <option value="Cours Herrade de Landsberg">Cours Herrade de Landsberg</option>
+                    <option value="Collège Saints Louis et Zélie Martin">Collège Saints Louis et Zélie Martin</option>
+                    <option value="Academia Alsatia">Academia Alsatia</option>
+                </select>
+            </div>
 
             <div id="guest-list-scroll" style="max-height:350px; overflow-y:auto; border:1px solid #eee; border-radius:8px; background:#fff;">
-                ${(donors || []).map(d => `
-                    <label class="guest-item" data-name="${d.last_name} ${d.first_name}" data-company="${d.company_name || ''}" data-entity="${d.entity}"
+                ${donorsList.map(d => `
+                    <label class="guest-item" data-name="${d.last_name} ${d.first_name}" data-company="${d.company_name || ''}" data-entity="${d.entity || 'Institut Alsatia'}"
                         style="display:flex; align-items:center; padding:10px; border-bottom:1px solid #f9f9f9; cursor:pointer; font-size:0.85rem;">
                         <input type="checkbox" style="margin-right:12px; width:18px; height:18px;" 
                             ${guestIds.includes(d.id) ? 'checked' : ''} 
                             onchange="toggleGuest('${eventId}', '${d.id}', this.checked)">
                         <div style="flex:1;">
                             <strong>${d.last_name} ${d.first_name || ''}</strong>
-                            <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem; color:gray;">
+                            <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:gray;">
                                 <span>${d.company_name || 'Particulier'}</span>
-                                <span style="font-style:italic; color:${getColorByEntity(d.entity)}">${d.entity}</span>
+                                <span style="color:${getColorByEntity(d.entity)}">${d.entity || ''}</span>
                             </div>
                         </div>
                     </label>
                 `).join('')}
             </div>
-            <p id="guest-count" style="font-size:0.7rem; color:gray; text-align:right;">${donors.length} donateurs affichés</p>
+            <p id="guest-count" style="font-size:0.7rem; color:gray; text-align:right;">${donorsList.length} affichés</p>
         </div>
     `;
 };
@@ -761,24 +732,16 @@ window.filterGuestList = () => {
     const query = document.getElementById('guest-search').value.toLowerCase();
     const entityFilter = document.getElementById('guest-filter-entity').value;
     const items = document.querySelectorAll('.guest-item');
-    let visibleCount = 0;
+    let count = 0;
 
     items.forEach(item => {
-        const name = item.getAttribute('data-name').toLowerCase();
-        const company = item.getAttribute('data-company').toLowerCase();
-        const entity = item.getAttribute('data-entity');
-        
-        const matchesSearch = name.includes(query) || company.includes(query);
-        const matchesEntity = (entityFilter === 'ALL' || entity === entityFilter);
-
-        if (matchesSearch && matchesEntity) {
-            item.style.display = 'flex';
-            visibleCount++;
-        } else {
-            item.style.display = 'none';
-        }
+        const txt = item.getAttribute('data-name').toLowerCase() + item.getAttribute('data-company').toLowerCase();
+        const ent = item.getAttribute('data-entity');
+        const show = txt.includes(query) && (entityFilter === 'ALL' || ent === entityFilter);
+        item.style.display = show ? 'flex' : 'none';
+        if(show) count++;
     });
-    document.getElementById('guest-count').innerText = `${visibleCount} donateurs affichés`;
+    document.getElementById('guest-count').innerText = `${count} affichés`;
 };
 
 window.toggleGuest = async (eventId, donorId, isChecked) => {
@@ -789,23 +752,7 @@ window.toggleGuest = async (eventId, donorId, isChecked) => {
     }
 };
 
-// --- FONCTIONS OUTILS ---
-window.copyEventText = () => {
-    const text = document.getElementById('res-text').value;
-    if(!text) return;
-    navigator.clipboard.writeText(text);
-    showNotice("Copié !", "Prêt à être collé.");
-};
-
-window.downloadPhoto = (url, filename) => {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-};
-
+// --- OUTILS ---
 function getColorByEntity(entity) {
     const colors = {
         "Institut Alsatia": "#1e3a8a",
@@ -815,6 +762,22 @@ function getColorByEntity(entity) {
     };
     return colors[entity] || "#666";
 }
+
+window.copyEventText = () => {
+    const t = document.getElementById('res-text').value;
+    if(!t) return;
+    navigator.clipboard.writeText(t);
+    showNotice("Copié !", "Texte prêt.");
+};
+
+window.askDeleteEvent = (id, title) => {
+    if (confirm(`Supprimer "${title}" ?`)) {
+        supabaseClient.from('events').delete().eq('id', id).then(() => {
+            showNotice("Supprimé", "Événement retiré.");
+            loadEvents();
+        });
+    }
+};
 
 // --- MODALE AJOUT ÉVÉNEMENT ---
 window.openNewEventModal = () => {
