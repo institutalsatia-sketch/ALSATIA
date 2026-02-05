@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Institut Alsatia - CRM</title>
+    <title>CRM Institut Alsatia</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -11,17 +11,16 @@
 <body>
     <nav class="side-nav">
         <div class="logo-area">
-            <img src="logo_alsatia.png" alt="⚜️" class="main-logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-            <div style="display:none; font-size: 2.5rem; margin-bottom:10px;">⚜️</div>
-            <span class="portal-tag" id="current-portal-display">...</span>
+            <div style="font-size: 2.5rem; margin-bottom:10px;">⚜️</div>
+            <span class="portal-tag" id="current-portal-display">Portail Alsatia</span>
         </div>
         <ul>
-            <li id="nav-chat" class="active" onclick="switchTab('chat')">💬 Salon Discussion</li>
+            <li id="nav-chat" class="active" onclick="switchTab('chat')">💬 Discussion</li>
             <li id="nav-donors" onclick="switchTab('donors')">👥 Base Donateurs</li>
             <li id="nav-events" onclick="switchTab('events')">📅 Événements</li>
         </ul>
         <div class="user-bottom">
-            <span id="user-name-display" style="color:white; font-weight:bold;">...</span>
+            <span id="user-name-display">Utilisateur</span>
             <button onclick="logout()" class="btn-logout">Déconnexion</button>
         </div>
     </nav>
@@ -29,36 +28,41 @@
     <main class="main-content">
         <section id="tab-chat" class="tab-content active">
             <h1>Salon de Discussion</h1>
-            <div class="chat-box" style="background:white; height:300px; border-radius:10px; border:1px solid #ddd;"></div>
+            <div class="chat-container">
+                <div id="chat-box" class="chat-box"></div>
+                <div class="chat-input-area">
+                    <input type="text" id="chat-input" placeholder="Votre message...">
+                    <button onclick="sendChatMessage()">Envoyer</button>
+                </div>
+            </div>
         </section>
 
         <section id="tab-donors" class="tab-content">
-    <div class="header-tab" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-        <h1>Base Donateurs</h1>
-        <div class="header-actions">
-            <button onclick="openNewDonorModal()" class="btn-save" style="background:#b99d65;">+ Nouveau Donateur</button>
-            <button onclick="exportGlobalExcel()" class="btn-outline-gold">📊 Export Excel</button>
-        </div>
-    </div>
+            <div class="header-tab">
+                <h1>Gestion des Donateurs</h1>
+                <div class="header-actions">
+                    <button onclick="openNewDonorModal()" class="btn-save" style="background:#b99d65;">+ Nouveau Donateur</button>
+                    <button onclick="exportGlobalExcel()" class="btn-outline-gold">📊 Export Excel</button>
+                </div>
+            </div>
 
-    <div class="search-container" style="margin-bottom:20px;">
-        <input type="text" id="search-donor" class="search-input" placeholder="🔍 Rechercher par nom ou prénom..." onkeyup="filterDonors()">
-    </div>
+            <div class="search-container">
+                <input type="text" id="search-donor" class="search-input" placeholder="🔍 Rechercher un nom ou un prénom..." onkeyup="filterDonors()">
+            </div>
 
-    <div class="table-container">
-        <table class="luxe-table-main">
-            <thead>
-                <tr><th>Donateur</th><th>Entité</th><th>Total Dons</th><th>Action</th></tr>
-            </thead>
-            <tbody id="donors-list">
-                </tbody>
-        </table>
-    </div>
-</section>
+            <div class="table-container">
+                <table class="luxe-table-main">
+                    <thead>
+                        <tr><th>Identité</th><th>Entité</th><th>Cumul des dons</th><th>Action</th></tr>
+                    </thead>
+                    <tbody id="donors-list"></tbody>
+                </table>
+            </div>
+        </section>
 
         <section id="tab-events" class="tab-content">
-            <h1>Événements</h1>
-            <p>Module en préparation.</p>
+            <h1>Calendrier des Événements</h1>
+            <p>Module en cours de développement.</p>
         </section>
     </main>
 
@@ -70,12 +74,9 @@
 
     <div id="confirm-modal" class="confirm-overlay">
         <div class="confirm-box">
-            <h3>Confirmation</h3>
             <p id="confirm-msg"></p>
-            <div style="margin-top:20px; display:flex; gap:10px; justify-content:center;">
-                <button id="confirm-yes" class="btn-danger-action">Confirmer</button>
-                <button onclick="closeConfirm()" class="btn-outline">Annuler</button>
-            </div>
+            <button id="confirm-yes" class="btn-danger-action">Confirmer</button>
+            <button onclick="closeConfirm()" class="btn-outline">Annuler</button>
         </div>
     </div>
 
