@@ -23,7 +23,6 @@ const LOGOS = {
 // INITIALISATION
 document.addEventListener('DOMContentLoaded', () => {
     if (!currentUser) { window.location.href = 'login.html'; return; }
-    
     initInterface();
     listenRealtime();
     loadSubjects();
@@ -50,10 +49,8 @@ function initInterface() {
 window.switchTab = (id) => {
     document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.side-nav li').forEach(l => l.classList.remove('active'));
-    
     document.getElementById(`tab-${id}`).classList.add('active');
     if(document.getElementById(`nav-${id}`)) document.getElementById(`nav-${id}`).classList.add('active');
-    
     if(id === 'donors') loadDonors();
     if(id === 'chat') loadChatMessages();
     lucide.createIcons();
@@ -61,58 +58,6 @@ window.switchTab = (id) => {
 
 window.logout = () => { localStorage.clear(); window.location.href = 'login.html'; };
 window.closeCustomModal = () => { document.getElementById('custom-modal').style.display = 'none'; };
-
-// ========================== GESTION DES SUJETS (CHANNELS) ==========================
-
-async function loadSubjects() {
-    const { data } = await supabaseClient.from('chat_subjects').select('*').order('name');
-    const select = document.getElementById('chat-subject-filter');
-    
-    // Filtrage : Sujets de mon entité OU sujets publics ("Tous")
-    const mySubjects = (data || []).filter(s => 
-        s.entity === currentUser.portal || s.entity === "Tous" || !s.entity
-    );
-
-    select.innerHTML = mySubjects.map(s => `<option value="${s.name}"># ${s.name}</option>`).join('');
-    loadChatMessages();
-}
-
-window.showNewSubjectModal = () => {
-    document.getElementById('custom-modal').style.display = 'flex';
-    document.getElementById('modal-body').innerHTML = `
-        <h3>Nouveau Sujet</h3>
-        <input type="text" id="n-subject-name" placeholder="Nom du salon..." class="luxe-input">
-        <label class="mini-label">Confidentialité :</label>
-        <select id="n-subject-entity" class="luxe-input">
-            <option value="${currentUser.portal}">Privé (${currentUser.portal})</option>
-            <option value="Tous">Public (Toutes les entités)</option>
-        </select>
-        <button onclick="execCreateSubject()" class="btn-gold" style="width:100%; margin-top:10px;">Créer</button>
-    `;
-};
-
-window.execCreateSubject = async () => {
-    const name = document.getElementById('n-subject-name').value.trim();
-    const entity = document.getElementById('n-subject-entity').value;
-    if(!name) return;
-    const { error } = await supabaseClient.from('chat_subjects').insert([{ name, entity }]);
-    if(!error) { closeCustomModal(); loadSubjects(); }
-};
-
-window.askDeleteSubject = () => {
-    if (currentUser.portal !== "Institut Alsatia") return alert("Droits insuffisants.");
-    const subj = document.getElementById('chat-subject-filter').value;
-    document.getElementById('custom-modal').style.display = 'flex';
-    document.getElementById('modal-body').innerHTML = `
-        <h3>Supprimer #${subj} ?</h3>
-        <button onclick="execDeleteSubject('${subj}')" class="btn-danger" style="width:100%">Confirmer</button>
-    `;
-};
-
-window.execDeleteSubject = async (name) => {
-    await supabaseClient.from('chat_subjects').delete().eq('name', name);
-    closeCustomModal(); loadSubjects();
-};
 
 // ========================== MESSAGERIE & MENTIONS @ ==========================
 
@@ -134,7 +79,6 @@ function setupMentionLogic() {
         if (lastWord.startsWith('@')) {
             const query = lastWord.substring(1).toLowerCase();
             const matches = SUGGESTIONS.filter(s => s.toLowerCase().includes(query));
-            
             if (matches.length > 0) {
                 suggestList.innerHTML = matches.map(m => `<div class="suggest-item">${m}</div>`).join('');
                 suggestList.style.display = 'block';
@@ -151,24 +95,28 @@ function setupMentionLogic() {
     });
 }
 
+async function loadSubjects() {
+    const { data } = await supabaseClient.from('chat_subjects').select('*').order('name');
+    const select = document.getElementById('chat-subject-filter');
+    const mySubjects = (data || []).filter(s => s.entity === currentUser.portal || s.entity === "Tous" || !s.entity);
+    select.innerHTML = mySubjects.map(s => `<option value="${s.name}"># ${s.name}</option>`).join('');
+    loadChatMessages();
+}
+
 async function loadChatMessages() {
     const subj = document.getElementById('chat-subject-filter').value;
     if(!subj) return;
     const { data } = await supabaseClient.from('chat_global').select('*').eq('subject', subj).order('created_at');
-    
     const box = document.getElementById('chat-box');
     box.innerHTML = (data || []).map(m => {
         const isMe = m.author_name === currentUser.first_name;
         const content = m.content.replace(/@([\wÀ-ÿ-\s]+)/g, '<span class="mention-badge">@$1</span>');
-        
-        return `
-            <div class="message ${isMe ? 'my-msg' : ''}">
-                <div style="font-size:0.6rem; opacity:0.7;"><b>${m.author_name}</b> • ${m.portal}</div>
-                <div class="msg-body" onclick="${isMe ? `askEditMsg('${m.id}','${m.content.replace(/'/g, "\\'")}')` : ''}">${content}</div>
-                ${m.file_url ? `<a href="${m.file_url}" target="_blank" class="file-link">📄 Fichier</a>` : ''}
-                ${isMe ? `<div style="text-align:right"><span class="delete-link" onclick="askDeleteMsg('${m.id}')">Supprimer</span></div>` : ''}
-            </div>
-        `;
+        return `<div class="message ${isMe ? 'my-msg' : ''}">
+            <div style="font-size:0.6rem; opacity:0.7;"><b>${m.author_name}</b> • ${m.portal}</div>
+            <div class="msg-body" onclick="${isMe ? `askEditMsg('${m.id}','${m.content.replace(/'/g, "\\'")}')` : ''}">${content}</div>
+            ${m.file_url ? `<a href="${m.file_url}" target="_blank" class="file-link">📄 Fichier</a>` : ''}
+            ${isMe ? `<div style="text-align:right"><span class="delete-link" onclick="askDeleteMsg('${m.id}')">Supprimer</span></div>` : ''}
+        </div>`;
     }).join('');
     box.scrollTop = box.scrollHeight;
 }
@@ -177,51 +125,34 @@ window.sendChatMessage = async () => {
     const input = document.getElementById('chat-input');
     const subj = document.getElementById('chat-subject-filter').value;
     if(!input.value.trim() && !selectedFile) return;
-
     let fUrl = null;
     if (selectedFile) {
         const path = `chat/${Date.now()}_${selectedFile.name}`;
         const { data } = await supabaseClient.storage.from('documents').upload(path, selectedFile);
         if (data) fUrl = supabaseClient.storage.from('documents').getPublicUrl(path).data.publicUrl;
     }
-
-    const { error } = await supabaseClient.from('chat_global').insert([{
-        content: input.value, author_name: currentUser.first_name,
-        portal: currentUser.portal, subject: subj, file_url: fUrl
-    }]);
-
-    if(!error) { input.value = ''; selectedFile = null; document.getElementById('file-preview').innerText = ""; loadChatMessages(); }
+    await supabaseClient.from('chat_global').insert([{ content: input.value, author_name: currentUser.first_name, portal: currentUser.portal, subject: subj, file_url: fUrl }]);
+    input.value = ''; selectedFile = null; document.getElementById('file-preview').innerText = ""; loadChatMessages();
 };
 
 window.askEditMsg = (id, old) => {
     document.getElementById('custom-modal').style.display = 'flex';
-    document.getElementById('modal-body').innerHTML = `
-        <h3>Modifier le message</h3>
-        <textarea id="edit-area" class="luxe-input" style="height:100px;">${old}</textarea>
-        <button onclick="execEditMsg('${id}')" class="btn-gold" style="width:100%">Sauver</button>
-    `;
+    document.getElementById('modal-body').innerHTML = `<h3>Modifier</h3><textarea id="edit-area" class="luxe-input" style="height:100px;">${old}</textarea><button onclick="execEditMsg('${id}')" class="btn-gold" style="width:100%">Sauver</button>`;
 };
-
 window.execEditMsg = async (id) => {
-    const content = document.getElementById('edit-area').value;
-    await supabaseClient.from('chat_global').update({ content }).eq(id, id); // id: id correction
+    await supabaseClient.from('chat_global').update({ content: document.getElementById('edit-area').value }).eq('id', id);
     closeCustomModal(); loadChatMessages();
 };
-
 window.askDeleteMsg = (id) => {
     document.getElementById('custom-modal').style.display = 'flex';
-    document.getElementById('modal-body').innerHTML = `
-        <h3>Supprimer ?</h3>
-        <button onclick="execDeleteMsg('${id}')" class="btn-danger" style="width:100%">Confirmer</button>
-    `;
+    document.getElementById('modal-body').innerHTML = `<h3>Supprimer ?</h3><button onclick="execDeleteMsg('${id}')" class="btn-danger" style="width:100%">Confirmer</button>`;
 };
-
 window.execDeleteMsg = async (id) => {
     await supabaseClient.from('chat_global').delete().eq('id', id);
     closeCustomModal(); loadChatMessages();
 };
 
-// ========================== CRM (INSTITUT ALSATIA) ==========================
+// ========================== CRM COMPLET (DONATEURS) ==========================
 
 async function loadDonors() {
     const { data } = await supabaseClient.from('donors').select('*, donations(*)').order('last_name');
@@ -234,9 +165,10 @@ function renderDonors(data) {
     list.innerHTML = data.map(d => {
         const total = d.donations?.reduce((s, n) => s + Number(n.amount), 0) || 0;
         const needsThanks = d.donations?.some(don => !don.thanked);
+        const name = d.company_name ? `<b>${d.company_name}</b> <br><small>${d.last_name}</small>` : `<b>${d.last_name.toUpperCase()}</b> ${d.first_name || ''}`;
         return `<tr class="${needsThanks ? 'blink-warning' : ''}">
-            <td><b>${(d.company_name || d.last_name).toUpperCase()}</b></td>
-            <td>${d.origin || '-'}</td>
+            <td>${name}</td>
+            <td>${d.origin || d.entities || '-'}</td>
             <td><small>${d.notes ? d.notes.substring(0,25) : '-'}</small></td>
             <td style="color:var(--gold); font-weight:bold;">${total}€</td>
             <td><button onclick="openDonorFile('${d.id}')" class="btn-gold">Gérer</button></td>
@@ -248,8 +180,8 @@ window.filterDonors = () => {
     const search = document.getElementById('search-donor').value.toLowerCase();
     const entity = document.getElementById('filter-entity').value;
     const filtered = allDonorsData.filter(d => {
-        const matchSearch = (d.last_name||'').toLowerCase().includes(search) || (d.city||'').toLowerCase().includes(search);
-        const matchEntity = entity === "ALL" || d.origin === entity;
+        const matchSearch = (d.last_name||'').toLowerCase().includes(search) || (d.company_name||'').toLowerCase().includes(search) || (d.city||'').toLowerCase().includes(search);
+        const matchEntity = entity === "ALL" || d.origin === entity || d.entities === entity;
         return matchSearch && matchEntity;
     });
     renderDonors(filtered);
@@ -257,40 +189,66 @@ window.filterDonors = () => {
 
 window.exportAllDonors = () => {
     const exportData = allDonorsData.map(d => ({
-        "Identité": d.company_name || d.last_name, "Email": d.email, "Ville": d.city,
-        "Total Dons": d.donations?.reduce((s, n) => s + Number(n.amount), 0) || 0
+        "Entreprise": d.company_name, "Nom": d.last_name, "Prénom": d.first_name, "Email": d.email, "Tel": d.phone,
+        "Adresse": d.address, "CP": d.zip_code, "Ville": d.city, "Origine": d.origin || d.entities, "Notes": d.notes,
+        "Total": d.donations?.reduce((s, n) => s + Number(n.amount), 0)
     }));
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Donateurs");
-    XLSX.writeFile(wb, "Alsatia_Donateurs.xlsx");
+    XLSX.utils.book_append_sheet(wb, ws, "Base_Complete");
+    XLSX.writeFile(wb, "CRM_Alsatia_Complet.xlsx");
 };
 
 window.openDonorFile = async (id) => {
     const { data: d } = await supabaseClient.from('donors').select('*, donations(*)').eq('id', id).single();
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
-        <div style="display:flex; justify-content:space-between; border-bottom:1px solid #ddd; padding-bottom:10px;">
-            <h2>${d.last_name}</h2>
-            <button onclick="closeCustomModal()" class="btn-gold">X</button>
+        <div style="display:flex; justify-content:space-between; border-bottom:2px solid var(--gold); padding-bottom:10px;">
+            <h3>Fiche Donateur</h3>
+            <div style="display:flex; gap:5px;">
+                <button onclick="exportSingleDonor('${d.id}')" class="btn-gold" style="background:#107c10; font-size:0.7rem;">Excel</button>
+                <button onclick="closeCustomModal()" class="btn-gold">X</button>
+            </div>
         </div>
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-top:15px;">
-            <div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:15px; max-height:450px; overflow-y:auto; padding-right:5px;">
+            <div class="col">
+                <label class="mini-label">Société</label><input type="text" id="e-company" value="${d.company_name||''}" class="luxe-input">
+                <label class="mini-label">Nom *</label><input type="text" id="e-last" value="${d.last_name||''}" class="luxe-input">
+                <label class="mini-label">Prénom</label><input type="text" id="e-first" value="${d.first_name||''}" class="luxe-input">
                 <label class="mini-label">Email</label><input type="text" id="e-email" value="${d.email||''}" class="luxe-input">
-                <label class="mini-label">Ville</label><input type="text" id="e-ville" value="${d.city||''}" class="luxe-input">
+                <label class="mini-label">Téléphone</label><input type="text" id="e-phone" value="${d.phone||''}" class="luxe-input">
             </div>
-            <div>
-                <label class="mini-label">Origine</label><input type="text" id="e-origin" value="${d.origin||''}" class="luxe-input">
-                <label class="mini-label">Notes</label><textarea id="e-notes" class="luxe-input">${d.notes||''}</textarea>
+            <div class="col">
+                <label class="mini-label">Adresse</label><input type="text" id="e-address" value="${d.address||''}" class="luxe-input">
+                <label class="mini-label">Code Postal</label><input type="text" id="e-zip" value="${d.zip_code||''}" class="luxe-input">
+                <label class="mini-label">Ville</label><input type="text" id="e-city" value="${d.city||''}" class="luxe-input">
+                <label class="mini-label">Origine / Entité</label><input type="text" id="e-origin" value="${d.origin||d.entities||''}" class="luxe-input">
+                <label class="mini-label">Prochaine Action</label><input type="text" id="e-next" value="${d.next_action||''}" class="luxe-input">
+            </div>
+            <div style="grid-column: span 2;">
+                <label class="mini-label">Notes privées</label><textarea id="e-notes" class="luxe-input" style="height:60px;">${d.notes||''}</textarea>
             </div>
         </div>
-        <h4 style="margin-top:20px;">Ajouter un don</h4>
-        <div style="display:flex; gap:5px;">
-            <input type="number" id="d-amt" placeholder="Montant" class="luxe-input">
-            <button onclick="addDonation('${d.id}')" class="btn-gold">+</button>
+        <div style="background:#f8fafc; padding:10px; border-radius:8px; margin-top:10px;">
+            <div style="display:flex; gap:5px;">
+                <input type="number" id="d-amt" placeholder="Montant €" class="luxe-input" style="margin:0">
+                <button onclick="addDonation('${d.id}')" class="btn-gold">Ajouter Don</button>
+            </div>
+            <div style="margin-top:10px; font-size:0.75rem;">
+                ${(d.donations||[]).map(don => `<div>${don.date} : <b>${don.amount}€</b> - <input type="checkbox" ${don.thanked?'checked':''} onchange="updateThanks('${don.id}','${d.id}',this.checked)"> Merci</div>`).join('')}
+            </div>
         </div>
-        <button onclick="saveDonor('${d.id}')" class="btn-gold" style="width:100%; margin-top:15px;">Sauvegarder</button>
+        <button onclick="saveDonor('${d.id}')" class="btn-gold" style="width:100%; margin-top:15px; background:var(--primary);">ENREGISTRER LES MODIFICATIONS</button>
     `;
+};
+
+window.exportSingleDonor = (id) => {
+    const d = allDonorsData.find(x => x.id === id);
+    const data = d.donations.map(don => ({ "Date": don.date, "Montant": don.amount, "Remercié": don.thanked ? "OUI" : "NON" }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Dons");
+    XLSX.writeFile(wb, `Dons_${d.last_name}.xlsx`);
 };
 
 window.addDonation = async (id) => {
@@ -300,14 +258,27 @@ window.addDonation = async (id) => {
     openDonorFile(id); loadDonors();
 };
 
+window.updateThanks = async (donId, donorId, val) => {
+    await supabaseClient.from('donations').update({ thanked: val }).eq('id', donId);
+    loadDonors();
+};
+
 window.saveDonor = async (id) => {
-    const updateData = {
+    const upd = {
+        company_name: document.getElementById('e-company').value,
+        last_name: document.getElementById('e-last').value,
+        first_name: document.getElementById('e-first').value,
         email: document.getElementById('e-email').value,
-        city: document.getElementById('e-ville').value,
+        phone: document.getElementById('e-phone').value,
+        address: document.getElementById('e-address').value,
+        zip_code: document.getElementById('e-zip').value,
+        city: document.getElementById('e-city').value,
         origin: document.getElementById('e-origin').value,
-        notes: document.getElementById('e-notes').value
+        notes: document.getElementById('e-notes').value,
+        next_action: document.getElementById('e-next').value,
+        last_modified_by: currentUser.first_name
     };
-    await supabaseClient.from('donors').update(updateData).eq('id', id);
+    await supabaseClient.from('donors').update(upd).eq('id', id);
     closeCustomModal(); loadDonors();
 };
 
@@ -315,31 +286,27 @@ window.openNewDonorModal = () => {
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
         <h3>Nouveau Donateur</h3>
-        <input type="text" id="n-last" placeholder="Nom de famille *" class="luxe-input">
+        <input type="text" id="n-company" placeholder="Entreprise" class="luxe-input">
+        <input type="text" id="n-last" placeholder="Nom *" class="luxe-input">
         <input type="text" id="n-origin" placeholder="Origine" class="luxe-input">
-        <button onclick="execCreateDonor()" class="btn-gold" style="width:100%; margin-top:10px;">Enregistrer</button>
+        <button onclick="execCreateDonor()" class="btn-gold" style="width:100%">Créer</button>
     `;
 };
 
 window.execCreateDonor = async () => {
     const last = document.getElementById('n-last').value;
     if(!last) return;
-    await supabaseClient.from('donors').insert([{ last_name: last, origin: document.getElementById('n-origin').value }]);
+    await supabaseClient.from('donors').insert([{ last_name: last, company_name: document.getElementById('n-company').value, origin: document.getElementById('n-origin').value }]);
     closeCustomModal(); loadDonors();
 };
 
 // ========================== DIVERS ==========================
 
 function listenRealtime() {
-    supabaseClient.channel('alsatia-live').on('postgres_changes', { event: '*', schema: 'public' }, () => {
+    supabaseClient.channel('alsatia-final').on('postgres_changes', { event: '*', schema: 'public' }, () => {
         loadChatMessages();
         if(currentUser.portal === "Institut Alsatia") loadDonors();
     }).subscribe();
 }
 
-window.handleFileUpload = (input) => { 
-    if(input.files[0]) { 
-        selectedFile = input.files[0]; 
-        document.getElementById('file-preview').innerText = "📎 " + selectedFile.name; 
-    } 
-};
+window.handleFileUpload = (input) => { if(input.files[0]) { selectedFile = input.files[0]; document.getElementById('file-preview').innerText = "📎 " + selectedFile.name; } };
