@@ -1,6 +1,6 @@
 /**
- * PARTENAIRE DE CODE - CRM INSTITUT ALSATIA v3.0
- * Gestion Multi-Entités, Traçabilité & Exports Excel Pro
+ * CRM INSTITUT ALSATIA - MOTEUR FINAL v4.0
+ * Aucune fenêtre native - Traçabilité Totale - Sécurité Supabase
  */
 
 const supabaseUrl = 'https://ptiosrmpliffsjooedle.supabase.co';
@@ -9,96 +9,49 @@ const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
 let currentUser = JSON.parse(localStorage.getItem('alsatia_user'));
 let allDonorsData = [];
+const ENTITIES = ["Institut Alsatia", "Cours Herrade de Landsberg", "Collège Saints Louis et Zélie Martin", "Academia Alsatia"];
 
-const ENTITIES = [
-    "Institut Alsatia",
-    "Cours Herrade de Landsberg",
-    "Collège Saints Louis et Zélie Martin",
-    "Academia Alsatia"
-];
-
-// EXPOSITION DES FONCTIONS AU WINDOW
-window.switchTab = switchTab;
-window.openDonorFile = openDonorFile;
-window.saveDonorChanges = saveDonorChanges;
-window.addDonation = addDonation;
-window.submitDonation = submitDonation;
-window.addNote = addNote;
-window.exportDonorExcel = exportDonorExcel;
-window.exportGlobalExcel = exportGlobalExcel;
-window.openNewDonorModal = openNewDonorModal;
-window.handleNewDonor = handleNewDonor;
-window.closeModal = closeModal;
-window.updateReceipt = updateReceipt;
-
-document.addEventListener('DOMContentLoaded', init);
-
-async function init() {
-    if (!currentUser) { window.location.href = 'login.html'; return; }
-    document.getElementById('user-name-display').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
-    document.getElementById('current-portal-display').innerText = currentUser.portal;
-    
-    if (currentUser.portal !== 'Institut Alsatia') {
-        const navDonors = document.getElementById('nav-donors');
-        if (navDonors) navDonors.style.display = 'none';
-    }
-    loadAllData();
+// --- UI : SYSTÈME DE NOTIFICATION & CONFIRMATION ---
+function showNotify(msg, type = 'success') {
+    const container = document.getElementById('notification-container');
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.innerHTML = msg;
+    container.appendChild(toast);
+    setTimeout(() => toast.classList.add('show'), 10);
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 400);
+    }, 3500);
 }
 
-async function loadAllData() {
-    if (currentUser.portal === 'Institut Alsatia') await loadDonors();
-    loadGlobalChat();
+function customConfirm(message, onConfirm) {
+    const modal = document.getElementById('confirm-modal');
+    document.getElementById('confirm-msg').innerText = message;
+    modal.style.display = 'flex';
+    document.getElementById('confirm-yes').onclick = () => {
+        onConfirm();
+        closeConfirm();
+    };
+}
+function closeConfirm() { document.getElementById('confirm-modal').style.display = 'none'; }
+
+// --- RECHERCHE ET FILTRES ---
+function filterDonors() {
+    const val = document.getElementById('search-donor').value.toLowerCase();
+    const filtered = allDonorsData.filter(d => 
+        (d.last_name || "").toLowerCase().includes(val) || 
+        (d.first_name || "").toLowerCase().includes(val) ||
+        (d.entities || "").toLowerCase().includes(val)
+    );
+    renderDonorsTable(filtered);
 }
 
-// --- 1. CRÉATION AVEC PRÉNOM/NOM & TRAÇABILITÉ ---
-function openNewDonorModal() {
-    const modal = document.getElementById('donor-modal');
-    modal.style.display = 'block';
-    document.getElementById('donor-detail-content').innerHTML = `
-        <div class="pro-fiche">
-            <h3 class="gold-title">Créer un nouveau Dossier</h3>
-            <div class="grid-2">
-                <div class="input-stack">
-                    <label>Prénom</label>
-                    <input type="text" id="n-fname" class="luxe-input" placeholder="Ex: Jean">
-                </div>
-                <div class="input-stack">
-                    <label>Nom</label>
-                    <input type="text" id="n-lname" class="luxe-input" placeholder="Ex: MARTIN">
-                </div>
-            </div>
-            <div class="input-stack" style="margin-top:15px;">
-                <label>Entité principale de rattachement</label>
-                <select id="n-entities" class="luxe-input">
-                    ${ENTITIES.map(e => `<option value="${e}">${e}</option>`).join('')}
-                </select>
-            </div>
-            <div class="signature-info">✍️ Créé par : ${currentUser.first_name} ${currentUser.last_name}</div>
-            <button onclick="handleNewDonor()" class="btn-primary" style="width:100%; margin-top:15px;">Valider la création</button>
-        </div>
-    `;
-}
-
-async function handleNewDonor() {
-    const fname = document.getElementById('n-fname').value;
-    const lname = document.getElementById('n-lname').value;
-    const entity = document.getElementById('n-entities').value;
-
-    if (!lname) return alert("Le nom est obligatoire.");
-
-    const { error } = await supabaseClient.from('donors').insert([{
-        first_name: fname,
-        last_name: lname,
-        entities: entity,
-        last_modified_by: `Créé par ${currentUser.first_name} ${currentUser.last_name}`
-    }]);
-
-    if (!error) { closeModal('donor-modal'); loadDonors(); }
-}
-
-// --- 2. FICHE DÉTAILLÉE : MODIFICATIONS & NOTES SIGNÉES ---
+// --- FICHE DONATEUR (DÉTAILS & MODIFICATIONS) ---
 async function openDonorFile(donorId) {
-    const { data: donor } = await supabaseClient.from('donors').select('*, donations(*), messages(*)').eq('id', donorId).single();
+    const { data: donor, error } = await supabaseClient.from('donors').select('*, donations(*), messages(*)').eq('id', donorId).single();
+    if (error) return showNotify("Erreur de chargement", "error");
+
     const modal = document.getElementById('donor-modal');
     modal.style.display = 'block';
 
@@ -109,238 +62,151 @@ async function openDonorFile(donorId) {
         <div class="pro-fiche">
             <header class="fiche-header">
                 <div>
-                    <h2>${donor.first_name || ''} ${donor.last_name.toUpperCase()}</h2>
-                    <span class="created-at">Dossier : ${donor.last_modified_by || 'Auteur inconnu'}</span>
+                    <h2>${donor.last_name.toUpperCase()} ${donor.first_name || ''}</h2>
+                    <span class="signature-tag">Auteur : ${donor.last_modified_by || 'Inconnu'}</span>
                 </div>
-                <div class="actions-top">
-                    <button onclick="exportDonorExcel('${donor.id}')" class="btn-sm-gold">📊 Excel</button>
-                    <button onclick="closeModal('donor-modal')" class="btn-sm">Fermer</button>
+                <div class="header-actions">
+                    <button onclick="exportDonorExcel('${donor.id}')" class="btn-sm-gold">Excel</button>
+                    <button onclick="deleteFullDonor('${donor.id}')" class="btn-sm-danger">Supprimer Fiche</button>
                 </div>
             </header>
 
             <div class="grid-2">
                 <div class="card-inner">
-                    <h3>📍 Identité & Adresse</h3>
+                    <h3>📍 Coordonnées</h3>
                     <div class="input-stack">
-                        <label>Prénom</label>
-                        <input type="text" id="edit-fname" value="${donor.first_name || ''}" class="luxe-input">
-                        <label>Nom</label>
-                        <input type="text" id="edit-lname" value="${donor.last_name || ''}" class="luxe-input">
-                        <label>Adresse Postale Professionnelle</label>
-                        <input type="text" id="edit-address" value="${donor.address || ''}" class="luxe-input">
-                        <div style="display:flex; gap:10px;">
-                            <input type="text" id="edit-zip" value="${donor.zip_code || ''}" class="luxe-input" placeholder="CP" style="width:80px;">
-                            <input type="text" id="edit-city" value="${donor.city || ''}" class="luxe-input" placeholder="Ville">
+                        <label>Prénom / Nom</label>
+                        <div style="display:flex; gap:5px;">
+                            <input type="text" id="e-fname" value="${donor.first_name || ''}" class="luxe-input">
+                            <input type="text" id="e-lname" value="${donor.last_name || ''}" class="luxe-input">
+                        </div>
+                        <label>Email Professionnel</label>
+                        <input type="email" id="e-mail" value="${donor.email || ''}" class="luxe-input">
+                        <label>Adresse Postale</label>
+                        <input type="text" id="e-addr" value="${donor.address || ''}" class="luxe-input">
+                        <div style="display:flex; gap:5px;">
+                            <input type="text" id="e-zip" value="${donor.zip_code || ''}" class="luxe-input" placeholder="CP" style="width:80px;">
+                            <input type="text" id="e-city" value="${donor.city || ''}" class="luxe-input" placeholder="Ville">
                         </div>
                     </div>
                 </div>
 
                 <div class="card-inner">
-                    <h3>🤝 Suivi & Entité</h3>
+                    <h3>🤝 Relation & Suivi</h3>
                     <div class="input-stack">
-                        <label>Entité Principale</label>
-                        <select id="edit-entities" class="luxe-input">
+                        <label>Entité principale</label>
+                        <select id="e-ent" class="luxe-input">
                             ${ENTITIES.map(e => `<option value="${e}" ${donor.entities === e ? 'selected' : ''}>${e}</option>`).join('')}
                         </select>
-                        <label>Lien / Introduit par</label>
-                        <input type="text" id="edit-next-action" value="${donor.next_action || ''}" class="luxe-input">
-                        <label>Email</label>
-                        <input type="email" id="edit-email" value="${donor.email || ''}" class="luxe-input">
+                        <label>Introduit par (Lien)</label>
+                        <input type="text" id="e-link" value="${donor.next_action || ''}" class="luxe-input">
                     </div>
                 </div>
             </div>
 
             <div class="card-inner full-width" style="margin-top:20px;">
-                <h3>📝 Notes de Suivi</h3>
-                <div class="notes-container">
+                <h3>📝 Notes (Signées)</h3>
+                <div class="notes-list">
                     ${notes.filter(n => !n.event).map(n => `
-                        <div class="note-item">
-                            <div class="note-meta">Le ${new Date(n.created_at).toLocaleDateString()} par <strong>${n.author_name}</strong></div>
-                            <div class="note-body">${n.content}</div>
+                        <div class="note-row">
+                            <span><strong>${n.author_name}</strong> (${new Date(n.created_at).toLocaleDateString()}) : ${n.content}</span>
+                            <button onclick="deleteNote('${n.id}', '${donor.id}')" class="btn-icon">🗑️</button>
                         </div>
-                    `).join('') || '<p class="text-muted">Aucun commentaire enregistré.</p>'}
+                    `).join('') || 'Aucune note.'}
                 </div>
-                <div class="note-input-area">
-                    <input type="text" id="new-note-content" class="luxe-input" placeholder="Ajouter une note importante...">
+                <div class="note-add-bar">
+                    <input type="text" id="new-note-txt" placeholder="Ajouter un commentaire..." class="luxe-input">
                     <button onclick="addNote('${donor.id}')" class="btn-primary">Publier</button>
                 </div>
             </div>
 
             <div class="card-inner full-width" style="margin-top:20px;">
-                <h3>💶 Registre des Dons</h3>
+                <h3>💶 Historique des Dons</h3>
                 <table class="luxe-table">
-                    <thead>
-                        <tr><th>Date</th><th>Montant</th><th>Entité Cible</th><th>N° Reçu Fiscal</th></tr>
-                    </thead>
+                    <thead><tr><th>Date</th><th>Montant</th><th>Entité</th><th>N° Reçu</th><th>Action</th></tr></thead>
                     <tbody>
                         ${donations.map(d => `
                             <tr>
                                 <td>${d.date}</td>
-                                <td><strong>${d.amount} €</strong></td>
+                                <td><strong>${d.amount}€</strong></td>
                                 <td>${d.thank_you_status || 'Général'}</td>
-                                <td><input type="text" value="${d.tax_receipt_id || ''}" 
-                                     onchange="updateReceipt('${d.id}', this.value)" class="table-input" placeholder="RF-..."></td>
+                                <td><input type="text" value="${d.tax_receipt_id || ''}" onchange="updateReceipt('${d.id}', this.value)" class="table-input"></td>
+                                <td><button onclick="deleteDonation('${d.id}', '${donor.id}')" class="btn-icon">🗑️</button></td>
                             </tr>
                         `).join('')}
                     </tbody>
                 </table>
-                <button onclick="addDonation('${donor.id}')" class="btn-primary" style="margin-top:10px;">+ Enregistrer un Don</button>
+                <button onclick="addDonationUI('${donor.id}')" class="btn-outline-gold" style="margin-top:10px;">+ Enregistrer un don</button>
             </div>
 
             <div class="modal-footer">
-                <button onclick="saveDonorChanges('${donor.id}')" class="btn-save">💾 Enregistrer tout le dossier</button>
+                <button onclick="saveDonorChanges('${donor.id}')" class="btn-save">💾 Sauvegarder les modifications</button>
             </div>
         </div>
     `;
 }
 
-// --- 3. LOGIQUE DES DONS & NOTES ---
-async function addDonation(donorId) {
-    const container = document.getElementById('donor-detail-content');
-    container.innerHTML = `
-        <div class="pro-fiche">
-            <h3>Nouveau Don pour l'Entité</h3>
-            <div class="input-stack">
-                <label>Montant du don (€)</label>
-                <input type="number" id="d-amount" class="luxe-input" placeholder="0.00">
-                <label>Entité Destinataire</label>
-                <select id="d-entity" class="luxe-input">
-                    ${ENTITIES.map(e => `<option value="${e}">${e}</option>`).join('')}
-                </select>
-                <label>Numéro de Reçu Fiscal (si déjà émis)</label>
-                <input type="text" id="d-receipt" class="luxe-input" placeholder="Ex: RF-2026-001">
-                <label>Date du versement</label>
-                <input type="date" id="d-date" class="luxe-input" value="${new Date().toISOString().split('T')[0]}">
-            </div>
-            <div class="modal-actions">
-                <button onclick="submitDonation('${donorId}')" class="btn-save">Confirmer le don</button>
-                <button onclick="openDonorFile('${donorId}')" class="btn-outline">Annuler</button>
-            </div>
-        </div>
-    `;
+// --- ACTIONS BDD & VALIDATIONS ---
+async function saveDonorChanges(id) {
+    const lname = document.getElementById('e-lname').value;
+    const email = document.getElementById('e-mail').value;
+
+    if (!lname) return showNotify("Le nom est obligatoire", "error");
+    if (email && !email.includes('@')) return showNotify("Format email invalide", "error");
+
+    const { error } = await supabaseClient.from('donors').update({
+        first_name: document.getElementById('e-fname').value,
+        last_name: lname,
+        email: email,
+        address: document.getElementById('e-addr').value,
+        zip_code: document.getElementById('e-zip').value,
+        city: document.getElementById('e-city').value,
+        entities: document.getElementById('e-ent').value,
+        next_action: document.getElementById('e-link').value
+    }).eq('id', id);
+
+    if (error) showNotify("Erreur de sauvegarde", "error");
+    else { showNotify("Fiche mise à jour"); loadDonors(); closeModal('donor-modal'); }
 }
 
-async function submitDonation(donorId) {
-    const amount = document.getElementById('d-amount').value;
-    const entity = document.getElementById('d-entity').value;
-    const receipt = document.getElementById('d-receipt').value;
-    const date = document.getElementById('d-date').value;
-
-    if (!amount) return alert("Montant requis");
-
-    await supabaseClient.from('donations').insert([{
-        donor_id: donorId,
-        amount: parseFloat(amount),
-        date: date,
-        tax_receipt_id: receipt || null,
-        thank_you_status: entity // On utilise ce champ pour l'entité spécifique du don
-    }]);
-    openDonorFile(donorId);
+async function deleteDonation(id, donorId) {
+    customConfirm("Supprimer ce don ?", async () => {
+        await supabaseClient.from('donations').delete().eq('id', id);
+        showNotify("Don supprimé");
+        openDonorFile(donorId);
+    });
 }
 
-async function addNote(donorId) {
-    const content = document.getElementById('new-note-content').value;
-    if (!content) return;
-    await supabaseClient.from('messages').insert([{
-        donor_id: donorId,
-        content: content,
-        author_name: `${currentUser.first_name} ${currentUser.last_name}`,
-        private: true
-    }]);
-    openDonorFile(donorId);
+async function deleteNote(id, donorId) {
+    customConfirm("Supprimer cette note ?", async () => {
+        await supabaseClient.from('messages').delete().eq('id', id);
+        showNotify("Note supprimée");
+        openDonorFile(donorId);
+    });
 }
 
-// --- 4. EXPORTS EXCEL .XLSX ---
+async function deleteFullDonor(id) {
+    customConfirm("⚠️ SUPPRIMER TOUT LE DOSSIER ET LES DONS ?", async () => {
+        await supabaseClient.from('donations').delete().eq('donor_id', id);
+        await supabaseClient.from('messages').delete().eq('donor_id', id);
+        await supabaseClient.from('donors').delete().eq('id', id);
+        showNotify("Dossier supprimé définitivement");
+        closeModal('donor-modal');
+        loadDonors();
+    });
+}
+
+// --- EXPORTS EXCEL ---
 function exportDonorExcel(donorId) {
     const donor = allDonorsData.find(d => d.id === donorId);
-    const data = [
-        ["INSTITUT ALSATIA - FICHE INDIVIDUELLE"],
-        ["Exporté le", new Date().toLocaleDateString()],
-        [],
-        ["IDENTITÉ", "VALEUR"],
-        ["Prénom", donor.first_name],
-        ["Nom", donor.last_name],
-        ["Entité Principale", donor.entities],
-        ["Adresse", donor.address || ""],
-        ["Ville", `${donor.zip_code || ""} ${donor.city || ""}`],
-        ["Lien / Intro", donor.next_action || ""],
-        [],
-        ["HISTORIQUE FINANCIER"],
+    const rows = [
+        ["FICHE DONATEUR"], ["Nom", donor.last_name, "Prénom", donor.first_name],
+        ["Entité", donor.entities], ["Contact", donor.email], [],
         ["DATE", "MONTANT", "ENTITÉ CIBLE", "REÇU FISCAL"]
     ];
-    
-    donor.donations.forEach(d => data.push([d.date, d.amount, d.thank_you_status, d.tax_receipt_id]));
-
-    const ws = XLSX.utils.aoa_to_sheet(data);
+    donor.donations.forEach(d => rows.push([d.date, d.amount, d.thank_you_status, d.tax_receipt_id]));
+    const ws = XLSX.utils.aoa_to_sheet(rows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Fiche");
-    XLSX.writeFile(wb, `Fiche_${donor.last_name}_${new Date().getFullYear()}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, "Détails");
+    XLSX.writeFile(wb, `Alsatia_${donor.last_name}.xlsx`);
 }
-
-async function exportGlobalExcel() {
-    const { data: d } = await supabaseClient.from('donations').select('*, donors(*)');
-    const rows = d.map(x => ({
-        "Année": x.date.split('-')[0],
-        "Date": x.date,
-        "Nom": x.donors.last_name,
-        "Prénom": x.donors.first_name,
-        "Entité Donateur": x.donors.entities,
-        "Entité Cible Don": x.thank_you_status,
-        "Montant": x.amount,
-        "Numéro Reçu Fiscal": x.tax_receipt_id
-    }));
-
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Registre Annuel");
-    XLSX.writeFile(wb, "Rapport_Dons_Global_Alsatia.xlsx");
-}
-
-// --- UTILITAIRES ---
-async function updateReceipt(donationId, value) {
-    await supabaseClient.from('donations').update({ tax_receipt_id: value }).eq('id', donationId);
-}
-
-async function loadDonors() {
-    const { data } = await supabaseClient.from('donors').select('*, donations(*)').order('last_name');
-    allDonorsData = data || [];
-    renderDonorsTable(allDonorsData);
-}
-
-function renderDonorsTable(data) {
-    const list = document.getElementById('donors-list');
-    list.innerHTML = data.map(d => `
-        <tr>
-            <td><strong>${d.last_name.toUpperCase()}</strong> ${d.first_name || ''}</td>
-            <td>${d.entities}</td>
-            <td class="gold-text">${d.donations.reduce((s,n)=>s+Number(n.amount),0)} €</td>
-            <td><button onclick="openDonorFile('${d.id}')" class="btn-sm">Ouvrir Dossier</button></td>
-        </tr>
-    `).join('');
-}
-
-async function saveDonorChanges(id) {
-    const up = {
-        first_name: document.getElementById('edit-fname').value,
-        last_name: document.getElementById('edit-lname').value,
-        address: document.getElementById('edit-address').value,
-        zip_code: document.getElementById('edit-zip').value,
-        city: document.getElementById('edit-city').value,
-        entities: document.getElementById('edit-entities').value,
-        next_action: document.getElementById('edit-next-action').value,
-        email: document.getElementById('edit-email').value
-    };
-    await supabaseClient.from('donors').update(up).eq('id', id);
-    alert("Données sauvegardées.");
-    loadDonors();
-    closeModal('donor-modal');
-}
-
-function closeModal(id) { document.getElementById(id).style.display = 'none'; }
-function switchTab(id) {
-    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('nav li').forEach(l => l.classList.remove('active'));
-    document.getElementById(`tab-${id}`).classList.add('active');
-    document.getElementById(`nav-${id}`).classList.add('active');
-}
-function loadGlobalChat() { /* ... Logique de chat existante ... */ }
