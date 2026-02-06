@@ -29,35 +29,17 @@
     </nav>
 
     <main class="main-content">
-        <section id="tab-chat" class="page-content active">
-            <div class="header-tab">
-                <h1>Salon de Discussion</h1>
-                <div class="header-actions">
-                    <select id="chat-subject-filter" class="luxe-input" onchange="loadChatMessages()"></select>
-                    <button onclick="showNewSubjectModal()" class="btn-gold"><i data-lucide="plus-circle"></i> Nouveau Sujet</button>
-                    <button onclick="askDeleteSubject()" class="btn-danger-icon" title="Supprimer ce sujet"><i data-lucide="trash-2"></i></button>
+    <section id="tab-home" class="page-content active">
+        <div class="welcome-container">
+            <div id="big-logo-display" class="fade-in-logo">
                 </div>
-            </div>
-            <div class="chat-container">
-                <div id="chat-box" class="chat-box"></div>
-                <div class="chat-footer">
-                    <div class="target-grid">
-                        <span class="mini-label">DIFFUSER À :</span>
-                        <label><input type="checkbox" class="target-check" value="Institut Alsatia"> Institut</label>
-                        <label><input type="checkbox" class="target-check" value="Academia Alsatia"> Academia</label>
-                        <label><input type="checkbox" class="target-check" value="Cours Herrade de Landsberg"> Herrade</label>
-                        <label><input type="checkbox" class="target-check" value="Collège Saints Louis et Zélie Martin"> Martin</label>
-                    </div>
-                    <div class="input-wrapper">
-                        <input type="text" id="chat-input" placeholder="Écrire un message..." autocomplete="off">
-                        <label for="chat-file" class="icon-btn"><i data-lucide="paperclip"></i></label>
-                        <input type="file" id="chat-file" style="display:none;" onchange="handleFileUpload(this)">
-                        <button onclick="sendChatMessage()" class="btn-send"><i data-lucide="send"></i></button>
-                    </div>
-                    <div id="file-preview" class="file-preview"></div>
-                </div>
-            </div>
-        </section>
+            <h1 class="welcome-title">
+                Bienvenue, <br>
+                <span id="welcome-full-name"></span>
+            </h1>
+            <div class="welcome-portal-badge" id="welcome-portal-label"></div>
+        </div>
+    </section>
 
         <section id="tab-contacts" class="page-content">
             <div class="header-tab">
