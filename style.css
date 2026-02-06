@@ -181,6 +181,33 @@ body {
 
 /* Scrollbar personnalisée */
 .page-content::-webkit-scrollbar, .chat-box::-webkit-scrollbar { width: 6px; }
+
+.mention-suggestions-box {
+    position: absolute;
+    bottom: 100%; /* S'affiche au-dessus de l'input */
+    left: 0;
+    width: 100%;
+    max-height: 200px;
+    background: white;
+    border: 1px solid var(--gold);
+    border-radius: 10px;
+    box-shadow: 0 -5px 15px rgba(0,0,0,0.1);
+    display: none; /* Caché par défaut */
+    z-index: 1000;
+    overflow-y: auto;
+}
+
+.suggest-item {
+    padding: 10px 15px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.suggest-item:hover {
+    background: #fdfaf3;
+    color: var(--gold);
+}
 .page-content::-webkit-scrollbar-thumb, .chat-box::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
 
 /* Mentions et Badges */
