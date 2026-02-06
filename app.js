@@ -559,9 +559,13 @@ window.openDonorFile = async (id) => {
                 
                 <div style="margin-top:15px; max-height:120px; overflow-y:auto;">
                     ${(d.donations || []).sort((a,b) => new Date(b.date) - new Date(a.date)).map(don => `
-                        <div style="display:flex; justify-content:space-between; padding:6px; border-bottom:1px solid #eee; font-size:0.75rem;">
-                            <span>${don.date} : <b>${don.amount}€</b> ${don.tax_receipt_number ? `(RF: ${don.tax_receipt_number})` : ''}</span>
-                            <span><input type="checkbox" ${don.thanked ? 'checked' : ''} onchange="updateThanks('${don.id}','${d.id}',this.checked)"> Merci</span>
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:6px; border-bottom:1px solid #eee; font-size:0.75rem;">
+                            <span style="flex:1;">${don.date} : <b>${don.amount}€</b> ${don.tax_receipt_number ? `(RF: ${don.tax_receipt_number})` : ''}</span>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <span style="display:flex; align-items:center; gap:3px;"><input type="checkbox" ${don.thanked ? 'checked' : ''} onchange="updateThanks('${don.id}','${d.id}',this.checked)"> Merci</span>
+                                <button onclick="editDonation('${don.id}', '${don.amount}', '${don.date}', '${don.tax_receipt_number || ''}', '${d.id}')" style="background:none; border:none; cursor:pointer; font-size:0.8rem;" title="Modifier">✏️</button>
+                                <button onclick="deleteDonation('${don.id}', '${d.id}')" style="background:none; border:none; cursor:pointer; font-size:0.8rem;" title="Supprimer">🗑️</button>
+                            </div>
                         </div>
                     `).join('')}
                 </div>
@@ -591,6 +595,29 @@ window.addDonation = async (id) => {
     if(!amt || !date) return alert("Champs obligatoires.");
     await supabaseClient.from('donations').insert([{ donor_id: id, amount: parseFloat(amt), date, tax_receipt_number: tax, thanked: false }]);
     openDonorFile(id); loadDonors();
+};
+
+window.editDonation = async (donationId, oldAmount, oldDate, oldTax, donorId) => {
+    const newAmount = prompt("Nouveau montant (€) :", oldAmount);
+    if (newAmount === null) return;
+    const newDate = prompt("Nouvelle date (AAAA-MM-JJ) :", oldDate);
+    if (newDate === null) return;
+    const newTax = prompt("Nouveau N° Reçu Fiscal :", oldTax);
+    if (newTax === null) return;
+
+    await supabaseClient.from('donations').update({ 
+        amount: parseFloat(newAmount), 
+        date: newDate, 
+        tax_receipt_number: newTax 
+    }).eq('id', donationId);
+
+    openDonorFile(donorId); loadDonors();
+};
+
+window.deleteDonation = async (donationId, donorId) => {
+    if (!confirm("Supprimer ce don définitivement ?")) return;
+    await supabaseClient.from('donations').delete().eq('id', donationId);
+    openDonorFile(donorId); loadDonors();
 };
 
 window.updateThanks = async (donId, donorId, val) => {
