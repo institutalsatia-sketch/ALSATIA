@@ -43,39 +43,84 @@
                 <div class="header-actions">
                     <select id="chat-subject-filter" class="luxe-input" onchange="loadChatMessages()"></select>
                     <button onclick="showNewSubjectModal()" class="btn-gold"><i data-lucide="plus-circle"></i> Nouveau Sujet</button>
+                    <button onclick="askDeleteSubject()" class="btn-danger-icon" title="Supprimer ce sujet"><i data-lucide="trash-2"></i></button>
                 </div>
             </div>
             <div class="chat-container">
                 <div id="chat-box" class="chat-box"></div>
                 <div class="chat-footer">
+                    <div class="target-grid">
+                        <span class="mini-label">DIFFUSER À :</span>
+                        <label><input type="checkbox" class="target-check" value="Institut Alsatia"> Institut</label>
+                        <label><input type="checkbox" class="target-check" value="Academia Alsatia"> Academia</label>
+                        <label><input type="checkbox" class="target-check" value="Cours Herrade de Landsberg"> Herrade</label>
+                        <label><input type="checkbox" class="target-check" value="Collège Saints Louis et Zélie Martin"> Martin</label>
+                    </div>
                     <div class="input-wrapper">
-                        <input type="text" id="chat-input" placeholder="Écrire un message...">
+                        <input type="text" id="chat-input" placeholder="Écrire un message..." autocomplete="off">
+                        <label for="chat-file" class="icon-btn"><i data-lucide="paperclip"></i></label>
+                        <input type="file" id="chat-file" style="display:none;" onchange="handleFileUpload(this)">
                         <button onclick="sendChatMessage()" class="btn-send"><i data-lucide="send"></i></button>
                     </div>
+                    <div id="file-preview" class="file-preview"></div>
                 </div>
             </div>
         </section>
 
         <section id="tab-contacts" class="page-content">
-            <div class="header-tab"><h1>Annuaire Alsatia</h1></div>
-            <div id="contacts-list" class="grid-cards" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; padding: 20px;"></div>
+            <div class="header-tab">
+                <h1>Annuaire des Contacts</h1>
+            </div>
+            <div id="contacts-list" class="grid-cards" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; padding: 20px;">
+                </div>
         </section>
 
         <section id="tab-donors" class="page-content">
             <div class="header-tab">
                 <h1>Fichier Donateurs</h1>
-                <button onclick="openNewDonorModal()" class="btn-gold"><i data-lucide="user-plus"></i> Nouveau</button>
+                <div style="display:flex; gap:10px;">
+                    <button onclick="exportAllDonors()" class="btn-gold" style="background:#107c10;"><i data-lucide="download"></i> Excel Global</button>
+                    <button onclick="openNewDonorModal()" class="btn-gold"><i data-lucide="user-plus"></i> Nouveau Donateur</button>
+                </div>
+            </div>
+            <div id="pending-thanks-alert"></div>
+            <div class="search-bar-box" style="display:flex; gap:10px; margin-bottom:20px;">
+                <div style="flex:1; position:relative;">
+                    <i data-lucide="search" style="position:absolute; left:10px; top:12px; color:#94a3b8;"></i>
+                    <input type="text" id="search-donor" placeholder="Filtrer par nom, ville, origine..." onkeyup="filterDonors()" class="luxe-input" style="padding-left:40px; margin-bottom:0;">
+                </div>
+                <select id="filter-entity" class="luxe-input" style="width:250px; margin-bottom:0;" onchange="filterDonors()">
+                    <option value="ALL">Toutes les entités</option>
+                    <option value="Institut Alsatia">Institut Alsatia</option>
+                    <option value="Academia Alsatia">Academia Alsatia</option>
+                    <option value="Cours Herrade de Landsberg">Herrade</option>
+                    <option value="Collège Saints Louis et Zélie Martin">Martin</option>
+                </select>
             </div>
             <div class="table-container">
                 <table class="luxe-table">
-                    <thead><tr><th>Identité</th><th>Origine</th><th>Total</th><th>Actions</th></tr></thead>
+                    <thead>
+                        <tr><th>Identité / Société</th><th>Origine</th><th>Dernière Note</th><th>Total</th><th>Actions</th></tr>
+                    </thead>
                     <tbody id="donors-list"></tbody>
                 </table>
             </div>
         </section>
 
-        <section id="tab-campaigns" class="page-content"><div class="header-tab"><h1>Campagnes</h1></div><div id="campaigns-list" class="grid-cards"></div></section>
-        <section id="tab-events" class="page-content"><div class="header-tab"><h1>Événements</h1></div><div id="events-container" class="grid-cards"></div></section>
+        <section id="tab-campaigns" class="page-content">
+            <div class="header-tab"><h1>Campagnes</h1></div>
+            <div id="campaigns-list" class="grid-cards"></div>
+        </section>
+
+        <section id="tab-events" class="page-content">
+            <div class="header-tab">
+                <h1>Événements & Agenda</h1>
+                <div class="header-actions">
+                    <button onclick="openNewEventModal()" class="btn-gold"><i data-lucide="calendar-plus"></i> Programmer un événement</button>
+                </div>
+            </div>
+            <div id="events-container" class="grid-cards"></div>
+        </section>
     </main>
 
     <div id="custom-modal" class="modal-overlay">
