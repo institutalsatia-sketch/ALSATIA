@@ -298,168 +298,303 @@ window.saveMyProfile = async () => {
 };
 
 // ==========================================
-// 1. SERVICES DE MESSAGERIE (INIT & MENTIONS)
+// 1. CHARGEMENT ET FILTRAGE DYNAMIQUE
 // ==========================================
-async function loadUsersForMentions() {
-    try {
-        const { data } = await supabaseClient.from('profiles').select('first_name, last_name, portal');
-        const entities = ["Institut Alsatia", "Academia Alsatia", "Cours Herrade de Landsberg", "Collège Saints Louis et Zélie Martin"];
-        if (data) {
-            allUsersForMentions = [...entities, ...data.map(u => `${u.first_name} ${u.last_name} (${u.portal})`)];
-        } else {
-            allUsersForMentions = entities;
-        }
-    } catch (err) { console.error("Err mentions:", err); }
+async function loadDonors() {
+    // On charge TOUS les donateurs sans filtre SQL pour permettre la vue globale
+    const { data, error } = await supabaseClient
+        .from('donors')
+        .select('*, donations(*)')
+        .order('last_name', { ascending: true });
+
+    if (error) {
+        console.error("Erreur de chargement:", error);
+        return;
+    }
+    allDonorsData = data;
+    // On applique le filtre immédiatement pour synchroniser l'affichage avec les sélecteurs
+    window.filterDonors();
 }
 
-function setupMentionLogic() {
-    const input = document.getElementById('chat-input');
-    if(!input) return;
-    let suggestList = document.getElementById('mention-suggestions') || document.createElement('div');
-    suggestList.id = "mention-suggestions"; 
-    suggestList.className = "mention-suggestions-box";
-    if (!document.getElementById('mention-suggestions')) input.parentNode.appendChild(suggestList);
+window.filterDonors = () => {
+    const searchVal = document.getElementById('search-donor').value.toLowerCase();
+    const entityVal = document.getElementById('filter-entity').value;
 
-    input.addEventListener('input', () => {
-        const val = input.value.substring(0, input.selectionStart);
-        const word = val.split(/\s/).pop();
-        if (word.startsWith('@')) {
-            const matches = allUsersForMentions.filter(s => s.toLowerCase().includes(word.substring(1).toLowerCase()));
-            suggestList.innerHTML = matches.map(m => `<div class="suggest-item" onclick="window.insertMention('${m.replace(/'/g, "\\'")}')">${m}</div>`).join('');
-            suggestList.style.display = matches.length ? 'block' : 'none';
-        } else suggestList.style.display = 'none';
+    const filtered = allDonorsData.filter(d => {
+        // Filtre de recherche textuelle
+        const matchesSearch = 
+            (d.last_name || "").toLowerCase().includes(searchVal) || 
+            (d.first_name || "").toLowerCase().includes(searchVal) ||
+            (d.company_name || "").toLowerCase().includes(searchVal) ||
+            (d.origin || "").toLowerCase().includes(searchVal);
+
+        // LOGIQUE D'ENTITÉ : 
+        // Si l'option "ALL" est sélectionnée, on affiche tout.
+        // Sinon, on compare avec l'entité du donateur.
+        const matchesEntity = (entityVal === "ALL" || d.entity === entityVal);
+
+        return matchesSearch && matchesEntity;
     });
-}
 
-window.insertMention = (name) => {
-    const input = document.getElementById('chat-input');
-    const words = input.value.split(/\s/);
-    words[words.length - 1] = `@${name} `;
-    input.value = words.join(' ');
-    document.getElementById('mention-suggestions').style.display = 'none';
-    input.focus();
+    renderDonors(filtered);
 };
 
-// ==========================================
-// 2. GESTION DES SUJETS (SALONS)
-// ==========================================
-async function loadSubjects() {
-    const { data } = await supabaseClient.from('chat_subjects').select('*').order('name');
-    const select = document.getElementById('chat-subject-filter');
-    if(!select) return;
-    const mySubjects = (data || []).filter(s => s.entity === "Tous" || s.entity === currentUser.portal || !s.entity);
-    select.innerHTML = mySubjects.map(s => `<option value="${s.name}">${s.entity === "Tous" ? '🌍' : '🔒'} # ${s.name}</option>`).join('');
-    select.onchange = () => loadChatMessages();
-    loadChatMessages();
-}
+function renderDonors(data) {
+    const list = document.getElementById('donors-list');
+    if (!list) return;
 
-window.showNewSubjectModal = () => {
-    showCustomModal(`
-        <h3 class="luxe-title">NOUVEAU SALON</h3>
-        <input type="text" id="n-subject-name" class="luxe-input" placeholder="Nom du salon (ex: logistique)">
-        <select id="n-subject-entity" class="luxe-input" style="width:100%; margin-top:10px;">
-            <option value="Tous">🌍 Public</option>
-            <option value="${currentUser.portal}">🔒 Privé</option>
-        </select>
-        <button onclick="window.execCreateSubject()" class="btn-gold" style="width:100%; margin-top:15px;">CRÉER</button>
-    `);
-};
-
-window.execCreateSubject = async () => {
-    const rawName = document.getElementById('n-subject-name').value.trim();
-    // REPRISE DE TA LOGIQUE : Nettoyage strict du nom
-    const name = rawName.toLowerCase().replace(/[^a-z0-9]/g, '-');
-    if(name) {
-        await supabaseClient.from('chat_subjects').insert([{ name, entity: document.getElementById('n-subject-entity').value }]);
-        closeCustomModal(); loadSubjects();
+    if (data.length === 0) {
+        list.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:20px; opacity:0.5;">Aucun donateur trouvé.</td></tr>`;
+        return;
     }
-};
 
-// ==========================================
-// 3. AFFICHAGE DES MESSAGES
-// ==========================================
-async function loadChatMessages() {
-    const subj = document.getElementById('chat-subject-filter')?.value;
-    if(!subj) return;
-    const { data } = await supabaseClient.from('chat_global').select('*').eq('subject', subj).order('created_at');
-    const box = document.getElementById('chat-box');
-    if(!box) return;
-
-    box.innerHTML = (data || []).map(m => {
-        const isMe = m.author_full_name === `${currentUser.first_name} ${currentUser.last_name}`;
-        // REPRISE DE TA LOGIQUE : escape + rendu des mentions + conservation des sauts de ligne
-        let body = escapeHTML(m.content)
-            .replace(/@([\wÀ-ÿ-\s()]+)/g, '<span class="mention-badge">@$1</span>')
-            .replace(/\n/g, '<br>');
-
+    list.innerHTML = data.map(d => {
+        const total = d.donations?.reduce((acc, cur) => acc + Number(cur.amount), 0) || 0;
+        const displayName = d.company_name ? `<b>${d.company_name}</b> <span style="font-size:0.75rem;">(${d.last_name})</span>` : `<b>${d.last_name.toUpperCase()}</b> ${d.first_name || ''}`;
+        
         return `
-            <div class="message ${isMe ? 'my-msg' : ''}" style="margin-bottom:15px; display:flex; flex-direction:column; align-items:${isMe ? 'flex-end' : 'flex-start'};">
-                <div style="font-size:0.7rem; opacity:0.7;"><b style="color:var(--gold);">${m.author_full_name}</b> • ${m.portal}</div>
-                <div style="${isMe ? 'background:var(--primary); color:white;' : 'background:#f1f5f9; color:var(--primary);'} border-radius:12px; padding:10px; max-width:80%;">
-                    <div style="font-size:0.9rem;" onclick="${isMe ? `window.askEditMsg('${m.id}','${m.content.replace(/'/g, "\\'").replace(/\n/g, "\\n")}')` : ''}">${body}</div>
-                    ${m.file_url ? `<a href="${m.file_url}" target="_blank" style="display:block; margin-top:5px; font-size:0.7rem; color:var(--gold); border-top:1px solid rgba(180,145,87,0.2); padding-top:5px;">📄 Fichier joint</a>` : ''}
-                </div>
-                ${isMe ? `<span onclick="window.askDeleteMsg('${m.id}')" style="font-size:0.6rem; color:#ef4444; cursor:pointer; margin-top:3px;">SUPPRIMER</span>` : ''}
-            </div>`;
+            <tr>
+                <td>${displayName}</td>
+                <td><span class="origin-tag">${d.origin || '-'}</span></td>
+                <td style="font-weight:800; color:var(--primary);">${total} €</td>
+                <td style="text-align:right;">
+                    <button onclick="window.openDonorFile('${d.id}')" class="btn-gold" style="padding:5px 12px; font-size:0.7rem;">DOSSIER</button>
+                </td>
+            </tr>`;
     }).join('');
-    box.scrollTop = box.scrollHeight;
 }
 
 // ==========================================
-// 4. ACTIONS MESSAGES
+// 2. CRÉATION (ALIGNÉE SUR TABLE SQL DONORS)
 // ==========================================
-window.handleFileUpload = (input) => { 
-    if(input.files[0]) { 
-        selectedFile = input.files[0]; 
-        const prev = document.getElementById('file-preview');
-        if(prev) prev.innerHTML = `<span style="color:var(--gold); font-size:0.8rem;">📎 ${selectedFile.name}</span>`; 
-    } 
-};
-
-window.sendChatMessage = async () => {
-    const input = document.getElementById('chat-input');
-    const subj = document.getElementById('chat-subject-filter').value;
-    if(!input.value.trim() && !selectedFile) return;
-
-    let fUrl = null;
-    if (selectedFile) {
-        const path = `chat/${Date.now()}_${selectedFile.name}`;
-        const { data } = await supabaseClient.storage.from('documents').upload(path, selectedFile);
-        if (data) fUrl = supabaseClient.storage.from('documents').getPublicUrl(path).data.publicUrl;
-    }
-
-    await supabaseClient.from('chat_global').insert([{ 
-        content: input.value, author_full_name: `${currentUser.first_name} ${currentUser.last_name}`,
-        portal: currentUser.portal, subject: subj, file_url: fUrl 
-    }]);
-    input.value = ''; selectedFile = null;
-    if(document.getElementById('file-preview')) document.getElementById('file-preview').innerHTML = "";
-    loadChatMessages();
-};
-
-window.askEditMsg = (id, old) => {
+window.showAddDonorModal = () => {
     showCustomModal(`
-        <h3 class="luxe-title">MODIFIER</h3>
-        <textarea id="edit-area" class="luxe-input" style="height:100px; width:100%;">${old}</textarea>
-        <button onclick="window.execEditMsg('${id}')" class="btn-gold" style="width:100%; margin-top:10px;">ENREGISTRER</button>
+        <h3 class="luxe-title">NOUVEAU CONTACT CRM</h3>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <input type="text" id="n-d-last" class="luxe-input" placeholder="NOM *">
+            <input type="text" id="n-d-first" class="luxe-input" placeholder="PRÉNOM">
+        </div>
+        <input type="text" id="n-d-company" class="luxe-input" placeholder="NOM DE L'ENTREPRISE" style="margin-top:10px;">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;">
+            <input type="email" id="n-d-email" class="luxe-input" placeholder="EMAIL">
+            <input type="text" id="n-d-phone" class="luxe-input" placeholder="TÉLÉPHONE">
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 2fr; gap:10px; margin-top:10px;">
+            <input type="text" id="n-d-zip" class="luxe-input" placeholder="CP">
+            <input type="text" id="n-d-city" class="luxe-input" placeholder="VILLE">
+        </div>
+        <input type="text" id="n-d-origin" class="luxe-input" placeholder="ORIGINE (Gala, Site, etc.)" style="margin-top:10px;">
+        <textarea id="n-d-notes" class="luxe-input" placeholder="Notes..." style="margin-top:10px; height:50px;"></textarea>
+        <button onclick="window.execCreateDonor()" class="btn-gold" style="width:100%; margin-top:15px;">CRÉER LA FICHE</button>
     `);
 };
 
-window.execEditMsg = async (id) => {
-    const content = document.getElementById('edit-area').value;
-    await supabaseClient.from('chat_global').update({ content }).eq('id', id);
-    closeCustomModal(); loadChatMessages();
+window.execCreateDonor = async () => {
+    const last_name = document.getElementById('n-d-last').value.toUpperCase();
+    if(!last_name) return window.showNotice("Erreur", "Le nom est obligatoire.", "error");
+
+    const payload = {
+        last_name,
+        first_name: document.getElementById('n-d-first').value,
+        company_name: document.getElementById('n-d-company').value,
+        email: document.getElementById('n-d-email').value,
+        phone: document.getElementById('n-d-phone').value,
+        zip_code: document.getElementById('n-d-zip').value,
+        city: document.getElementById('n-d-city').value,
+        origin: document.getElementById('n-d-origin').value,
+        notes: document.getElementById('n-d-notes').value,
+        entity: currentUser.portal, 
+        last_modified_by: `${currentUser.first_name} ${currentUser.last_name}`
+    };
+
+    const { error } = await supabaseClient.from('donors').insert([payload]);
+    if(error) return window.showNotice("Erreur", error.message, "error");
+    
+    closeCustomModal();
+    loadDonors();
 };
 
-window.askDeleteMsg = (id) => {
-    if(confirm("Supprimer ce message ?")) {
-        supabaseClient.from('chat_global').delete().eq('id', id).then(() => loadChatMessages());
-    }
+// ==========================================
+// 3. DOSSIER DÉTAILLÉ & ACTIONS CRM
+// ==========================================
+window.openDonorFile = async (id) => {
+    const donor = allDonorsData.find(d => d.id === id);
+    if (!donor) return;
+    const dons = donor.donations || [];
+    
+    document.getElementById('custom-modal').style.display = 'flex';
+    document.getElementById('modal-body').innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px;">
+            <div>
+                <span class="mini-label">ID: ${donor.id.substring(0,8)}...</span>
+                <h3 style="margin:0; color:var(--primary);">ÉDITION DU DOSSIER</h3>
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button onclick="window.exportDonorToExcel('${donor.id}')" class="btn-gold" style="padding:5px 10px; font-size:0.7rem;">EXCEL</button>
+                <button onclick="window.askDeleteDonor('${donor.id}', '${donor.last_name.replace(/'/g, "\\'")}')" style="background:#fee2e2; color:#ef4444; border:none; padding:5px 10px; border-radius:6px; cursor:pointer; font-size:0.7rem; font-weight:bold;">SUPPRIMER</button>
+                <button onclick="closeCustomModal()" style="border:none; background:none; cursor:pointer; font-size:1.2rem;">&times;</button>
+            </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+            <div>
+                <p class="mini-label">COORDONNÉES ÉDITABLES</p>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;">
+                    <input type="text" id="edit-last" class="luxe-input" value="${donor.last_name || ''}" placeholder="NOM *">
+                    <input type="text" id="edit-first" class="luxe-input" value="${donor.first_name || ''}" placeholder="PRÉNOM">
+                </div>
+                <input type="text" id="edit-company" class="luxe-input" value="${donor.company_name || ''}" placeholder="ENTREPRISE" style="margin-bottom:8px;">
+                <input type="email" id="edit-email" class="luxe-input" value="${donor.email || ''}" placeholder="EMAIL" style="margin-bottom:8px;">
+                <input type="text" id="edit-phone" class="luxe-input" value="${donor.phone || ''}" placeholder="TÉLÉPHONE" style="margin-bottom:8px;">
+                <input type="text" id="edit-address" class="luxe-input" value="${donor.address || ''}" placeholder="ADRESSE" style="margin-bottom:8px;">
+                <div style="display:grid; grid-template-columns:1fr 2fr; gap:8px;">
+                    <input type="text" id="edit-zip" class="luxe-input" value="${donor.zip_code || ''}" placeholder="CP">
+                    <input type="text" id="edit-city" class="luxe-input" value="${donor.city || ''}" placeholder="VILLE">
+                </div>
+            </div>
+
+            <div>
+                <p class="mini-label">SUIVI CRM</p>
+                <input type="text" id="edit-origin" class="luxe-input" value="${donor.origin || ''}" placeholder="Origine" style="margin-bottom:8px;">
+                <input type="text" id="edit-next" class="luxe-input" value="${donor.next_action || ''}" placeholder="Prochaine action" style="margin-bottom:8px;">
+                <textarea id="edit-notes" class="luxe-input" style="height:115px; margin-bottom:10px;" placeholder="Notes...">${donor.notes || ''}</textarea>
+                
+                <button onclick="window.updateDonorFields('${donor.id}')" class="btn-gold" style="width:100%; height:40px; font-weight:800; margin-bottom:8px;">ENREGISTRER LES MODIFICATIONS</button>
+                <button onclick="window.addDonationPrompt('${id}')" style="width:100%; background:var(--primary); color:white; border:none; padding:8px; border-radius:6px; cursor:pointer; font-size:0.7rem;">+ AJOUTER UN DON</button>
+            </div>
+        </div>
+
+        <div style="margin-top:20px; max-height:180px; overflow-y:auto; border-top:1px solid #eee;">
+            <table class="luxe-table">
+                <thead><tr><th>DATE</th><th>MONTANT</th><th>MODE</th><th>REÇU FISCAL</th><th style="text-align:right;">ACTIONS</th></tr></thead>
+                <tbody>
+                    ${dons.map(don => `
+                        <tr>
+                            <td>${new Date(don.date).toLocaleDateString()}</td>
+                            <td style="font-weight:700;">${don.amount}€</td>
+                            <td>${don.payment_mode || '-'}</td>
+                            <td>${don.fiscal_receipt_id || '-'}</td>
+                            <td style="text-align:right;">
+                                <i data-lucide="file-text" style="width:14px; color:var(--gold); cursor:pointer; margin-right:10px;" onclick="window.generateReceipt('${don.id}')"></i>
+                                <i data-lucide="trash-2" style="width:14px; color:#ef4444; cursor:pointer;" onclick="window.askDeleteDonation('${don.id}')"></i>
+                            </td>
+                        </tr>`).join('')}
+                </tbody>
+            </table>
+        </div>`;
+    lucide.createIcons();
 };
 
-function subscribeToChat() {
-    supabaseClient.channel('chat-realtime').on('postgres_changes', { event: '*', schema: 'public', table: 'chat_global' }, () => loadChatMessages()).subscribe();
-}
+window.updateDonorFields = async (id) => {
+    const payload = {
+        last_name: document.getElementById('edit-last').value.toUpperCase(),
+        first_name: document.getElementById('edit-first').value,
+        company_name: document.getElementById('edit-company').value,
+        email: document.getElementById('edit-email').value,
+        phone: document.getElementById('edit-phone').value,
+        address: document.getElementById('edit-address').value,
+        zip_code: document.getElementById('edit-zip').value,
+        city: document.getElementById('edit-city').value,
+        origin: document.getElementById('edit-origin').value,
+        next_action: document.getElementById('edit-next').value,
+        notes: document.getElementById('edit-notes').value,
+        last_modified_by: `${currentUser.first_name} ${currentUser.last_name}`
+    };
+
+    const { error } = await supabaseClient.from('donors').update(payload).eq('id', id);
+    if (error) return window.showNotice("Erreur", error.message, "error");
+    
+    window.showNotice("Mise à jour", "Fiche synchronisée avec succès.");
+    loadDonors();
+};
+
+// ==========================================
+// 4. GESTION FINANCIÈRE ET EXPORTS
+// ==========================================
+window.addDonationPrompt = (donorId) => {
+    showCustomModal(`
+        <h3 class="luxe-title">NOUVEAU DON</h3>
+        <input type="number" id="don-amt" class="luxe-input" placeholder="MONTANT (€) *">
+        <input type="date" id="don-date" class="luxe-input" value="${new Date().toISOString().split('T')[0]}" style="margin-top:10px;">
+        <input type="text" id="don-fiscal" class="luxe-input" placeholder="N° REÇU FISCAL" style="margin-top:10px;">
+        <select id="don-method" class="luxe-input" style="margin-top:10px;">
+            <option value="Virement">Virement</option>
+            <option value="Chèque">Chèque</option>
+            <option value="Espèces">Espèces</option>
+            <option value="CB">CB</option>
+        </select>
+        <button onclick="window.execAddDonation('${donorId}')" class="btn-gold" style="width:100%; margin-top:20px;">VALIDER</button>
+    `);
+};
+
+window.execAddDonation = async (donorId) => {
+    const amount = document.getElementById('don-amt').value;
+    const date = document.getElementById('don-date').value;
+    if (!amount || !date) return window.showNotice("Champs requis", "Montant et date obligatoires.", "error");
+
+    const { error } = await supabaseClient.from('donations').insert([{
+        donor_id: donorId,
+        amount: parseFloat(amount),
+        date: date,
+        payment_mode: document.getElementById('don-method').value,
+        fiscal_receipt_id: document.getElementById('don-fiscal').value,
+        thanked: false
+    }]);
+
+    if (error) return window.showNotice("Erreur", error.message, "error");
+    window.showNotice("Succès", "Don enregistré.");
+    closeCustomModal();
+    loadDonors();
+};
+
+window.exportDonorToExcel = (donorId) => {
+    const donor = allDonorsData.find(d => d.id === donorId);
+    if (!donor) return;
+    const wb = XLSX.utils.book_new();
+    const wsInfo = XLSX.utils.json_to_sheet([donor]);
+    const wsDons = XLSX.utils.json_to_sheet(donor.donations || []);
+    XLSX.utils.book_append_sheet(wb, wsInfo, "COORDONNÉES");
+    XLSX.utils.book_append_sheet(wb, wsDons, "DONS");
+    XLSX.writeFile(wb, `Fiche_${donor.last_name}.xlsx`);
+};
+
+// ==========================================
+// 5. SÉCURITÉ ET MAINTENANCE
+// ==========================================
+window.askDeleteDonation = (donationId) => {
+    window.askConfirmation("SUPPRIMER DON ?", "Effacer cette transaction ?", async () => {
+        await supabaseClient.from('donations').delete().eq('id', donationId);
+        window.showNotice("Supprimé", "Don effacé.");
+        closeCustomModal(); 
+        loadDonors();
+    });
+};
+
+window.askDeleteDonor = (id, name) => {
+    window.askConfirmation("SUPPRESSION TOTALE", `Supprimer la fiche de ${name} ?`, async () => {
+        await supabaseClient.from('donations').delete().eq('donor_id', id);
+        await supabaseClient.from('donors').delete().eq('id', id);
+        window.showNotice("CRM", "Fiche supprimée.");
+        closeCustomModal(); 
+        loadDonors();
+    });
+};
+
+window.askConfirmation = (title, message, onConfirm) => {
+    showCustomModal(`
+        <div style="text-align:center;">
+            <h3 style="color:var(--primary); font-family:'Playfair Display', serif;">${title}</h3>
+            <p style="font-size:0.9rem; margin-bottom:20px;">${message}</p>
+            <div style="display:flex; gap:10px;">
+                <button onclick="closeCustomModal()" class="luxe-input" style="flex:1;">NON</button>
+                <button id="btn-confirm" class="btn-gold" style="flex:1; background:#ef4444; border:none;">OUI</button>
+            </div>
+        </div>
+    `);
+    document.getElementById('btn-confirm').onclick = onConfirm;
+};
+
+window.generateReceipt = (id) => { window.showNotice("PDF", "Génération du reçu fiscal CERFA..."); };
 
 // ==========================================
 // 1. CHARGEMENT ET FILTRAGE DYNAMIQUE
