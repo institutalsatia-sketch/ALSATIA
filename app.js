@@ -371,7 +371,7 @@ function renderDonors(data) {
 // 2. CRÉATION AVEC SÉLECTION D'ENTITÉ
 // ==========================================
 window.showAddDonorModal = () => {
-    // On définit quelle entité sera sélectionnée par défaut (celle de l'utilisateur ou rien)
+    // On définit le portail par défaut
     const userPortal = (typeof currentUser !== 'undefined') ? currentUser.portal : "";
 
     showCustomModal(`
@@ -381,16 +381,16 @@ window.showAddDonorModal = () => {
             <input type="text" id="n-d-first" class="luxe-input" placeholder="PRÉNOM">
         </div>
         
-        <select id="n-d-entity" class="luxe-input" style="margin-top:10px; width:100%; border:1px solid var(--gold);">
-            <option value="" disabled ${!userPortal ? 'selected' : ''}>CHOISIR UNE ENTITÉ *</option>
+        <input type="text" id="n-d-company" class="luxe-input" placeholder="NOM DE L'ENTREPRISE" style="margin-top:10px;">
+
+        <select id="n-d-entity" class="luxe-input" style="margin-top:10px; width:100%; border:1px solid var(--gold); background: white;">
+            <option value="" disabled ${!userPortal ? 'selected' : ''}>SÉLECTIONNER UNE ENTITÉ *</option>
             <option ${userPortal === 'Institut Alsatia' ? 'selected' : ''}>Institut Alsatia</option>
             <option ${userPortal === 'Academia Alsatia' ? 'selected' : ''}>Academia Alsatia</option>
             <option ${userPortal === 'Cours Herrade de Landsberg' ? 'selected' : ''}>Cours Herrade de Landsberg</option>
             <option ${userPortal === 'Collège Saints Louis et Zélie Martin' ? 'selected' : ''}>Collège Saints Louis et Zélie Martin</option>
         </select>
 
-        <input type="text" id="n-d-company" class="luxe-input" placeholder="ENTREPRISE" style="margin-top:10px;">
-        
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;">
             <input type="email" id="n-d-email" class="luxe-input" placeholder="EMAIL">
             <input type="text" id="n-d-phone" class="luxe-input" placeholder="TÉLÉPHONE">
@@ -401,7 +401,7 @@ window.showAddDonorModal = () => {
             <input type="text" id="n-d-city" class="luxe-input" placeholder="VILLE">
         </div>
         
-        <input type="text" id="n-d-origin" class="luxe-input" placeholder="ORIGINE" style="margin-top:10px;">
+        <input type="text" id="n-d-origin" class="luxe-input" placeholder="ORIGINE (Gala, Site, etc.)" style="margin-top:10px;">
         <textarea id="n-d-notes" class="luxe-input" placeholder="Notes..." style="margin-top:10px; height:60px;"></textarea>
         
         <button onclick="window.execCreateDonor()" class="btn-gold" style="width:100%; margin-top:15px;">CRÉER LA FICHE</button>
