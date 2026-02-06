@@ -364,37 +364,54 @@ function renderDonors(data) {
 
 // 2. CRÉATION AVEC SÉLECTION D'ENTITÉ OBLIGATOIRE
 window.showAddDonorModal = () => {
+    // On récupère le portail de l'utilisateur pour pré-remplir l'entité
     const userPortal = currentUser.portal;
-    showCustomModal(`
-        <h3 class="luxe-title">NOUVEAU CONTACT CRM</h3>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-            <input type="text" id="n-d-last" class="luxe-input" placeholder="NOM *">
-            <input type="text" id="n-d-first" class="luxe-input" placeholder="PRÉNOM">
-        </div>
-        
-        <select id="n-d-entity" class="luxe-input" style="margin-top:10px; width:100%; border:1px solid var(--gold); background:white;">
-            <option value="" disabled>SÉLECTIONNER L'ENTITÉ DU DON *</option>
-            <option ${userPortal === 'Institut Alsatia' ? 'selected' : ''}>Institut Alsatia</option>
-            <option ${userPortal === 'Academia Alsatia' ? 'selected' : ''}>Academia Alsatia</option>
-            <option ${userPortal === 'Cours Herrade de Landsberg' ? 'selected' : ''}>Cours Herrade de Landsberg</option>
-            <option ${userPortal === 'Collège Saints Louis et Zélie Martin' ? 'selected' : ''}>Collège Saints Louis et Zélie Martin</option>
-        </select>
 
-        <input type="text" id="n-d-company" class="luxe-input" placeholder="NOM DE L'ENTREPRISE" style="margin-top:10px;">
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;">
-            <input type="email" id="n-d-email" class="luxe-input" placeholder="EMAIL">
-            <input type="text" id="n-d-phone" class="luxe-input" placeholder="TÉLÉPHONE">
+    showCustomModal(`
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:1px solid rgba(184, 134, 11, 0.2); padding-bottom:10px;">
+            <h3 class="luxe-title" style="margin:0; font-size:1.2rem;">NOUVEAU CONTACT CRM</h3>
+            <button onclick="closeCustomModal()" style="border:none; background:none; cursor:pointer; font-size:1.8rem; color:var(--primary); line-height:1;">&times;</button>
         </div>
-        <div style="display:grid; grid-template-columns:1fr 2fr; gap:10px; margin-top:10px;">
-            <input type="text" id="n-d-zip" class="luxe-input" placeholder="CP">
-            <input type="text" id="n-d-city" class="luxe-input" placeholder="VILLE">
+
+        <div style="max-height:70vh; overflow-y:auto; padding-right:5px;">
+            <p class="mini-label" style="margin-top:0;">IDENTITÉ DU CONTACT</p>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                <input type="text" id="n-d-last" class="luxe-input" placeholder="NOM *">
+                <input type="text" id="n-d-first" class="luxe-input" placeholder="PRÉNOM">
+            </div>
+            
+            <p class="mini-label" style="margin-top:15px;">AFFECTATION (ÉCOLE)</p>
+            <select id="n-d-entity" class="luxe-input" style="width:100%; border:1px solid var(--gold); background:white;">
+                <option value="" disabled>SÉLECTIONNER L'ENTITÉ DU DON *</option>
+                <option ${userPortal === 'Institut Alsatia' ? 'selected' : ''}>Institut Alsatia</option>
+                <option ${userPortal === 'Academia Alsatia' ? 'selected' : ''}>Academia Alsatia</option>
+                <option ${userPortal === 'Cours Herrade de Landsberg' ? 'selected' : ''}>Cours Herrade de Landsberg</option>
+                <option ${userPortal === 'Collège Saints Louis et Zélie Martin' ? 'selected' : ''}>Collège Saints Louis et Zélie Martin</option>
+            </select>
+
+            <p class="mini-label" style="margin-top:15px;">COORDONNÉES PROFESSIONNELLES ET PERSO</p>
+            <input type="text" id="n-d-company" class="luxe-input" placeholder="NOM DE L'ENTREPRISE" style="margin-bottom:10px;">
+            
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;">
+                <input type="email" id="n-d-email" class="luxe-input" placeholder="ADRESSE EMAIL">
+                <input type="text" id="n-d-phone" class="luxe-input" placeholder="N° DE TÉLÉPHONE">
+            </div>
+            
+            <div style="display:grid; grid-template-columns:1fr 2fr; gap:10px;">
+                <input type="text" id="n-d-zip" class="luxe-input" placeholder="CODE POSTAL">
+                <input type="text" id="n-d-city" class="luxe-input" placeholder="VILLE">
+            </div>
+            
+            <p class="mini-label" style="margin-top:15px;">SUIVI RELATIONNEL</p>
+            <input type="text" id="n-d-origin" class="luxe-input" placeholder="ORIGINE DU CONTACT (ex: Gala 2024, Site Web...)" style="margin-bottom:10px;">
+            <textarea id="n-d-notes" class="luxe-input" placeholder="Notes particulières sur ce donateur..." style="height:80px;"></textarea>
+            
+            <button onclick="window.execCreateDonor()" class="btn-gold" style="width:100%; margin-top:20px; height:50px; font-weight:bold; font-size:0.9rem; letter-spacing:1px;">
+                ENREGISTRER DANS LE CRM
+            </button>
         </div>
-        <input type="text" id="n-d-origin" class="luxe-input" placeholder="ORIGINE (Gala, Site, etc.)" style="margin-top:10px;">
-        <textarea id="n-d-notes" class="luxe-input" placeholder="Notes..." style="margin-top:10px; height:50px;"></textarea>
-        <button onclick="window.execCreateDonor()" class="btn-gold" style="width:100%; margin-top:15px;">CRÉER LA FICHE</button>
     `);
 };
-
 window.execCreateDonor = async () => {
     const last_name = document.getElementById('n-d-last').value;
     const entity = document.getElementById('n-d-entity').value;
@@ -498,16 +515,26 @@ window.toggleThanked = async (donId, isChecked) => {
 
 window.addDonationPrompt = (donorId) => {
     showCustomModal(`
-        <h3 class="luxe-title">NOUVEAU DON</h3>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h3 class="luxe-title" style="margin:0;">NOUVEAU DON</h3>
+            <button onclick="closeCustomModal()" style="border:none; background:none; cursor:pointer; font-size:1.5rem; color:#94a3b8;">&times;</button>
+        </div>
+
         <input type="number" id="don-amt" class="luxe-input" placeholder="MONTANT (€) *">
         <input type="date" id="don-date" class="luxe-input" value="${new Date().toISOString().split('T')[0]}" style="margin-top:10px;">
+        
         <select id="don-method" class="luxe-input" style="margin-top:10px;">
-            <option>Virement</option><option>Chèque</option><option>Espèces</option><option>CB</option>
+            <option value="Virement">Virement</option>
+            <option value="Chèque">Chèque</option>
+            <option value="Espèces">Espèces</option>
+            <option value="CB">CB</option>
         </select>
+
         <div style="margin-top:15px; font-size:0.8rem;">
             <input type="checkbox" id="don-thanked"> Remerciement déjà fait ?
         </div>
-        <button onclick="window.execAddDonation('${donorId}')" class="btn-gold" style="width:100%; margin-top:20px;">VALIDER</button>
+
+        <button onclick="window.execAddDonation('${donorId}')" class="btn-gold" style="width:100%; margin-top:20px;">VALIDER LE DON</button>
     `);
 };
 
