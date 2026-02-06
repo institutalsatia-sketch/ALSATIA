@@ -497,13 +497,15 @@ window.openDonorFile = async (id) => {
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
         <div style="display:flex; justify-content:space-between; border-bottom:2px solid var(--gold); padding-bottom:10px; margin-bottom:15px;">
-            <h3 style="margin:0; color:var(--primary);">Fiche : ${d.company_name || d.last_name}</h3>
-            <button onclick="closeCustomModal()" class="btn-gold" style="padding:5px 10px;">X</button>
+            <h3 style="margin:0; font-family:'Playfair Display', serif; color:var(--primary);">Fiche : ${d.company_name || d.last_name}</h3>
+            <button onclick="closeCustomModal()" class="btn-gold" style="padding:5px 12px; height:auto;">
+                <i data-lucide="x" style="width:16px; height:16px;"></i>
+            </button>
         </div>
 
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; max-height:65vh; overflow-y:auto; padding-right:5px;">
             <div class="col">
-                <label class="mini-label">SOCIÉTÉ (COMPANY_NAME)</label>
+                <label class="mini-label">SOCIÉTÉ</label>
                 <input type="text" id="e-company" value="${d.company_name || ''}" class="luxe-input">
                 
                 <div style="display:flex; gap:10px;">
@@ -520,10 +522,10 @@ window.openDonorFile = async (id) => {
                 <label class="mini-label">EMAIL</label>
                 <input type="email" id="e-email" value="${d.email || ''}" class="luxe-input">
                 
-                <label class="mini-label">TÉLÉPHONE (PHONE)</label>
+                <label class="mini-label">TÉLÉPHONE</label>
                 <input type="text" id="e-phone" value="${d.phone || ''}" class="luxe-input">
 
-                <label class="mini-label">ORIGINE / ENTITIES</label>
+                <label class="mini-label">ORIGINE / ENTITÉ</label>
                 <input type="text" id="e-origin" value="${d.origin || d.entities || ''}" class="luxe-input">
             </div>
 
@@ -542,30 +544,40 @@ window.openDonorFile = async (id) => {
                     </div>
                 </div>
 
-                <label class="mini-label">PROCHAINE ACTION (NEXT_ACTION)</label>
-                <input type="text" id="e-next" value="${d.next_action || ''}" class="luxe-input" placeholder="ex: Rappeler en septembre...">
+                <label class="mini-label">PROCHAINE ACTION</label>
+                <input type="text" id="e-next" value="${d.next_action || ''}" class="luxe-input">
 
                 <label class="mini-label">NOTES</label>
                 <textarea id="e-notes" class="luxe-input" style="height:72px;">${d.notes || ''}</textarea>
             </div>
 
-            <div style="grid-column: 1 / span 2; background:#f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0; margin-top:10px;">
-                <h4 style="margin:0 0 10px 0; font-size:0.8rem; color:var(--primary);">GESTION DES DONS</h4>
+            <div style="grid-column: 1 / span 2; background:rgba(248, 250, 252, 0.5); padding:15px; border-radius:12px; border:1px solid #e2e8f0; margin-top:10px;">
+                <h4 style="margin:0 0 10px 0; font-size:0.8rem; color:var(--primary); display:flex; align-items:center; gap:8px;">
+                    <i data-lucide="heart" style="width:14px; color:var(--gold);"></i> GESTION DES DONS
+                </h4>
                 <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
                     <input type="number" id="d-amt" placeholder="Montant €" class="luxe-input">
                     <input type="date" id="d-date" value="${today}" class="luxe-input">
                     <input type="text" id="d-tax" placeholder="N° Reçu Fiscal" class="luxe-input">
                 </div>
-                <button onclick="addDonation('${d.id}')" class="btn-gold" style="width:100%; margin-top:10px;">AJOUTER LE DON</button>
+                <button onclick="addDonation('${d.id}')" class="btn-gold" style="width:100%; margin-top:10px; height:40px;">
+                    AJOUTER LE DON
+                </button>
                 
-                <div style="margin-top:15px; max-height:120px; overflow-y:auto;">
+                <div style="margin-top:15px; max-height:150px; overflow-y:auto; border-top:1px solid #e2e8f0; padding-top:10px;">
                     ${(d.donations || []).sort((a,b) => new Date(b.date) - new Date(a.date)).map(don => `
-                        <div style="display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid #eee; font-size:0.75rem;">
-                            <span style="flex:1;">${don.date} : <b>${don.amount}€</b> ${don.tax_receipt_number ? `(RF: ${don.tax_receipt_number})` : ''}</span>
-                            <div style="display:flex; align-items:center; gap:12px;">
-                                <span style="display:flex; align-items:center; gap:4px;"><input type="checkbox" ${don.thanked ? 'checked' : ''} onchange="updateThanks('${don.id}','${d.id}',this.checked)"> Merci</span>
-                                <button onclick="askEditDonation('${don.id}', '${don.amount}', '${don.date}', '${don.tax_receipt_number || ''}', '${d.id}')" style="background:none; border:none; cursor:pointer; font-size:0.9rem;" title="Modifier">✏️</button>
-                                <button onclick="askDeleteDonation('${don.id}', '${d.id}')" style="background:none; border:none; cursor:pointer; color:#ef4444; font-size:0.9rem;" title="Supprimer">🗑️</button>
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; border-bottom:1px solid #f1f5f9; font-size:0.8rem;">
+                            <span style="flex:1;">${don.date} : <strong>${don.amount}€</strong> <small style="opacity:0.6;">${don.tax_receipt_number ? `(RF: ${don.tax_receipt_number})` : ''}</small></span>
+                            <div style="display:flex; align-items:center; gap:15px;">
+                                <label style="display:flex; align-items:center; gap:5px; cursor:pointer; font-size:0.7rem;">
+                                    <input type="checkbox" ${don.thanked ? 'checked' : ''} onchange="updateThanks('${don.id}','${d.id}',this.checked)"> Merci
+                                </label>
+                                <button onclick="askEditDonation('${don.id}', '${don.amount}', '${don.date}', '${don.tax_receipt_number || ''}', '${d.id}')" style="background:none; border:none; color:var(--primary); cursor:pointer; padding:5px;" title="Modifier">
+                                    <i data-lucide="edit-3" style="width:14px; height:14px;"></i>
+                                </button>
+                                <button onclick="askDeleteDonation('${don.id}', '${d.id}')" style="background:none; border:none; color:#ef4444; cursor:pointer; padding:5px;" title="Supprimer">
+                                    <i data-lucide="trash-2" style="width:14px; height:14px;"></i>
+                                </button>
                             </div>
                         </div>
                     `).join('')}
@@ -573,20 +585,21 @@ window.openDonorFile = async (id) => {
             </div>
         </div>
 
-        <div style="margin-top:20px; border-top:1px solid #ddd; padding-top:15px; display:flex; justify-content:space-between; align-items:center;">
-             <button onclick="askDeleteDonor('${d.id}', '${(d.company_name || d.last_name).replace(/'/g, "\\'")}')" 
-                     class="btn-danger" style="padding:10px 15px; font-size:0.8rem;">
+        <div style="margin-top:20px; border-top:1px solid #e2e8f0; padding-top:15px; display:flex; justify-content:space-between; align-items:center;">
+             <button onclick="askDeleteDonor('${d.id}', '${(d.company_name || d.last_name).replace(/'/g, "\\'")}')" class="btn-danger" style="padding:10px 20px;">
                  SUPPRIMER LA FICHE
              </button>
 
-             <div style="text-align:right;">
-                 <small style="display:block; opacity:0.5; margin-bottom:5px;">Dernière modif : ${d.last_modified_by || 'N/A'}</small>
-                 <button onclick="saveDonor('${d.id}')" class="btn-gold" style="background:var(--primary); padding:10px 30px;">
+             <div style="text-align:right; display:flex; flex-direction:column; gap:5px;">
+                 <small style="opacity:0.5; font-size:0.65rem;">Dernière modif : ${d.last_modified_by || 'N/A'}</small>
+                 <button onclick="saveDonor('${d.id}')" class="btn-gold" style="padding:10px 40px; font-weight:bold;">
                      ENREGISTRER LA FICHE
                  </button>
              </div>
         </div>
     `;
+    // CRITIQUE : Génère les icônes Lucide après avoir injecté le HTML
+    lucide.createIcons();
 };
 
 // --- LOGIQUE DE GESTION DES DONS ---
@@ -685,51 +698,122 @@ window.filterDonors = () => {
 window.openNewDonorModal = () => {
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
-        <h3 style="color:var(--primary); border-bottom:1px solid var(--gold); padding-bottom:10px;">Nouveau Donateur</h3>
-        <div style="margin-top:15px;">
-            <label class="mini-label">ENTREPRISE / SOCIÉTÉ</label>
-            <input type="text" id="n-company" placeholder="Nom de l'entreprise" class="luxe-input">
-            <div style="display:flex; gap:10px; margin-top:10px;">
+        <div style="display:flex; justify-content:space-between; border-bottom:2px solid var(--gold); padding-bottom:10px; margin-bottom:20px;">
+            <h3 style="margin:0; font-family:'Playfair Display', serif; color:var(--primary);">Nouveau Donateur</h3>
+            <button onclick="closeCustomModal()" class="btn-gold" style="padding:5px 12px; height:auto;">
+                <i data-lucide="x" style="width:16px; height:16px;"></i>
+            </button>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:15px;">
+            <div>
+                <label class="mini-label">ENTREPRISE / SOCIÉTÉ</label>
+                <input type="text" id="n-company" placeholder="Ex: Cabinet Durant" class="luxe-input">
+            </div>
+
+            <div style="display:flex; gap:10px;">
                 <div style="flex:1;">
                     <label class="mini-label">PRÉNOM</label>
-                    <input type="text" id="n-first" placeholder="Prénom" class="luxe-input">
+                    <input type="text" id="n-first" placeholder="Jean" class="luxe-input">
                 </div>
                 <div style="flex:1;">
                     <label class="mini-label">NOM *</label>
-                    <input type="text" id="n-last" placeholder="Nom" class="luxe-input">
+                    <input type="text" id="n-last" placeholder="Dupont" class="luxe-input">
                 </div>
             </div>
-            <label class="mini-label" style="margin-top:15px;">ENTITÉ RATTACHÉE</label>
-            <select id="n-origin" class="luxe-input">
-                <option value="Institut Alsatia">Institut Alsatia</option>
-                <option value="Cours Herrade de Landsberg">Cours Herrade de Landsberg</option>
-                <option value="Collège Saints Louis et Zélie Martin">Collège Saints Louis et Zélie Martin</option>
-                <option value="Academia Alsatia">Academia Alsatia</option>
-            </select>
-            <button onclick="execCreateDonor()" class="btn-gold" style="width:100%; margin-top:20px; height:45px;">CRÉER LA FICHE</button>
-        </div>`;
+
+            <div>
+                <label class="mini-label">ENTITÉ RATTACHÉE (ORIGINE)</label>
+                <select id="n-origin" class="luxe-input" style="width:100%; cursor:pointer;">
+                    <option value="Institut Alsatia">Institut Alsatia</option>
+                    <option value="Cours Herrade de Landsberg">Cours Herrade de Landsberg</option>
+                    <option value="Collège Saints Louis et Zélie Martin">Collège Saints Louis et Zélie Martin</option>
+                    <option value="Academia Alsatia">Academia Alsatia</option>
+                </select>
+            </div>
+
+            <div style="margin-top:10px; padding-top:15px; border-top:1px solid #e2e8f0; display:flex; gap:10px;">
+                <button onclick="execCreateDonor()" class="btn-gold" style="flex:2; height:45px; font-weight:bold; font-size:0.9rem;">
+                    <i data-lucide="user-plus" style="width:18px; vertical-align:middle; margin-right:8px;"></i> CRÉER LA FICHE
+                </button>
+                <button onclick="closeCustomModal()" class="btn-gold" style="flex:1; background:#64748b; color:white; border:none;">
+                    ANNULER
+                </button>
+            </div>
+        </div>
+    `;
+    lucide.createIcons();
 };
 
 window.execCreateDonor = async () => {
     const lastName = document.getElementById('n-last').value.trim();
-    if (!lastName) return alert("Le nom est obligatoire.");
-    await supabaseClient.from('donors').insert([{ 
-        last_name: lastName, first_name: document.getElementById('n-first').value.trim(),
-        company_name: document.getElementById('n-company').value.trim(), origin: document.getElementById('n-origin').value,
+    if (!lastName) {
+        alert("Le nom de famille est obligatoire.");
+        return;
+    }
+
+    const { error } = await supabaseClient.from('donors').insert([{ 
+        last_name: lastName, 
+        first_name: document.getElementById('n-first').value.trim(),
+        company_name: document.getElementById('n-company').value.trim(), 
+        origin: document.getElementById('n-origin').value,
         last_modified_by: currentUser.first_name + " " + currentUser.last_name 
     }]);
-    closeCustomModal(); loadDonors();
-};
 
+    if (!error) {
+        closeCustomModal();
+        loadDonors();
+        // Optionnel : petit message de succès si tu as une fonction showNotice
+        if(window.showNotice) window.showNotice("Fiche créée", "Le donateur a été ajouté.");
+    } else {
+        alert("Erreur lors de la création.");
+    }
+};
 window.exportAllDonors = () => {
-    const data = allDonorsData.map(d => ({
-        "Nom": d.last_name, "Entreprise": d.company_name, "Email": d.email, "Ville": d.city, "Origine": d.origin, 
-        "Total Dons": d.donations?.reduce((s, n) => s + Number(n.amount), 0)
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
+    // Préparation des données avec calculs intelligents
+    const dataToExport = allDonorsData.map(d => {
+        const totalAmount = d.donations?.reduce((s, n) => s + Number(n.amount), 0) || 0;
+        const countDons = d.donations?.length || 0;
+        const needsThanks = d.donations?.some(don => !don.thanked) ? "OUI" : "Non";
+        
+        // Trier pour trouver le dernier don
+        const sortedDons = [...(d.donations || [])].sort((a, b) => new Date(b.date) - new Date(a.date));
+        const lastDonDate = sortedDons.length > 0 ? sortedDons[0].date : "-";
+
+        return {
+            "SOCIÉTÉ": d.company_name || "-",
+            "NOM": d.last_name?.toUpperCase(),
+            "PRÉNOM": d.first_name || "",
+            "EMAIL": d.email || "-",
+            "TÉLÉPHONE": d.phone || "-",
+            "VILLE": d.city || "-",
+            "ENTITÉ": d.origin || d.entities || "-",
+            "TOTAL CUMULÉ (€)": totalAmount,
+            "NB DE DONS": countDons,
+            "DATE DERNIER DON": lastDonDate,
+            "À REMERCIER ?": needsThanks,
+            "PROCHAINE ACTION": d.next_action || "-",
+            "NOTES": d.notes || ""
+        };
+    });
+
+    // Création du fichier Excel (XLSX)
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    
+    // Style rapide : On ajuste la largeur des colonnes
+    const wscols = [
+        {wch:20}, {wch:15}, {wch:15}, {wch:25}, {wch:15}, 
+        {wch:15}, {wch:20}, {wch:15}, {wch:10}, {wch:15}, 
+        {wch:12}, {wch:25}, {wch:30}
+    ];
+    ws['!cols'] = wscols;
+
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Donateurs");
-    XLSX.writeFile(wb, "CRM_Alsatia.xlsx");
+    XLSX.utils.book_append_sheet(wb, ws, "Base Donateurs");
+    
+    // Nom du fichier avec la date du jour
+    const dateFile = new Date().toISOString().split('T')[0];
+    XLSX.writeFile(wb, `EXPORT_CRM_ALSATIA_${dateFile}.xlsx`);
 };
 
 window.askDeleteDonor = (id, name) => {
