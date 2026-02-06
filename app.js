@@ -477,13 +477,9 @@ function renderDonors(data) {
     if(!list) return;
     list.innerHTML = data.map(d => {
         const total = d.donations?.reduce((s, n) => s + Number(n.amount), 0) || 0;
-        
-        // DETECTION CRITIQUE : Si au moins un don n'a pas 'thanked: true'
         const needsThanks = d.donations?.some(don => !don.thanked);
-        
         const name = d.company_name ? `<b>${d.company_name}</b><br><small>${d.last_name}</small>` : `<b>${d.last_name.toUpperCase()}</b> ${d.first_name || ''}`;
         
-        // On applique la classe blink-warning si needsThanks est vrai
         return `<tr class="${needsThanks ? 'blink-warning' : ''}">
             <td>${name}</td>
             <td>${d.origin || d.entities || '-'}</td>
@@ -501,7 +497,7 @@ window.openDonorFile = async (id) => {
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
         <div style="display:flex; justify-content:space-between; border-bottom:2px solid var(--gold); padding-bottom:10px; margin-bottom:15px;">
-            <h3 style="margin:0;">Fiche : ${d.company_name || d.last_name}</h3>
+            <h3 style="margin:0; color:var(--primary);">Fiche : ${d.company_name || d.last_name}</h3>
             <button onclick="closeCustomModal()" class="btn-gold" style="padding:5px 10px;">X</button>
         </div>
 
@@ -509,6 +505,7 @@ window.openDonorFile = async (id) => {
             <div class="col">
                 <label class="mini-label">SOCIÉTÉ (COMPANY_NAME)</label>
                 <input type="text" id="e-company" value="${d.company_name || ''}" class="luxe-input">
+                
                 <div style="display:flex; gap:10px;">
                     <div style="flex:1;">
                         <label class="mini-label">NOM *</label>
@@ -519,21 +516,35 @@ window.openDonorFile = async (id) => {
                         <input type="text" id="e-first" value="${d.first_name || ''}" class="luxe-input">
                     </div>
                 </div>
+
                 <label class="mini-label">EMAIL</label>
                 <input type="email" id="e-email" value="${d.email || ''}" class="luxe-input">
-                <label class="mini-label">TÉLÉPHONE</label>
+                
+                <label class="mini-label">TÉLÉPHONE (PHONE)</label>
                 <input type="text" id="e-phone" value="${d.phone || ''}" class="luxe-input">
+
+                <label class="mini-label">ORIGINE / ENTITIES</label>
+                <input type="text" id="e-origin" value="${d.origin || d.entities || ''}" class="luxe-input">
             </div>
 
             <div class="col">
                 <label class="mini-label">ADRESSE</label>
                 <input type="text" id="e-address" value="${d.address || ''}" class="luxe-input">
+                
                 <div style="display:flex; gap:10px;">
-                    <div style="flex:1;"><input type="text" id="e-zip" value="${d.zip_code || ''}" class="luxe-input" placeholder="CP"></div>
-                    <div style="flex:2;"><input type="text" id="e-city" value="${d.city || ''}" class="luxe-input" placeholder="Ville"></div>
+                    <div style="flex:1;">
+                        <label class="mini-label">CODE POSTAL</label>
+                        <input type="text" id="e-zip" value="${d.zip_code || ''}" class="luxe-input">
+                    </div>
+                    <div style="flex:2;">
+                        <label class="mini-label">VILLE</label>
+                        <input type="text" id="e-city" value="${d.city || ''}" class="luxe-input">
+                    </div>
                 </div>
-                <label class="mini-label">PROCHAINE ACTION</label>
-                <input type="text" id="e-next" value="${d.next_action || ''}" class="luxe-input">
+
+                <label class="mini-label">PROCHAINE ACTION (NEXT_ACTION)</label>
+                <input type="text" id="e-next" value="${d.next_action || ''}" class="luxe-input" placeholder="ex: Rappeler en septembre...">
+
                 <label class="mini-label">NOTES</label>
                 <textarea id="e-notes" class="luxe-input" style="height:72px;">${d.notes || ''}</textarea>
             </div>
@@ -549,12 +560,12 @@ window.openDonorFile = async (id) => {
                 
                 <div style="margin-top:15px; max-height:120px; overflow-y:auto;">
                     ${(d.donations || []).sort((a,b) => new Date(b.date) - new Date(a.date)).map(don => `
-                        <div style="display:flex; justify-content:space-between; align-items:center; padding:6px; border-bottom:1px solid #eee; font-size:0.75rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; padding:8px; border-bottom:1px solid #eee; font-size:0.75rem;">
                             <span style="flex:1;">${don.date} : <b>${don.amount}€</b> ${don.tax_receipt_number ? `(RF: ${don.tax_receipt_number})` : ''}</span>
-                            <div style="display:flex; align-items:center; gap:10px;">
-                                <span><input type="checkbox" ${don.thanked ? 'checked' : ''} onchange="updateThanks('${don.id}','${d.id}',this.checked)"> Merci</span>
-                                <button onclick="askEditDonation('${don.id}', '${don.amount}', '${don.date}', '${don.tax_receipt_number || ''}', '${d.id}')" style="background:none; border:none; cursor:pointer;">✏️</button>
-                                <button onclick="askDeleteDonation('${don.id}', '${d.id}')" style="background:none; border:none; cursor:pointer; color:red;">🗑️</button>
+                            <div style="display:flex; align-items:center; gap:12px;">
+                                <span style="display:flex; align-items:center; gap:4px;"><input type="checkbox" ${don.thanked ? 'checked' : ''} onchange="updateThanks('${don.id}','${d.id}',this.checked)"> Merci</span>
+                                <button onclick="askEditDonation('${don.id}', '${don.amount}', '${don.date}', '${don.tax_receipt_number || ''}', '${d.id}')" style="background:none; border:none; cursor:pointer; font-size:0.9rem;" title="Modifier">✏️</button>
+                                <button onclick="askDeleteDonation('${don.id}', '${d.id}')" style="background:none; border:none; cursor:pointer; color:#ef4444; font-size:0.9rem;" title="Supprimer">🗑️</button>
                             </div>
                         </div>
                     `).join('')}
@@ -563,13 +574,22 @@ window.openDonorFile = async (id) => {
         </div>
 
         <div style="margin-top:20px; border-top:1px solid #ddd; padding-top:15px; display:flex; justify-content:space-between; align-items:center;">
-             <button onclick="askDeleteDonor('${d.id}', '${(d.company_name || d.last_name).replace(/'/g, "\\'")}')" class="btn-danger">SUPPRIMER LA FICHE</button>
-             <button onclick="saveDonor('${d.id}')" class="btn-gold" style="background:var(--primary); padding:10px 30px;">ENREGISTRER LA FICHE</button>
+             <button onclick="askDeleteDonor('${d.id}', '${(d.company_name || d.last_name).replace(/'/g, "\\'")}')" 
+                     class="btn-danger" style="padding:10px 15px; font-size:0.8rem;">
+                 SUPPRIMER LA FICHE
+             </button>
+
+             <div style="text-align:right;">
+                 <small style="display:block; opacity:0.5; margin-bottom:5px;">Dernière modif : ${d.last_modified_by || 'N/A'}</small>
+                 <button onclick="saveDonor('${d.id}')" class="btn-gold" style="background:var(--primary); padding:10px 30px;">
+                     ENREGISTRER LA FICHE
+                 </button>
+             </div>
         </div>
     `;
 };
 
-// --- LOGIQUE DE MISE À JOUR ET SUPPRESSION ---
+// --- LOGIQUE DE GESTION DES DONS ---
 
 window.addDonation = async (id) => {
     const amt = document.getElementById('d-amt').value;
@@ -582,13 +602,19 @@ window.addDonation = async (id) => {
 
 window.askEditDonation = (donId, amt, date, tax, donorId) => {
     document.getElementById('modal-body').innerHTML = `
-        <h3 style="color:var(--primary);">Modifier le don</h3>
-        <input type="number" id="edit-d-amt" value="${amt}" class="luxe-input" style="margin-bottom:10px;">
-        <input type="date" id="edit-d-date" value="${date}" class="luxe-input" style="margin-bottom:10px;">
-        <input type="text" id="edit-d-tax" value="${tax}" class="luxe-input" style="margin-bottom:10px;">
-        <div style="display:flex; gap:10px;">
-            <button onclick="execEditDonation('${donId}', '${donorId}')" class="btn-gold" style="flex:1;">SAUVER</button>
-            <button onclick="openDonorFile('${donorId}')" class="btn-gold" style="background:#666; flex:1;">RETOUR</button>
+        <h3 style="color:var(--primary); border-bottom:1px solid var(--gold); padding-bottom:10px;">Modifier le don</h3>
+        <div style="padding:15px 0;">
+            <label class="mini-label">MONTANT (€)</label>
+            <input type="number" id="edit-d-amt" value="${amt}" class="luxe-input">
+            <label class="mini-label">DATE</label>
+            <input type="date" id="edit-d-date" value="${date}" class="luxe-input">
+            <label class="mini-label">N° REÇU FISCAL</label>
+            <input type="text" id="edit-d-tax" value="${tax}" class="luxe-input">
+            
+            <div style="margin-top:20px; display:flex; gap:10px;">
+                <button onclick="execEditDonation('${donId}', '${donorId}')" class="btn-gold" style="flex:2; background:var(--primary);">ENREGISTRER</button>
+                <button onclick="openDonorFile('${donorId}')" class="btn-gold" style="flex:1; background:#64748b;">ANNULER</button>
+            </div>
         </div>`;
 };
 
@@ -596,17 +622,18 @@ window.execEditDonation = async (donId, donorId) => {
     const amount = document.getElementById('edit-d-amt').value;
     const date = document.getElementById('edit-d-date').value;
     const tax = document.getElementById('edit-d-tax').value;
-    await supabaseClient.from('donations').update({ amount, date, tax_receipt_number: tax }).eq('id', donId);
+    await supabaseClient.from('donations').update({ amount: parseFloat(amount), date, tax_receipt_number: tax }).eq('id', donId);
     openDonorFile(donorId); loadDonors();
 };
 
 window.askDeleteDonation = (donId, donorId) => {
     document.getElementById('modal-body').innerHTML = `
         <div style="text-align:center; padding:20px;">
-            <h3 style="color:red;">Supprimer ce don ?</h3>
-            <div style="margin-top:20px; display:flex; gap:10px;">
-                <button onclick="execDeleteDonation('${donId}', '${donorId}')" class="btn-danger" style="flex:1;">OUI</button>
-                <button onclick="openDonorFile('${donorId}')" class="btn-gold" style="background:#666; flex:1;">NON</button>
+            <h3 style="color:var(--danger);">Supprimer ce don ?</h3>
+            <p>Voulez-vous vraiment retirer ce don de l'historique ?</p>
+            <div style="margin-top:25px; display:flex; gap:10px;">
+                <button onclick="execDeleteDonation('${donId}', '${donorId}')" class="btn-danger" style="flex:1;">OUI, SUPPRIMER</button>
+                <button onclick="openDonorFile('${donorId}')" class="btn-gold" style="background:#64748b; flex:1;">ANNULER</button>
             </div>
         </div>`;
 };
@@ -618,8 +645,11 @@ window.execDeleteDonation = async (donId, donorId) => {
 
 window.updateThanks = async (donId, donorId, val) => {
     await supabaseClient.from('donations').update({ thanked: val }).eq('id', donId);
-    loadDonors(); // Rechargement pour mettre à jour le clignotement rouge
+    loadDonors();
 };
+
+// --- LOGIQUE DONATEURS ---
+
 window.saveDonor = async (id) => {
     const upd = {
         company_name: document.getElementById('e-company').value,
@@ -635,8 +665,10 @@ window.saveDonor = async (id) => {
         next_action: document.getElementById('e-next').value,
         last_modified_by: currentUser.first_name + " " + currentUser.last_name 
     };
-    await supabaseClient.from('donors').update(upd).eq('id', id);
-    closeCustomModal(); loadDonors();
+
+    const { error } = await supabaseClient.from('donors').update(upd).eq('id', id);
+    if (!error) { closeCustomModal(); loadDonors(); } 
+    else { alert("Erreur lors de la sauvegarde."); }
 };
 
 window.filterDonors = () => {
@@ -655,26 +687,32 @@ window.openNewDonorModal = () => {
     document.getElementById('modal-body').innerHTML = `
         <h3 style="color:var(--primary); border-bottom:1px solid var(--gold); padding-bottom:10px;">Nouveau Donateur</h3>
         <div style="margin-top:15px;">
-            <label class="mini-label">ENTREPRISE</label>
-            <input type="text" id="n-company" class="luxe-input">
+            <label class="mini-label">ENTREPRISE / SOCIÉTÉ</label>
+            <input type="text" id="n-company" placeholder="Nom de l'entreprise" class="luxe-input">
             <div style="display:flex; gap:10px; margin-top:10px;">
-                <div style="flex:1;"><label class="mini-label">PRÉNOM</label><input type="text" id="n-first" class="luxe-input"></div>
-                <div style="flex:1;"><label class="mini-label">NOM *</label><input type="text" id="n-last" class="luxe-input"></div>
+                <div style="flex:1;">
+                    <label class="mini-label">PRÉNOM</label>
+                    <input type="text" id="n-first" placeholder="Prénom" class="luxe-input">
+                </div>
+                <div style="flex:1;">
+                    <label class="mini-label">NOM *</label>
+                    <input type="text" id="n-last" placeholder="Nom" class="luxe-input">
+                </div>
             </div>
-            <label class="mini-label" style="margin-top:15px;">ENTITÉ</label>
+            <label class="mini-label" style="margin-top:15px;">ENTITÉ RATTACHÉE</label>
             <select id="n-origin" class="luxe-input">
                 <option value="Institut Alsatia">Institut Alsatia</option>
                 <option value="Cours Herrade de Landsberg">Cours Herrade de Landsberg</option>
                 <option value="Collège Saints Louis et Zélie Martin">Collège Saints Louis et Zélie Martin</option>
                 <option value="Academia Alsatia">Academia Alsatia</option>
             </select>
-            <button onclick="execCreateDonor()" class="btn-gold" style="width:100%; margin-top:20px; height:45px;">CRÉER</button>
+            <button onclick="execCreateDonor()" class="btn-gold" style="width:100%; margin-top:20px; height:45px;">CRÉER LA FICHE</button>
         </div>`;
 };
 
 window.execCreateDonor = async () => {
     const lastName = document.getElementById('n-last').value.trim();
-    if (!lastName) return alert("Nom obligatoire.");
+    if (!lastName) return alert("Le nom est obligatoire.");
     await supabaseClient.from('donors').insert([{ 
         last_name: lastName, first_name: document.getElementById('n-first').value.trim(),
         company_name: document.getElementById('n-company').value.trim(), origin: document.getElementById('n-origin').value,
@@ -685,7 +723,8 @@ window.execCreateDonor = async () => {
 
 window.exportAllDonors = () => {
     const data = allDonorsData.map(d => ({
-        "Nom": d.last_name, "Entreprise": d.company_name, "Email": d.email, "Total Dons": d.donations?.reduce((s, n) => s + Number(n.amount), 0)
+        "Nom": d.last_name, "Entreprise": d.company_name, "Email": d.email, "Ville": d.city, "Origine": d.origin, 
+        "Total Dons": d.donations?.reduce((s, n) => s + Number(n.amount), 0)
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -694,15 +733,15 @@ window.exportAllDonors = () => {
 };
 
 window.askDeleteDonor = (id, name) => {
-    if (currentUser.portal !== "Institut Alsatia") return alert("Admin requis.");
+    if (currentUser.portal !== "Institut Alsatia") return alert("Action réservée à l'administrateur.");
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
         <div style="text-align:center; padding:20px;">
-            <h3 style="color:var(--danger);">Supprimer définitivement ?</h3>
-            <p>Fiche : <b>${name}</b></p>
+            <h3 style="color:var(--danger); margin-bottom:15px;">Supprimer définitivement ?</h3>
+            <p>Voulez-vous vraiment supprimer la fiche de :<br><b>${name}</b> ?</p>
             <div style="margin-top:25px; display:flex; gap:10px;">
-                <button onclick="execDeleteDonor('${id}')" class="btn-danger" style="flex:2;">SUPPRIMER</button>
-                <button onclick="closeCustomModal()" class="btn-gold" style="background:#666; flex:1;">ANNULER</button>
+                <button onclick="execDeleteDonor('${id}')" class="btn-danger" style="flex:2;">OUI, SUPPRIMER</button>
+                <button onclick="closeCustomModal()" class="btn-gold" style="background:#64748b; flex:1;">ANNULER</button>
             </div>
         </div>`;
 };
