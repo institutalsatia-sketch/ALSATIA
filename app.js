@@ -47,36 +47,33 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initInterface() {
-    const logoContainer = document.getElementById('entity-logo-container');
-    if(logoContainer) logoContainer.innerHTML = `<img src="${LOGOS[currentUser.portal] || 'logo_alsatia.png'}" class="entity-logo">`;
-    
-    document.getElementById('user-name-display').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
-    document.getElementById('current-portal-display').innerText = currentUser.portal;
+    const portal = currentUser.portal;
+    const logoSrc = LOGOS[portal] || 'logo_alsatia.png';
 
-    const nav = document.getElementById('main-nav');
-    if (nav) {
-        if (!document.getElementById('nav-contacts')) {
-            const li = document.createElement('li');
-            li.id = "nav-contacts";
-            li.innerHTML = `<i data-lucide="book-user"></i> Annuaire`;
-            li.onclick = () => window.switchTab('contacts');
-            nav.appendChild(li);
-        }
-        if (!document.getElementById('nav-profile')) {
-            const li = document.createElement('li');
-            li.id = "nav-profile";
-            li.innerHTML = `<i data-lucide="user-circle"></i> Mon Profil`;
-            li.onclick = () => window.openProfileModal();
-            nav.appendChild(li);
-        }
-        if (currentUser.portal === "Institut Alsatia" && !document.getElementById('nav-donors')) {
-            const li = document.createElement('li');
-            li.id = "nav-donors"; 
-            li.innerHTML = `<i data-lucide="users"></i> Base Donateurs`;
-            li.onclick = () => window.switchTab('donors');
-            nav.insertBefore(li, nav.firstChild);
-        }
+    // 1. Sidebar : Petit logo et infos
+    const sideLogo = document.getElementById('entity-logo-container');
+    if(sideLogo) sideLogo.innerHTML = `<img src="${logoSrc}" class="entity-logo">`;
+    document.getElementById('user-name-display').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
+    document.getElementById('current-portal-display').innerText = portal;
+
+    // 2. Accueil : Logo géant et Bienvenue (Prénom + Nom)
+    const bigLogo = document.getElementById('big-logo-display');
+    if(bigLogo) {
+        bigLogo.innerHTML = `<img src="${logoSrc}" style="width:280px; max-width:80%; filter:drop-shadow(0 20px 30px rgba(0,0,0,0.15));">`;
     }
+    
+    const welcomeName = document.getElementById('welcome-full-name');
+    if(welcomeName) welcomeName.innerText = `${currentUser.first_name} ${currentUser.last_name}`;
+    
+    const welcomePortal = document.getElementById('welcome-portal-label');
+    if(welcomePortal) welcomePortal.innerText = `Accès sécurisé — ${portal}`;
+
+    // 3. Gestion de l'onglet Donateurs (Uniquement pour l'Institut)
+    const navDonors = document.getElementById('nav-donors');
+    if (navDonors) {
+        navDonors.style.display = (portal === "Institut Alsatia") ? "flex" : "none";
+    }
+
     lucide.createIcons();
 }
 
