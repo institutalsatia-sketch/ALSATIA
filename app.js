@@ -17,33 +17,51 @@ const LOGOS = {
 };
 
 // ==========================================
+// FONCTIONS GLOBALES (CRITIQUE POUR LES ERREURS ONCLICK)
+// ==========================================
+window.logout = () => { 
+    localStorage.clear(); 
+    window.location.href = 'login.html'; 
+};
+
+window.closeCustomModal = () => { 
+    document.getElementById('custom-modal').style.display = 'none'; 
+};
+
+window.showNotice = (title, message) => {
+    // Version simple en attendant un toast CSS
+    alert(`${title}\n${message}`); 
+};
+
+// ==========================================
 // INITIALISATION & INTERFACE
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
-    if (!currentUser) { window.location.href = 'login.html'; return; }
+    if (!currentUser) { 
+        window.location.href = 'login.html'; 
+        return; 
+    }
     initInterface();
-    // Les autres fonctions de chargement (loadSubjects, etc.) doivent être ici
+    // Charger le chat par défaut si nécessaire
+    if(typeof loadChatMessages === "function") loadChatMessages(); 
 });
 
 function initInterface() {
-    // 1. Logos & Textes
     const logoContainer = document.getElementById('entity-logo-container');
     if(logoContainer) logoContainer.innerHTML = `<img src="${LOGOS[currentUser.portal] || 'logo_alsatia.png'}" class="entity-logo">`;
+    
     document.getElementById('user-name-display').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
     document.getElementById('current-portal-display').innerText = currentUser.portal;
 
-    // 2. Injection dynamique des boutons de navigation
     const nav = document.getElementById('main-nav');
     if (nav) {
-        // Annuaire
         if (!document.getElementById('nav-contacts')) {
             const li = document.createElement('li');
             li.id = "nav-contacts";
             li.innerHTML = `<i data-lucide="book-user"></i> Annuaire`;
-            li.onclick = () => switchTab('contacts');
+            li.onclick = () => window.switchTab('contacts');
             nav.appendChild(li);
         }
-        // Profil
         if (!document.getElementById('nav-profile')) {
             const li = document.createElement('li');
             li.id = "nav-profile";
@@ -51,13 +69,12 @@ function initInterface() {
             li.onclick = () => window.openProfileModal();
             nav.appendChild(li);
         }
-        // CRM Institut
         if (currentUser.portal === "Institut Alsatia" && !document.getElementById('nav-donors')) {
             const li = document.createElement('li');
             li.id = "nav-donors"; 
             li.innerHTML = `<i data-lucide="users"></i> Base Donateurs`;
-            li.onclick = () => switchTab('donors');
-            nav.insertBefore(li, nav.children[0]);
+            li.onclick = () => window.switchTab('donors');
+            nav.insertBefore(li, nav.firstChild);
         }
     }
     lucide.createIcons();
@@ -74,7 +91,7 @@ window.switchTab = (id) => {
     if (navBtn) navBtn.classList.add('active');
 
     if (id === 'contacts') loadContacts();
-    // Appeler ici les autres loaders : if(id==='chat') loadChatMessages()...
+    // if (id === 'donors') loadDonors(); // etc.
     lucide.createIcons();
 };
 
