@@ -628,6 +628,27 @@ window.updateDonorFields = async (id) => {
     window.showNotice("Mise à jour", "Les informations ont été synchronisées.");
 };
 
+// FONCTION MOTEUR POUR LES CONFIRMATIONS (SANS WINDOW.CONFIRM)
+window.askConfirmation = (title, message, onConfirm) => {
+    showCustomModal(`
+        <div style="text-align:center; padding:10px;">
+            <div style="background:#fee2e2; width:50px; height:50px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 15px;">
+                <i data-lucide="alert-triangle" style="color:#ef4444; width:24px; height:24px;"></i>
+            </div>
+            <h3 style="margin:0 0 10px 0; color:var(--primary); font-family:'Playfair Display', serif;">${title}</h3>
+            <p style="font-size:0.85rem; color:#64748b; line-height:1.5; margin-bottom:25px;">${message}</p>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                <button onclick="closeCustomModal()" class="luxe-input" style="cursor:pointer; margin:0; background:#f8fafc;">ANNULER</button>
+                <button id="confirm-btn-action" class="btn-gold" style="background:#ef4444; border:none; margin:0; color:white; font-weight:800;">CONFIRMER</button>
+            </div>
+        </div>
+    `);
+    lucide.createIcons();
+    
+    // On attache l'action au bouton de confirmation
+    document.getElementById('confirm-btn-action').onclick = onConfirm;
+};
+
 // ==========================================
 // 4. GESTION FINANCIÈRE, EXPORTS ET SUPPRESSION
 // ==========================================
