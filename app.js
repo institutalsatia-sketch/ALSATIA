@@ -301,17 +301,14 @@ window.saveMyProfile = async () => {
 // CRM - GESTION INTÉGRALE DES DONATEURS
 // ==========================================
 
-// 1. CHARGEMENT ET FILTRAGE DYNAMIQUE
+// 1. CHARGEMENT, CALCULS ET FILTRAGE
 async function loadDonors() {
     const { data, error } = await supabaseClient
         .from('donors')
         .select('*, donations(*)')
         .order('last_name', { ascending: true });
 
-    if (error) {
-        console.error("Erreur CRM:", error);
-        return;
-    }
+    if (error) return console.error("Erreur CRM:", error);
     allDonorsData = data || [];
     window.filterDonors();
 }
@@ -331,25 +328,31 @@ window.filterDonors = () => {
         const matchesEntity = (entityVal === "ALL" || d.entity === entityVal);
         return matchesSearch && matchesEntity;
     });
-
     renderDonors(filtered);
 };
 
 function renderDonors(data) {
     const list = document.getElementById('donors-list');
     if (!list) return;
-    if (data.length === 0) {
-        list.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:20px; opacity:0.5;">Aucun donateur trouvé.</td></tr>`;
-        return;
-    }
+    
     list.innerHTML = data.map(d => {
-        const total = (d.donations || []).reduce((acc, cur) => acc + Number(cur.amount), 0);
+        const dons = d.donations || [];
+        const total = dons.reduce((acc, cur) => acc + Number(cur.amount), 0);
+        
+        // LOGIQUE DE CLIGNOTEMENT : Si un don n'est pas remercié
+        const hasUnthanked = dons.some(don => don.thanked === false);
+        const blinkClass = hasUnthanked ? 'blink-warning' : '';
+
         const displayName = d.company_name 
             ? `<b>${d.company_name.toUpperCase()}</b> <span style="font-size:0.75rem;">(${d.last_name})</span>` 
             : `<b>${d.last_name.toUpperCase()}</b> ${d.first_name || ''}`;
+            
         return `
-            <tr>
-                <td>${displayName}</td>
+            <tr class="${blinkClass}">
+                <td>
+                    ${displayName}
+                    ${hasUnthanked ? '<br><small style="color:#ef4444; font-weight:700; font-size:0.6rem;">⚠️ REMERCIEMENT ATTENDU</small>' : ''}
+                </td>
                 <td><span class="origin-tag">${d.entity || '-'}</span></td>
                 <td style="font-weight:800; color:var(--primary);">${total.toLocaleString()} €</td>
                 <td style="text-align:right;">
@@ -359,7 +362,7 @@ function renderDonors(data) {
     }).join('');
 }
 
-// 2. CRÉATION (AVEC LE SÉLECTEUR D'ENTITÉ QUE TU AS DEMANDÉ)
+// 2. CRÉATION AVEC SÉLECTION D'ENTITÉ OBLIGATOIRE
 window.showAddDonorModal = () => {
     const userPortal = currentUser.portal;
     showCustomModal(`
@@ -395,7 +398,7 @@ window.showAddDonorModal = () => {
 window.execCreateDonor = async () => {
     const last_name = document.getElementById('n-d-last').value;
     const entity = document.getElementById('n-d-entity').value;
-    if(!last_name || !entity) return window.showNotice("Erreur", "Le nom et l'entité sont obligatoires.");
+    if(!last_name || !entity) return window.showNotice("Erreur", "Nom et Entité requis.");
 
     const payload = {
         last_name: last_name.toUpperCase(),
@@ -413,12 +416,11 @@ window.execCreateDonor = async () => {
 
     const { error } = await supabaseClient.from('donors').insert([payload]);
     if(error) return window.showNotice("Erreur", error.message);
-    
     closeCustomModal();
     loadDonors();
 };
 
-// 3. DOSSIER DÉTAILLÉ (ÉDITION, DONS, SUPPRESSION)
+// 3. DOSSIER COMPLET (EDITION + HISTORIQUE + REMERCIEMENT)
 window.openDonorFile = async (id) => {
     const donor = allDonorsData.find(d => d.id === id);
     if (!donor) return;
@@ -449,8 +451,8 @@ window.openDonorFile = async (id) => {
                 <input type="email" id="edit-email" class="luxe-input" value="${donor.email || ''}" placeholder="Email" style="margin-bottom:8px;">
                 <input type="text" id="edit-phone" class="luxe-input" value="${donor.phone || ''}" placeholder="Tél" style="margin-bottom:8px;">
                 <div style="display:grid; grid-template-columns:1fr 2fr; gap:8px;">
-                    <input type="text" id="edit-zip" class="luxe-input" value="${donor.zip_code || ''}">
-                    <input type="text" id="edit-city" class="luxe-input" value="${donor.city || ''}">
+                    <input type="text" id="edit-zip" class="luxe-input" value="${donor.zip_code || ''}" placeholder="CP">
+                    <input type="text" id="edit-city" class="luxe-input" value="${donor.city || ''}" placeholder="VILLE">
                 </div>
             </div>
             <div>
@@ -464,17 +466,19 @@ window.openDonorFile = async (id) => {
         <div style="margin-top:20px;">
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <p class="mini-label">HISTORIQUE DES DONS</p>
-                <button onclick="window.addDonationPrompt('${id}')" class="btn-gold" style="padding:4px 10px; font-size:0.65rem; background:var(--primary); color:white; border:none;">+ AJOUTER UN DON</button>
+                <button onclick="window.addDonationPrompt('${id}')" class="btn-gold" style="padding:4px 10px; font-size:0.65rem;">+ AJOUTER UN DON</button>
             </div>
-            <div style="max-height:180px; overflow-y:auto; border:1px solid #eee; margin-top:10px;">
+            <div style="max-height:180px; overflow-y:auto; border:1px solid #eee; margin-top:10px; border-radius:8px;">
                 <table class="luxe-table">
-                    <thead><tr><th>DATE</th><th>MONTANT</th><th>MODE</th><th style="text-align:right;">ACTION</th></tr></thead>
+                    <thead><tr><th>DATE</th><th>MONTANT</th><th>REMERCIÉ ?</th><th style="text-align:right;">ACTION</th></tr></thead>
                     <tbody>
                         ${dons.map(don => `
-                            <tr>
+                            <tr style="${!don.thanked ? 'background:rgba(239, 68, 68, 0.05);' : ''}">
                                 <td>${new Date(don.date).toLocaleDateString()}</td>
                                 <td style="font-weight:700;">${don.amount}€</td>
-                                <td>${don.payment_mode || '-'}</td>
+                                <td style="text-align:center;">
+                                    <input type="checkbox" ${don.thanked ? 'checked' : ''} onchange="window.toggleThanked('${don.id}', this.checked)">
+                                </td>
                                 <td style="text-align:right;">
                                     <i data-lucide="trash-2" style="width:14px; color:#ef4444; cursor:pointer;" onclick="window.askDeleteDonation('${don.id}')"></i>
                                 </td>
@@ -484,6 +488,44 @@ window.openDonorFile = async (id) => {
             </div>
         </div>`;
     lucide.createIcons();
+};
+
+// 4. FONCTIONS DE MISE À JOUR (DONS ET REMERCIEMENTS)
+window.toggleThanked = async (donId, isChecked) => {
+    await supabaseClient.from('donations').update({ thanked: isChecked }).eq('id', donId);
+    loadDonors(); // Rafraîchit pour arrêter le clignotement
+};
+
+window.addDonationPrompt = (donorId) => {
+    showCustomModal(`
+        <h3 class="luxe-title">NOUVEAU DON</h3>
+        <input type="number" id="don-amt" class="luxe-input" placeholder="MONTANT (€) *">
+        <input type="date" id="don-date" class="luxe-input" value="${new Date().toISOString().split('T')[0]}" style="margin-top:10px;">
+        <select id="don-method" class="luxe-input" style="margin-top:10px;">
+            <option>Virement</option><option>Chèque</option><option>Espèces</option><option>CB</option>
+        </select>
+        <div style="margin-top:15px; font-size:0.8rem;">
+            <input type="checkbox" id="don-thanked"> Remerciement déjà fait ?
+        </div>
+        <button onclick="window.execAddDonation('${donorId}')" class="btn-gold" style="width:100%; margin-top:20px;">VALIDER</button>
+    `);
+};
+
+window.execAddDonation = async (donorId) => {
+    const amount = document.getElementById('don-amt').value;
+    const date = document.getElementById('don-date').value;
+    const thanked = document.getElementById('don-thanked').checked;
+    if (!amount || !date) return window.showNotice("Erreur", "Champs requis.");
+
+    await supabaseClient.from('donations').insert([{
+        donor_id: donorId,
+        amount: parseFloat(amount),
+        date: date,
+        payment_mode: document.getElementById('don-method').value,
+        thanked: thanked
+    }]);
+    closeCustomModal();
+    loadDonors();
 };
 
 window.updateDonorFields = async (id) => {
@@ -499,68 +541,25 @@ window.updateDonorFields = async (id) => {
         notes: document.getElementById('edit-notes').value,
         last_modified_by: `${currentUser.first_name} ${currentUser.last_name}`
     };
-    const { error } = await supabaseClient.from('donors').update(payload).eq('id', id);
-    if (error) return window.showNotice("Erreur", error.message);
+    await supabaseClient.from('donors').update(payload).eq('id', id);
     window.showNotice("Succès", "Fiche mise à jour.");
     loadDonors();
 };
 
-// 4. GESTION DES DONS ET SUPPRESSIONS
-window.addDonationPrompt = (donorId) => {
-    showCustomModal(`
-        <h3 class="luxe-title">NOUVEAU DON</h3>
-        <input type="number" id="don-amt" class="luxe-input" placeholder="MONTANT (€) *">
-        <input type="date" id="don-date" class="luxe-input" value="${new Date().toISOString().split('T')[0]}" style="margin-top:10px;">
-        <select id="don-method" class="luxe-input" style="margin-top:10px;">
-            <option value="Virement">Virement</option>
-            <option value="Chèque">Chèque</option>
-            <option value="Espèces">Espèces</option>
-            <option value="CB">CB</option>
-        </select>
-        <button onclick="window.execAddDonation('${donorId}')" class="btn-gold" style="width:100%; margin-top:20px;">VALIDER</button>
-    `);
-};
-
-window.execAddDonation = async (donorId) => {
-    const amount = document.getElementById('don-amt').value;
-    const date = document.getElementById('don-date').value;
-    if (!amount || !date) return window.showNotice("Erreur", "Champs requis.");
-
-    const { error } = await supabaseClient.from('donations').insert([{
-        donor_id: donorId,
-        amount: parseFloat(amount),
-        date: date,
-        payment_mode: document.getElementById('don-method').value
-    }]);
-
-    if (error) return window.showNotice("Erreur", error.message);
-    window.showNotice("Succès", "Don enregistré.");
-    closeCustomModal();
-    loadDonors();
-};
-
+// 5. SUPPRESSIONS ET EXPORTS
 window.askDeleteDonation = (donationId) => {
-    window.askConfirmation("SUPPRIMER DON ?", "Action irréversible.", async () => {
+    window.askConfirmation("SUPPRIMER DON ?", "Irréversible.", async () => {
         await supabaseClient.from('donations').delete().eq('id', donationId);
-        closeCustomModal(); 
-        loadDonors();
+        closeCustomModal(); loadDonors();
     });
 };
 
 window.askDeleteDonor = (id, name) => {
-    window.askConfirmation("SUPPRIMER CONTACT ?", `Supprimer la fiche de ${name} ?`, async () => {
+    window.askConfirmation("SUPPRIMER CONTACT ?", `Effacer ${name} ?`, async () => {
         await supabaseClient.from('donations').delete().eq('donor_id', id);
         await supabaseClient.from('donors').delete().eq('id', id);
-        closeCustomModal(); 
-        loadDonors();
+        closeCustomModal(); loadDonors();
     });
-};
-
-window.exportAllDonors = () => {
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(allDonorsData);
-    XLSX.utils.book_append_sheet(wb, ws, "Donateurs");
-    XLSX.writeFile(wb, "Alsatia_CRM_Global.xlsx");
 };
 
 window.exportDonorToExcel = (id) => {
@@ -579,8 +578,8 @@ window.exportDonorToExcel = (id) => {
 window.askConfirmation = (title, message, onConfirm) => {
     showCustomModal(`
         <div style="text-align:center;">
-            <h3 style="color:var(--primary); font-family:'Playfair Display', serif;">${title}</h3>
-            <p style="font-size:0.9rem; margin-bottom:20px;">${message}</p>
+            <h3 style="color:var(--primary);">${title}</h3>
+            <p style="font-size:0.85rem; margin-bottom:20px;">${message}</p>
             <div style="display:flex; gap:10px;">
                 <button onclick="closeCustomModal()" class="luxe-input" style="flex:1;">NON</button>
                 <button id="btn-confirm" class="btn-gold" style="flex:1; background:#ef4444; border:none; color:white;">OUI</button>
