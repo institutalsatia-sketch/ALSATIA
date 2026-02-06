@@ -604,43 +604,74 @@ function renderEvents(events) {
     if (!container) return;
 
     if (!events || events.length === 0) {
-        container.innerHTML = `<div style="text-align:center; padding:40px; grid-column: 1 / -1; opacity:0.5;">Aucun événement programmé.</div>`;
+        container.innerHTML = `<div style="text-align:center; padding:40px; opacity:0.5;">Aucun événement programmé.</div>`;
         return;
     }
 
-    const categories = {
-        todo: { title: "À PLANIFIER", items: [], icon: "calendar", color: "#64748b" },
-        progress: { title: "EN PRÉPARATION", items: [], icon: "loader", color: "#b45309" },
-        ready: { title: "PRÊT POUR COM", items: [], icon: "check-circle", color: "#107c10" }
-    };
-
+    // 1. Groupement des événements par "Mois Année"
+    const grouped = {};
     events.forEach(ev => {
-        const hasText = ev.event_resources?.some(r => r.description && r.description.length > 10);
-        const hasPhoto = ev.event_resources?.some(r => r.file_url);
-        
-        if (hasText && hasPhoto) categories.ready.items.push(ev);
-        else if (hasText || hasPhoto) categories.progress.items.push(ev);
-        else categories.todo.items.push(ev);
+        const date = new Date(ev.event_date);
+        const monthYear = date.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+        if (!grouped[monthYear]) grouped[monthYear] = [];
+        grouped[monthYear].push(ev);
     });
 
-    container.style.display = "grid";
-    container.style.gridTemplateColumns = "repeat(auto-fit, minmax(300px, 1fr))";
-    container.style.gap = "20px";
+    // 2. Génération du HTML
+    let html = "";
+    
+    for (const [month, monthEvents] of Object.entries(grouped)) {
+        // En-tête du mois
+        html += `
+            <div class="month-divider">
+                <h2>${month}</h2>
+            </div>
+            <div class="kanban-grid">
+        `;
 
-    container.innerHTML = Object.keys(categories).map(key => {
-        const cat = categories[key];
-        return `
+        // Séparation interne par statut pour ce mois précis
+        const categories = {
+            todo: monthEvents.filter(ev => !ev.event_resources?.some(r => r.description || r.file_url)),
+            progress: monthEvents.filter(ev => ev.event_resources?.some(r => r.description || r.file_url) && !isEventReady(ev)),
+            ready: monthEvents.filter(ev => isEventReady(ev))
+        };
+
+        html += `
             <div class="kanban-column">
-                <h3 style="font-size: 0.85rem; color: ${cat.color}; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; font-weight:800; letter-spacing:1px;">
-                    <i data-lucide="${cat.icon}" style="width:16px;"></i> ${cat.title} (${cat.items.length})
-                </h3>
-                <div style="display: flex; flex-direction: column; gap: 12px;">
-                    ${cat.items.map(ev => renderMiniCard(ev)).join('')}
+                <h3 style="font-size:0.75rem; color:#64748b; margin-bottom:10px;">À PLANIFIER (${categories.todo.length})</h3>
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    ${categories.todo.map(ev => renderMiniCard(ev)).join('')}
+                </div>
+            </div>
+
+            <div class="kanban-column" style="background:#fff7ed; border-color:#ffedd5;">
+                <h3 style="font-size:0.75rem; color:#b45309; margin-bottom:10px;">EN PRÉPARATION (${categories.progress.length})</h3>
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    ${categories.progress.map(ev => renderMiniCard(ev)).join('')}
+                </div>
+            </div>
+
+            <div class="kanban-column" style="background:#f0fdf4; border-color:#dcfce7;">
+                <h3 style="font-size:0.75rem; color:#166534; margin-bottom:10px;">PRÊT COM (${categories.ready.length})</h3>
+                <div style="display:flex; flex-direction:column; gap:10px;">
+                    ${categories.ready.map(ev => renderMiniCard(ev)).join('')}
                 </div>
             </div>
         `;
-    }).join('');
+
+        html += `</div>`; // Fin de la kanban-grid
+    }
+
+    container.style.display = "block"; // On passe en block pour gérer les titres
+    container.innerHTML = html;
     lucide.createIcons();
+}
+
+// Fonction utilitaire pour vérifier si un événement est complet
+function isEventReady(ev) {
+    const hasText = ev.event_resources?.some(r => r.description && r.description.length > 10);
+    const hasPhoto = ev.event_resources?.some(r => r.file_url);
+    return hasText && hasPhoto;
 }
 
 function renderMiniCard(ev) {
