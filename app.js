@@ -470,25 +470,45 @@ async function loadDonors() {
         .select('*, donations(*)')
         .order('last_name', { ascending: true });
 
-    if (error) return;
+    if (error) {
+        console.error("Erreur Supabase:", error);
+        return;
+    }
     allDonorsData = data;
     renderDonors(data);
 }
 
 window.filterDonors = () => {
-    const val = document.getElementById('search-donor').value.toLowerCase();
-    const filtered = allDonorsData.filter(d => 
-        (d.last_name || "").toLowerCase().includes(val) || 
-        (d.first_name || "").toLowerCase().includes(val) ||
-        (d.company_name || "").toLowerCase().includes(val) ||
-        (d.origin || "").toLowerCase().includes(val)
-    );
+    const searchInput = document.getElementById('search-donor');
+    const entitySelect = document.getElementById('filter-entity');
+    
+    // Sécurité : on vérifie que les éléments existent
+    const searchVal = searchInput ? searchInput.value.toLowerCase() : "";
+    const entityVal = entitySelect ? entitySelect.value : "";
+
+    const filtered = allDonorsData.filter(d => {
+        const matchesSearch = 
+            (d.last_name || "").toLowerCase().includes(searchVal) || 
+            (d.first_name || "").toLowerCase().includes(searchVal) ||
+            (d.company_name || "").toLowerCase().includes(searchVal) ||
+            (d.origin || "").toLowerCase().includes(searchVal);
+
+        const matchesEntity = (entityVal === "" || d.entity === entityVal);
+
+        return matchesSearch && matchesEntity;
+    });
+    
     renderDonors(filtered);
 };
 
 function renderDonors(data) {
     const list = document.getElementById('donors-list');
     if (!list) return;
+
+    if (data.length === 0) {
+        list.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:20px; opacity:0.5;">Aucun résultat trouvé</td></tr>`;
+        return;
+    }
 
     list.innerHTML = data.map(d => {
         const total = d.donations?.reduce((acc, cur) => acc + Number(cur.amount), 0) || 0;
@@ -532,7 +552,9 @@ window.showAddDonorModal = () => {
 };
 
 window.execCreateDonor = async () => {
-    const last_name = document.getElementById('n-d-last').value.toUpperCase();
+    const lastNameField = document.getElementById('n-d-last');
+    const last_name = lastNameField ? lastNameField.value.toUpperCase() : "";
+    
     if(!last_name) return window.showNotice("Erreur", "Le nom est obligatoire.", "error");
 
     const payload = {
@@ -569,7 +591,7 @@ window.openDonorFile = async (id) => {
         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px;">
             <div>
                 <span class="mini-label">ID: ${donor.id.substring(0,8)}...</span>
-                <h3 style="margin:0; color:var(--primary);">ÉDITION DU DOSSIER</h3>
+                <h3 style="margin:0; color:var(--primary); font-family:'Playfair Display', serif;">ÉDITION DU DOSSIER</h3>
             </div>
             <div style="display:flex; gap:10px;">
                 <button onclick="window.exportDonorToExcel('${donor.id}')" class="btn-gold" style="padding:5px 10px; font-size:0.7rem;">EXCEL</button>
@@ -610,7 +632,7 @@ window.openDonorFile = async (id) => {
             <table class="luxe-table">
                 <thead><tr><th>DATE</th><th>MONTANT</th><th>MODE</th><th>REÇU FISCAL</th><th style="text-align:right;">ACTIONS</th></tr></thead>
                 <tbody>
-                    ${dons.map(don => `
+                    ${dons.length > 0 ? dons.map(don => `
                         <tr>
                             <td>${new Date(don.date).toLocaleDateString()}</td>
                             <td style="font-weight:700;">${don.amount}€</td>
@@ -620,7 +642,7 @@ window.openDonorFile = async (id) => {
                                 <i data-lucide="file-text" style="width:14px; color:var(--gold); cursor:pointer; margin-right:10px;" onclick="window.generateReceipt('${don.id}')"></i>
                                 <i data-lucide="trash-2" style="width:14px; color:#ef4444; cursor:pointer;" onclick="window.askDeleteDonation('${don.id}')"></i>
                             </td>
-                        </tr>`).join('')}
+                        </tr>`).join('') : '<tr><td colspan="5" style="text-align:center; opacity:0.5;">Aucun don enregistré</td></tr>'}
                 </tbody>
             </table>
         </div>`;
@@ -737,6 +759,9 @@ window.askConfirmation = (title, message, onConfirm) => {
 };
 
 window.generateReceipt = (id) => { window.showNotice("PDF", "Génération du reçu fiscal CERFA..."); };
+
+// INITIALISATION AU DÉMARRAGE
+document.addEventListener('DOMContentLoaded', loadDonors);
 
 // ==========================================
 // 1. CHARGEMENT ET RENDU DES ÉVÉNEMENTS
