@@ -3,31 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Connexion - Institut Alsatia</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Connexion - Alsatia</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { background: #0f172a; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: 'Inter', sans-serif; }
-        .login-card { background: white; padding: 40px; border-radius: 20px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); width: 100%; max-width: 400px; text-align: center; }
-        .logo-gold { color: #b99d65; font-size: 1.6rem; font-weight: bold; margin-bottom: 25px; text-transform: uppercase; letter-spacing: 2px; }
+        :root { --gold: #c5a059; --primary: #0f172a; }
+        body { background: var(--primary); display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; font-family: 'Inter', sans-serif; }
+        .login-card { background: white; padding: 40px; border-radius: 24px; box-shadow: 0 25px 50px rgba(0,0,0,0.5); width: 100%; max-width: 400px; text-align: center; }
+        .logo-gold { color: var(--gold); font-size: 1.6rem; font-weight: 800; margin-bottom: 25px; text-transform: uppercase; letter-spacing: 3px; }
+        
+        /* Zone de notification interne */
+        #login-error { display: none; background: #fef2f2; color: #b91c1c; padding: 12px; border-radius: 10px; font-size: 0.8rem; margin-bottom: 15px; border: 1px solid #fee2e2; }
+
         .portal-grid { display: flex; flex-direction: column; gap: 10px; }
-        .portal-btn { background: #f8fafc; border: 2px solid #e2e8f0; padding: 12px; border-radius: 12px; cursor: pointer; transition: 0.3s; font-weight: 600; text-align: left; display: flex; align-items: center; gap: 12px; font-size: 0.85rem; }
-        .portal-btn:hover { border-color: #b99d65; background: #fdfaf3; transform: translateY(-2px); }
-        .step-2, .pin-area, .new-user-fields { display: none; margin-top: 20px; animation: fadeIn 0.4s; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        .luxe-input { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; margin-bottom: 10px; box-sizing: border-box; font-size: 1rem; }
-        #pin-input { font-size: 1.5rem; letter-spacing: 10px; text-align: center; border-color: #b99d65; }
+        .portal-btn { background: #f8fafc; border: 2px solid #e2e8f0; padding: 14px; border-radius: 12px; cursor: pointer; transition: 0.3s; font-weight: 600; text-align: left; display: flex; align-items: center; gap: 12px; }
+        .portal-btn:hover { border-color: var(--gold); background: #fdfaf3; transform: translateY(-2px); }
+        
+        .step-2, .pin-area, .new-user-fields { display: none; margin-top: 20px; animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .luxe-input { width: 100%; padding: 12px; border: 2px solid #e2e8f0; border-radius: 10px; margin-bottom: 12px; box-sizing: border-box; font-size: 1rem; outline: none; }
+        .luxe-input:focus { border-color: var(--gold); }
+        #pin-input { font-size: 1.5rem; letter-spacing: 12px; text-align: center; border-color: var(--gold); font-weight: bold; }
+        
+        .btn-access { background: var(--gold); color: white; border: none; width: 100%; padding: 16px; border-radius: 12px; font-weight: 800; cursor: pointer; text-transform: uppercase; margin-top: 10px; transition: 0.3s; }
+        .btn-access:hover { filter: brightness(1.1); box-shadow: 0 10px 20px rgba(197, 160, 89, 0.3); }
     </style>
 </head>
 <body>
 
 <div class="login-card">
-    <div class="logo-gold">Institut Alsatia</div>
+    <div class="logo-gold">Alsatia</div>
+    
+    <div id="login-error"></div>
 
     <div id="step-1">
-        <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 20px;">Choisissez votre portail d'accès</p>
+        <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 20px;">Sélectionnez votre portail</p>
         <div class="portal-grid">
-            <button class="portal-btn" onclick="selectPortal('Institut Alsatia')">🛡️ Institut Alsatia (Admin)</button>
+            <button class="portal-btn" onclick="selectPortal('Institut Alsatia')">🛡️ Institut Alsatia</button>
             <button class="portal-btn" onclick="selectPortal('Cours Herrade de Landsberg')">📖 Cours Herrade de Landsberg</button>
             <button class="portal-btn" onclick="selectPortal('Collège Saints Louis et Zélie Martin')">🏫 Collège Saints Martin</button>
             <button class="portal-btn" onclick="selectPortal('Academia Alsatia')">🎓 Academia Alsatia</button>
@@ -35,23 +48,24 @@
     </div>
 
     <div id="step-2" class="step-2">
-        <button onclick="location.reload()" style="background:none; border:none; color:#b99d65; cursor:pointer; font-size:0.8rem; margin-bottom:15px;">← Retour</button>
-        <p id="portal-name" style="font-weight:bold; color:#1e293b; margin-bottom:15px;"></p>
+        <button onclick="location.reload()" style="background:none; border:none; color:var(--gold); cursor:pointer; font-weight:bold; margin-bottom:15px; font-size:0.75rem;">← RETOUR</button>
+        <p id="portal-name" style="font-weight:800; color:var(--primary); font-size:0.7rem; text-transform:uppercase; margin-bottom:15px;"></p>
         
         <select id="user-select" class="luxe-input" onchange="checkUserType()">
             <option value="">-- Qui êtes-vous ? --</option>
-            <option value="NEW" style="font-weight:bold; color:#b99d65;">+ Nouveau membre...</option>
+            <option value="NEW" style="font-weight:bold; color:var(--gold);">+ NOUVEAU MEMBRE</option>
         </select>
 
         <div id="new-user-fields" class="new-user-fields">
-            <input type="text" id="reg-fname" placeholder="Votre Prénom" class="luxe-input">
-            <input type="text" id="reg-lname" placeholder="Votre Nom" class="luxe-input">
+            <input type="text" id="reg-fname" placeholder="Prénom" class="luxe-input">
+            <input type="text" id="reg-lname" placeholder="Nom" class="luxe-input">
+            <input type="email" id="reg-email" placeholder="Email" class="luxe-input">
         </div>
 
         <div id="pin-area" class="pin-area">
-            <p style="font-size: 0.8rem; color:#64748b;">Entrez votre Code PIN</p>
-            <input type="password" id="pin-input" maxlength="6" placeholder="••••">
-            <button onclick="attemptLogin()" class="btn-primary" style="width:100%; margin-top:15px; padding:15px;">Accéder au CRM</button>
+            <p style="font-size: 0.75rem; color:#64748b; font-weight:bold;">CODE PIN (4 CHIFFRES)</p>
+            <input type="password" id="pin-input" maxlength="4" placeholder="••••" autocomplete="off">
+            <button onclick="attemptLogin()" class="btn-access">Accéder</button>
         </div>
     </div>
 </div>
@@ -63,22 +77,29 @@
 
     let currentPortal = "";
 
+    function showError(msg) {
+        const errDiv = document.getElementById('login-error');
+        errDiv.innerText = msg;
+        errDiv.style.display = 'block';
+        setTimeout(() => errDiv.style.display = 'none', 4000);
+    }
+
     async function selectPortal(portal) {
         currentPortal = portal;
         document.getElementById('step-1').style.display = 'none';
         document.getElementById('step-2').style.display = 'block';
         document.getElementById('portal-name').innerText = portal;
 
-        // Charger les membres existants de ce portail
         const { data, error } = await supabaseClient.from('profiles').select('*').eq('portal', portal).order('last_name');
         const select = document.getElementById('user-select');
-        
-        data.forEach(user => {
-            const opt = document.createElement('option');
-            opt.value = user.id;
-            opt.innerText = `${user.first_name} ${user.last_name}`;
-            select.appendChild(opt);
-        });
+        if (data) {
+            data.forEach(user => {
+                const opt = document.createElement('option');
+                opt.value = user.id;
+                opt.innerText = `${user.last_name.toUpperCase()} ${user.first_name}`;
+                select.appendChild(opt);
+            });
+        }
     }
 
     function checkUserType() {
@@ -93,23 +114,26 @@
         let finalUser = null;
 
         if (userSelect === 'NEW') {
-            const fname = document.getElementById('reg-fname').value;
-            const lname = document.getElementById('reg-lname').value;
-            if(!fname || !lname || !pin) return alert("Veuillez remplir tous les champs");
+            const fname = document.getElementById('reg-fname').value.trim();
+            const lname = document.getElementById('reg-lname').value.trim();
+            const email = document.getElementById('reg-email').value.trim();
+            
+            if(!fname || !lname || !email || !pin) return showError("Tous les champs sont requis.");
+            if(pin.length !== 4) return showError("Le PIN doit faire 4 chiffres.");
 
             const { data, error } = await supabaseClient.from('profiles').insert([
-                { first_name: fname, last_name: lname, portal: currentPortal, pin: pin }
+                { first_name: fname, last_name: lname, email: email, portal: currentPortal, pin: pin }
             ]).select().single();
 
-            if(error) return alert("Erreur : " + error.message);
+            if(error) return showError("Erreur : " + error.message);
             finalUser = data;
         } else {
             const { data, error } = await supabaseClient.from('profiles').select('*').eq('id', userSelect).single();
-            if (data.pin !== pin) return alert("Code PIN incorrect");
+            if (!data || data.pin !== pin) return showError("Code PIN incorrect.");
             finalUser = data;
         }
 
-        // Stockage de la session et direction vers le CRM
+        // LE POINT CLÉ : On stocke l'objet complet pour l'index.html
         localStorage.setItem('alsatia_user', JSON.stringify(finalUser));
         window.location.href = 'index.html';
     }
