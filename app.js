@@ -465,6 +465,7 @@ function subscribeToChat() {
 // 1. CHARGEMENT ET FILTRAGE DYNAMIQUE
 // ==========================================
 async function loadDonors() {
+    // Étape A : On récupère l'intégralité de la base sans exception
     const { data, error } = await supabaseClient
         .from('donors')
         .select('*, donations(*)')
@@ -472,32 +473,45 @@ async function loadDonors() {
 
     if (error) {
         console.error("Erreur Supabase:", error);
+        window.showNotice("Erreur de connexion", "Impossible de charger les donateurs.", "error");
         return;
     }
-    allDonorsData = data;
-    renderDonors(data);
+    
+    // Étape B : Stockage global
+    allDonorsData = data || []; 
+    
+    // Étape C : Application immédiate du filtre actuel (texte + entité)
+    window.filterDonors();
 }
 
 window.filterDonors = () => {
-    const searchInput = document.getElementById('search-donor');
-    const entitySelect = document.getElementById('filter-entity');
+    // 1. Récupération sécurisée des éléments DOM
+    const searchEl = document.getElementById('search-donor');
+    const entityEl = document.getElementById('filter-entity');
     
-    // Sécurité : on vérifie que les éléments existent
-    const searchVal = searchInput ? searchInput.value.toLowerCase() : "";
-    const entityVal = entitySelect ? entitySelect.value : "";
+    // 2. Nettoyage des valeurs (on enlève les espaces inutiles)
+    const searchVal = searchEl ? searchEl.value.toLowerCase().trim() : "";
+    const entityVal = entityEl ? entityEl.value : "";
 
+    // 3. Logique de filtrage croisée
     const filtered = allDonorsData.filter(d => {
+        // Filtre TEXTE : cherche dans nom, prénom, entreprise, ville ou origine
         const matchesSearch = 
             (d.last_name || "").toLowerCase().includes(searchVal) || 
             (d.first_name || "").toLowerCase().includes(searchVal) ||
             (d.company_name || "").toLowerCase().includes(searchVal) ||
+            (d.city || "").toLowerCase().includes(searchVal) ||
             (d.origin || "").toLowerCase().includes(searchVal);
 
+        // Filtre ENTITÉ : 
+        // Si entityVal est vide ("") -> On affiche tout (true)
+        // Sinon -> On vérifie la correspondance exacte
         const matchesEntity = (entityVal === "" || d.entity === entityVal);
 
         return matchesSearch && matchesEntity;
     });
     
+    // 4. Envoi à l'affichage
     renderDonors(filtered);
 };
 
@@ -505,20 +519,25 @@ function renderDonors(data) {
     const list = document.getElementById('donors-list');
     if (!list) return;
 
+    // Gestion du cas "Aucun résultat" pour éviter un tableau vide déroutant
     if (data.length === 0) {
-        list.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:20px; opacity:0.5;">Aucun résultat trouvé</td></tr>`;
+        list.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:30px; color:#999;">Aucun donateur ne correspond à ces critères.</td></tr>`;
         return;
     }
 
     list.innerHTML = data.map(d => {
         const total = d.donations?.reduce((acc, cur) => acc + Number(cur.amount), 0) || 0;
-        const displayName = d.company_name ? `<b>${d.company_name}</b> <span style="font-size:0.75rem;">(${d.last_name})</span>` : `<b>${d.last_name.toUpperCase()}</b> ${d.first_name || ''}`;
+        
+        // Affichage intelligent du nom (Priorité Entreprise si elle existe)
+        const displayName = d.company_name 
+            ? `<b>${d.company_name.toUpperCase()}</b> <span style="font-size:0.75rem; color:#666;">(${d.last_name})</span>` 
+            : `<b>${d.last_name.toUpperCase()}</b> ${d.first_name || ''}`;
         
         return `
             <tr>
                 <td>${displayName}</td>
-                <td><span class="origin-tag">${d.origin || '-'}</span></td>
-                <td style="font-weight:800; color:var(--primary);">${total} €</td>
+                <td><span class="origin-tag" style="background:#f0f0f0; padding:2px 8px; border-radius:4px; font-size:0.7rem;">${d.origin || '-'}</span></td>
+                <td style="font-weight:800; color:var(--primary);">${total.toLocaleString()} €</td>
                 <td style="text-align:right;">
                     <button onclick="window.openDonorFile('${d.id}')" class="btn-gold" style="padding:5px 12px; font-size:0.7rem;">DOSSIER</button>
                 </td>
