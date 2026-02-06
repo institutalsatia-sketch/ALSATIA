@@ -617,8 +617,10 @@ window.askConfirmation = (title, message, onConfirm) => {
 };
 
 // ==========================================
-// 1. CHARGEMENT ET RENDU DES ÉVÉNEMENTS
+// GESTION DES ÉVÉNEMENTS - WORKFLOW RÉSEAUX
 // ==========================================
+
+// 1. CHARGEMENT GLOBAL (Toutes les entités voient tout)
 async function loadEvents() {
     const { data, error } = await supabaseClient
         .from('events')
@@ -633,54 +635,78 @@ async function loadEvents() {
         return;
     }
 
-    container.innerHTML = data.map(ev => `
-        <div class="event-card" onclick="window.openEventDetails('${ev.id}')" style="background:white; border-radius:12px; border:1px solid #e2e8f0; overflow:hidden; cursor:pointer; transition:all 0.3s ease;">
-            <div style="height:8px; background:${ev.status === 'Confirmé' ? '#22c55e' : ev.status === 'Terminé' ? '#64748b' : '#f59e0b'};"></div>
-            <div style="padding:20px;">
-                <span style="font-size:0.65rem; font-weight:800; color:#d4af37; text-transform:uppercase;">${ev.status}</span>
-                <h3 style="margin:8px 0; font-family:'Playfair Display'; color:#1e293b;">${ev.title}</h3>
-                <div style="font-size:0.8rem; color:#64748b; display:flex; flex-direction:column; gap:5px;">
-                    <span><i data-lucide="calendar" style="width:12px; vertical-align:middle;"></i> ${new Date(ev.event_date).toLocaleDateString()}</span>
-                    <span><i data-lucide="map-pin" style="width:12px; vertical-align:middle;"></i> ${ev.location || 'Lieu à définir'}</span>
+    container.innerHTML = data.map(ev => {
+        // Un événement est "Prêt" si Heure, Lieu et Description sont remplis
+        const isReady = ev.event_time && ev.location && ev.description && ev.description.trim().length > 5;
+        
+        return `
+            <div class="event-card" onclick="window.openEventDetails('${ev.id}')" 
+                 style="background:white; border-radius:12px; border:1px solid #e2e8f0; border-left: 6px solid ${isReady ? '#22c55e' : '#f59e0b'}; cursor:pointer; transition:all 0.3s ease; padding:15px; position:relative;">
+                
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
+                    <span class="mini-label" style="color:var(--gold);">${ev.entity}</span>
+                    <span style="font-size:0.6rem; font-weight:800; padding:2px 6px; border-radius:4px; background:${isReady ? '#f0fdf4' : '#fff7ed'}; color:${isReady ? '#166534' : '#9a3412'}; border:1px solid ${isReady ? '#bbf7d0' : '#ffedd5'};">
+                        ${isReady ? '✅ PRÊT RÉSEAUX' : '⏳ INFOS MANQUANTES'}
+                    </span>
+                </div>
+
+                <h3 style="margin:5px 0; font-family:'Playfair Display'; color:#1e293b; font-size:1.1rem;">${ev.title}</h3>
+                
+                <div style="font-size:0.8rem; color:#64748b; margin-top:10px;">
+                    <i data-lucide="calendar" style="width:12px; vertical-align:middle;"></i> 
+                    ${new Date(ev.event_date).toLocaleDateString()} 
+                    ${ev.event_time ? ` à ${ev.event_time.substring(0,5)}` : ''}
+                </div>
+                <div style="font-size:0.8rem; color:#64748b; margin-top:4px;">
+                    <i data-lucide="map-pin" style="width:12px; vertical-align:middle;"></i> 
+                    ${ev.location || 'Lieu à définir'}
                 </div>
             </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
     lucide.createIcons();
 }
 
-// ==========================================
-// 2. CRÉATION D'ÉVÉNEMENT
-// ==========================================
+// 2. CRÉATION (ÉTAPE 1 DU WORKFLOW)
 window.showAddEventModal = () => {
+    const userPortal = currentUser.portal;
     showCustomModal(`
-        <h3 class="luxe-title">PLANIFIER UN ÉVÉNEMENT</h3>
-        <input type="text" id="ev-title" class="luxe-input" placeholder="NOM DE L'ÉVÉNEMENT *">
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;">
-            <input type="date" id="ev-date" class="luxe-input">
-            <input type="text" id="ev-loc" class="luxe-input" placeholder="LIEU">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h3 class="luxe-title" style="margin:0;">PLANIFIER UN ÉVÉNEMENT</h3>
+            <button onclick="closeCustomModal()" style="border:none; background:none; cursor:pointer; font-size:1.5rem; color:#94a3b8;">&times;</button>
         </div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;">
-            <input type="number" id="ev-budget" class="luxe-input" placeholder="BUDGET ESTIMÉ (€)">
-            <select id="ev-status" class="luxe-input">
-                <option>Brouillon</option>
-                <option>Confirmé</option>
-            </select>
-        </div>
-        <button onclick="window.execCreateEvent()" class="btn-gold" style="width:100%; margin-top:15px; height:45px;">CRÉER L'ÉVÉNEMENT</button>
+
+        <p class="mini-label">TITRE DE L'ÉVÉNEMENT *</p>
+        <input type="text" id="ev-title" class="luxe-input" placeholder="Ex: Gala de Charité, Portes Ouvertes...">
+        
+        <p class="mini-label" style="margin-top:15px;">ENTITÉ CONCERNÉE *</p>
+        <select id="ev-entity" class="luxe-input" style="width:100%; border:1px solid var(--gold); background:white;">
+            <option ${userPortal === 'Institut Alsatia' ? 'selected' : ''}>Institut Alsatia</option>
+            <option ${userPortal === 'Academia Alsatia' ? 'selected' : ''}>Academia Alsatia</option>
+            <option ${userPortal === 'Cours Herrade de Landsberg' ? 'selected' : ''}>Cours Herrade de Landsberg</option>
+            <option ${userPortal === 'Collège Saints Louis et Zélie Martin' ? 'selected' : ''}>Collège Saints Louis et Zélie Martin</option>
+        </select>
+
+        <p class="mini-label" style="margin-top:15px;">DATE PRÉVUE *</p>
+        <input type="date" id="ev-date" class="luxe-input">
+
+        <button onclick="window.execCreateEvent()" class="btn-gold" style="width:100%; margin-top:25px; height:45px; font-weight:bold;">
+            CRÉER ET ATTENDRE LES INFOS
+        </button>
     `);
 };
 
 window.execCreateEvent = async () => {
     const title = document.getElementById('ev-title').value.trim();
     const event_date = document.getElementById('ev-date').value;
-    if(!title || !event_date) return alert("Le titre et la date sont obligatoires.");
+    const entity = document.getElementById('ev-entity').value;
+    
+    if(!title || !event_date) return window.showNotice("Erreur", "Titre et Date obligatoires.");
 
     const payload = {
-        title, event_date,
-        location: document.getElementById('ev-loc').value,
-        budget_estimated: document.getElementById('ev-budget').value || 0,
-        status: document.getElementById('ev-status').value,
+        title, 
+        event_date,
+        entity,
         created_by: `${currentUser.first_name} ${currentUser.last_name}`
     };
 
@@ -691,110 +717,113 @@ window.execCreateEvent = async () => {
     loadEvents();
 };
 
-// ==========================================
-// 3. DOSSIER LOGISTIQUE (DÉTAILS & ONGLETS)
-// ==========================================
+// 3. DOSSIER LOGISTIQUE (ÉTAPE 2 & 3)
 window.openEventDetails = async (id) => {
-    const { data: ev, error } = await supabaseClient.from('events').select('*').eq('id', id).single();
-    if(error || !ev) return;
+    const { data: ev } = await supabaseClient.from('events').select('*').eq('id', id).single();
+    if(!ev) return;
+
+    const isReady = ev.event_time && ev.location && ev.description && ev.description.trim().length > 5;
 
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid #eee; padding-bottom:10px;">
-            <h2 style="margin:0; font-family:'Playfair Display';">${ev.title}</h2>
-            <button onclick="closeCustomModal()" style="border:none; background:none; cursor:pointer; font-size:1.2rem;">&times;</button>
-        </div>
-
-        <div style="display:flex; gap:15px; border-bottom:1px solid #eee; margin-bottom:20px;">
-            <button onclick="window.switchEventTab('infos', '${ev.id}')" class="event-tab-btn active" id="etab-infos">INFOS</button>
-            <button onclick="window.switchEventTab('guests', '${ev.id}')" class="event-tab-btn" id="etab-guests">INVITÉS</button>
-            <button onclick="window.switchEventTab('media', '${ev.id}')" class="event-tab-btn" id="etab-media">RESSOURCES</button>
-        </div>
-
-        <div id="event-tab-content">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <div>
+                <span class="mini-label">SITUATION : ${ev.entity}</span>
+                <h2 style="margin:0; font-family:'Playfair Display';">${ev.title}</h2>
             </div>
-        
-        <div style="margin-top:30px; padding-top:15px; border-top:1px dashed #eee; display:flex; justify-content:space-between;">
-            <button onclick="window.askDeleteEvent('${ev.id}', '${ev.title.replace(/'/g, "\\'")}')" style="color:#ef4444; background:none; border:none; font-size:0.7rem; cursor:pointer; font-weight:bold;">SUPPRIMER L'ÉVÉNEMENT</button>
+            <button onclick="closeCustomModal()" style="border:none; background:none; cursor:pointer; font-size:1.5rem;">&times;</button>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1.2fr 1fr; gap:25px;">
+            
+            <div>
+                <p class="mini-label" style="color:var(--primary); font-weight:800; border-bottom:1px solid #eee; padding-bottom:5px;">1. COMPLÉTER LE DOSSIER</p>
+                
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:15px;">
+                    <div>
+                        <label class="mini-label">HEURE DE DÉBUT</label>
+                        <input type="time" class="luxe-input" value="${ev.event_time || ''}" 
+                               onchange="window.updateEventField('${ev.id}', 'event_time', this.value)">
+                    </div>
+                    <div>
+                        <label class="mini-label">DATE (MODIFIER)</label>
+                        <input type="date" class="luxe-input" value="${ev.event_date}" 
+                               onchange="window.updateEventField('${ev.id}', 'event_date', this.value)">
+                    </div>
+                </div>
+
+                <label class="mini-label" style="margin-top:15px; display:block;">LIEU PRÉCIS</label>
+                <input type="text" class="luxe-input" value="${ev.location || ''}" placeholder="Adresse, Salle..."
+                       onblur="window.updateEventField('${ev.id}', 'location', this.value)">
+                
+                <label class="mini-label" style="margin-top:15px; display:block;">DESCRIPTION / POST RÉSEAUX</label>
+                <textarea class="luxe-input" style="height:120px;" placeholder="Détails de l'événement et texte pour les réseaux sociaux..."
+                          onblur="window.updateEventField('${ev.id}', 'description', this.value)">${ev.description || ''}</textarea>
+                
+                <div style="margin-top:15px; background:#f8fafc; padding:10px; border-radius:8px; border:1px dashed #cbd5e1;">
+                    <label class="mini-label">MÉDIAS (PHOTOS / DOCS)</label>
+                    <input type="file" id="ev-media-up" style="display:none;" onchange="window.showNotice('Système', 'Fichier prêt')">
+                    <button onclick="document.getElementById('ev-media-up').click()" class="btn-gold" style="width:100%; font-size:0.7rem; margin-top:5px;">
+                        <i data-lucide="image" style="width:12px; margin-right:5px;"></i> AJOUTER DES PHOTOS
+                    </button>
+                </div>
+            </div>
+
+            <div style="background:${isReady ? '#f0fdf4' : '#fff7ed'}; padding:20px; border-radius:12px; border:1px solid ${isReady ? '#bbf7d0' : '#ffedd5'}; align-self: start;">
+                <p class="mini-label" style="color:${isReady ? '#166534' : '#9a3412'}; font-weight:800;">2. EXPLOITATION RÉSEAUX</p>
+                
+                ${isReady ? `
+                    <p style="font-size:0.8rem; color:#166534; margin:15px 0;">✨ <b>Statut : Prêt.</b> Toutes les informations sont collectées pour la communication.</p>
+                    
+                    <button onclick="window.copyEventText('${ev.id}')" class="btn-gold" style="width:100%; background:#22c55e; border:none; margin-bottom:10px; height:45px;">
+                        <i data-lucide="copy" style="width:14px; margin-right:8px;"></i> COPIER LA DESCRIPTION
+                    </button>
+                    
+                    <button onclick="window.showNotice('Media', 'Préparation de l\\'archive photos...')" class="btn-gold" style="width:100%; background:#1e293b; border:none; height:45px;">
+                        <i data-lucide="download" style="width:14px; margin-right:8px;"></i> TÉLÉCHARGER PHOTOS
+                    </button>
+                ` : `
+                    <p style="font-size:0.8rem; color:#9a3412; margin:15px 0; line-height:1.4;">
+                        ⚠️ <b>En attente d'infos.</b><br>
+                        Veuillez renseigner l'heure, le lieu et une description pour débloquer les outils de communication.
+                    </p>
+                    <div style="opacity:0.2; pointer-events:none;">
+                        <button class="btn-gold" style="width:100%; margin-bottom:10px;">COPIER LA DESCRIPTION</button>
+                        <button class="btn-gold" style="width:100%;">TÉLÉCHARGER PHOTOS</button>
+                    </div>
+                `}
+            </div>
+        </div>
+
+        <div style="margin-top:30px; padding-top:15px; border-top:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+            <button onclick="window.askDeleteEvent('${ev.id}', '${ev.title.replace(/'/g, "\\'")}')" style="color:#ef4444; background:none; border:none; font-size:0.7rem; cursor:pointer;">SUPPRIMER L'ÉVÉNEMENT</button>
             <span style="font-size:0.6rem; color:#94a3b8;">Créé par ${ev.created_by || 'Système'}</span>
         </div>
     `;
-    window.switchEventTab('infos', ev.id);
-};
-
-window.switchEventTab = async (tab, eventId) => {
-    // Gestion du style des boutons
-    document.querySelectorAll('.event-tab-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById(`etab-${tab}`).classList.add('active');
-
-    const content = document.getElementById('event-tab-content');
-    const { data: ev } = await supabaseClient.from('events').select('*').eq('id', eventId).single();
-
-    if(tab === 'infos') {
-        content.innerHTML = `
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
-                <div>
-                    <label class="mini-label">LOGISTIQUE</label>
-                    <p style="font-size:0.85rem;">📅 Date : ${new Date(ev.event_date).toLocaleDateString()}<br>📍 Lieu : ${ev.location || 'N/A'}</p>
-                    <label class="mini-label">FINANCES</label>
-                    <p style="font-size:0.85rem;">💰 Budget : ${ev.budget_estimated} €<br>📉 Réel : ${ev.budget_actual || 0} €</p>
-                </div>
-                <div>
-                    <label class="mini-label">STATUT ACTUEL</label>
-                    <select onchange="window.updateEventStatus('${ev.id}', this.value)" class="luxe-input" style="width:100%;">
-                        <option ${ev.status === 'Brouillon' ? 'selected' : ''}>Brouillon</option>
-                        <option ${ev.status === 'Confirmé' ? 'selected' : ''}>Confirmé</option>
-                        <option ${ev.status === 'Terminé' ? 'selected' : ''}>Terminé</option>
-                    </select>
-                    <label class="mini-label" style="margin-top:15px; display:block;">NOTES LOGISTIQUES</label>
-                    <textarea class="luxe-input" style="height:60px; font-size:0.8rem;" onblur="window.updateEventNotes('${ev.id}', this.value)">${ev.description || ''}</textarea>
-                </div>
-            </div>
-        `;
-    } 
-    else if(tab === 'guests') {
-        content.innerHTML = `<p style="font-size:0.75rem; color:#64748b; text-align:center;">Synchronisation avec la base CRM...</p>`;
-        // Logique de chargement des invités liée à la table donors
-        const { data: donors } = await supabaseClient.from('donors').select('first_name, last_name, company_name').limit(10);
-        content.innerHTML = `
-            <div style="max-height:200px; overflow-y:auto;">
-                <table class="luxe-table">
-                    ${donors.map(d => `<tr><td style="font-size:0.8rem;">${d.company_name || d.last_name}</td><td style="text-align:right;"><input type="checkbox"></td></tr>`).join('')}
-                </table>
-            </div>
-            <button class="btn-gold" style="width:100%; margin-top:10px; font-size:0.7rem;">GÉRER LA LISTE COMPLÈTE</button>
-        `;
-    }
-    else if(tab === 'media') {
-        content.innerHTML = `
-            <div style="border:2px dashed #e2e8f0; padding:20px; text-align:center; border-radius:8px;">
-                <i data-lucide="upload-cloud" style="width:30px; color:#cbd5e1; margin-bottom:10px;"></i>
-                <p style="font-size:0.75rem; color:#64748b;">Déposez vos plans de table, menus ou photos ici.</p>
-                <input type="file" id="ev-file" style="display:none;" onchange="window.showNotice('Media', 'Téléchargement...')">
-                <button onclick="document.getElementById('ev-file').click()" class="btn-gold" style="font-size:0.7rem; padding:5px 15px;">PARCOURIR</button>
-            </div>
-        `;
-    }
     lucide.createIcons();
 };
 
-// ==========================================
-// 4. MISES À JOUR ET SUPPRESSION
-// ==========================================
-window.updateEventStatus = async (id, status) => {
-    await supabaseClient.from('events').update({ status }).eq('id', id);
-    loadEvents();
+// 4. UTILITAIRES DE MISE À JOUR ET COPIE
+window.updateEventField = async (id, field, value) => {
+    const { error } = await supabaseClient.from('events').update({ [field]: value }).eq('id', id);
+    if(error) console.error("Erreur MAJ:", error);
+    // On ne ferme pas le modal, on recharge juste le fond pour mettre à jour les couleurs du dashboard
+    loadEvents(); 
 };
 
-window.updateEventNotes = async (id, description) => {
-    await supabaseClient.from('events').update({ description }).eq('id', id);
+window.copyEventText = async (id) => {
+    const { data } = await supabaseClient.from('events').select('description').eq('id', id).single();
+    if (data && data.description) {
+        navigator.clipboard.writeText(data.description).then(() => {
+            window.showNotice("Copié !", "La description est dans votre presse-papier.");
+        });
+    }
 };
 
 window.askDeleteEvent = (id, title) => {
-    if(confirm(`Supprimer l'événement "${title}" ? Cette action est irréversible.`)) {
-        supabaseClient.from('events').delete().eq('id', id).then(() => {
-            closeCustomModal();
-            loadEvents();
-        });
-    }
+    window.askConfirmation("SUPPRIMER L'ÉVÉNEMENT ?", `Voulez-vous vraiment supprimer "${title}" ?`, async () => {
+        await supabaseClient.from('events').delete().eq('id', id);
+        closeCustomModal();
+        loadEvents();
+    });
 };
