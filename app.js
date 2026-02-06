@@ -269,7 +269,6 @@ window.updateSecurityPin = async () => {
 // MESSAGERIE & MENTIONS @ (VERSION PRO)
 // ==========================================
 
-let allUsersForMentions = [];
 let selectedFile = null; // Correction : Variable initialisée
 
 async function loadUsersForMentions() {
