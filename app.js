@@ -641,14 +641,35 @@ window.addDonationPrompt = (donorId) => {
 };
 
 window.execAddDonation = async (donorId) => {
-    const amount = document.getElementById('don-amt').value;
-    const date = document.getElementById('don-date').value;
-    if (!amount || !date) return;
-    await supabaseClient.from('donations').insert([{ 
-        donor_id: donorId, amount, date, method: document.getElementById('don-method').value 
-    }]);
+    const amountInput = document.getElementById('don-amt').value;
+    const dateInput = document.getElementById('don-date').value;
+    const methodInput = document.getElementById('don-method').value;
+
+    if (!amountInput || !dateInput) {
+        return window.showNotice("Champs manquants", "Le montant et la date sont obligatoires.", "error");
+    }
+
+    // On prépare l'objet proprement
+    const newDonation = {
+        donor_id: donorId, // Doit être un UUID
+        amount: parseFloat(amountInput), // Force le type NOMBRE (crucial pour le SQL)
+        date: dateInput,
+        method: methodInput
+    };
+
+    // INSERTION : On passe l'objet DANS un tableau [ ]
+    const { error } = await supabaseClient
+        .from('donations')
+        .insert([newDonation]); 
+
+    if (error) {
+        console.error("Erreur détaillée:", error);
+        return window.showNotice("Erreur SQL", error.message, "error");
+    }
+
+    window.showNotice("Succès", "Don enregistré avec succès.");
     closeCustomModal();
-    loadDonors();
+    loadDonors(); // Pour rafraîchir les totaux
 };
 
 window.askDeleteDonor = (id, name) => {
