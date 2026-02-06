@@ -86,6 +86,72 @@ window.showNotice = (title, message) => {
 };
 
 // ==========================================
+// GESTION DES CONTACTS (ANNUAIRE)
+// ==========================================
+
+async function loadContacts() {
+    const container = document.getElementById('tab-contacts');
+    container.innerHTML = `<div class="loader-simple">Chargement de l'annuaire...</div>`;
+
+    const { data: profiles, error } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .order('portal', { ascending: true })
+        .order('last_name', { ascending: true });
+
+    if (error) {
+        container.innerHTML = "Erreur de chargement des contacts.";
+        return;
+    }
+
+    let html = `
+        <div style="padding: 20px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:25px;">
+                <h2 style="color:var(--primary); margin:0;">Annuaire Alsatia</h2>
+                <span style="font-size:0.8rem; background:#eee; padding:5px 12px; border-radius:15px;">${profiles.length} membres</span>
+            </div>
+            
+            <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap:20px;">
+    `;
+
+    profiles.forEach(p => {
+        html += `
+            <div class="contact-card" style="background:white; border-radius:12px; border:1px solid #e2e8f0; padding:20px; box-shadow:0 2px 5px rgba(0,0,0,0.05); transition: 0.3s;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
+                    <span style="font-size:0.65rem; font-weight:bold; color:#d4af37; text-transform:uppercase; letter-spacing:1px; background:rgba(212,175,55,0.1); padding:4px 8px; border-radius:4px;">
+                        ${p.portal}
+                    </span>
+                    <i data-lucide="shield-check" style="width:16px; color:#64748b;"></i>
+                </div>
+                
+                <div style="font-size:1.1rem; font-weight:700; color:#1e293b; margin-bottom:4px;">
+                    ${p.first_name} ${p.last_name.toUpperCase()}
+                </div>
+                
+                <div style="font-size:0.85rem; color:#64748b; margin-bottom:20px; font-style:italic;">
+                    ${p.job_title || 'Membre Alsatia'}
+                </div>
+
+                <div style="display:flex; gap:10px; border-top:1px solid #f1f5f9; padding-top:15px;">
+                    <a href="mailto:${p.email}" class="btn-contact-action" style="flex:1; display:flex; align-items:center; justify-content:center; padding:10px; background:#f8fafc; border-radius:8px; text-decoration:none; color:#1e293b; font-size:0.8rem; border:1px solid #e2e8f0; gap:8px;">
+                        <i data-lucide="mail" style="width:16px;"></i> Mail
+                    </a>
+                    ${p.phone ? `
+                        <a href="tel:${p.phone}" class="btn-contact-action" style="flex:1; display:flex; align-items:center; justify-content:center; padding:10px; background:#f8fafc; border-radius:8px; text-decoration:none; color:#1e293b; font-size:0.8rem; border:1px solid #e2e8f0; gap:8px;">
+                            <i data-lucide="phone" style="width:16px;"></i> Appeler
+                        </a>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    });
+
+    html += `</div></div>`;
+    container.innerHTML = html;
+    lucide.createIcons();
+}
+
+// ==========================================
 // GESTION DU PROFIL UTILISATEUR & SÉCURITÉ
 // ==========================================
 
