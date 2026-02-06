@@ -557,10 +557,11 @@ window.execCreateDonor = async () => {
 };
 
 // ==========================================
-// 3. DOSSIER DÉTAILLÉ & ACTIONS CRM (ÉDITION TOTALE)
+// 3. DOSSIER DÉTAILLÉ & ACTIONS CRM
 // ==========================================
 window.openDonorFile = async (id) => {
     const donor = allDonorsData.find(d => d.id === id);
+    if (!donor) return;
     const dons = donor.donations || [];
     
     document.getElementById('custom-modal').style.display = 'flex';
@@ -568,7 +569,7 @@ window.openDonorFile = async (id) => {
         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px;">
             <div>
                 <span class="mini-label">ID: ${donor.id.substring(0,8)}...</span>
-                <h3 style="margin:0; color:var(--primary);">DOSSIER DONATEUR</h3>
+                <h3 style="margin:0; color:var(--primary);">ÉDITION DU DOSSIER</h3>
             </div>
             <div style="display:flex; gap:10px;">
                 <button onclick="window.exportDonorToExcel('${donor.id}')" class="btn-gold" style="padding:5px 10px; font-size:0.7rem;">EXCEL</button>
@@ -579,7 +580,7 @@ window.openDonorFile = async (id) => {
 
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
             <div>
-                <p class="mini-label">IDENTITÉ & COORDONNÉES</p>
+                <p class="mini-label">COORDONNÉES ÉDITABLES</p>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;">
                     <input type="text" id="edit-last" class="luxe-input" value="${donor.last_name || ''}" placeholder="NOM *">
                     <input type="text" id="edit-first" class="luxe-input" value="${donor.first_name || ''}" placeholder="PRÉNOM">
@@ -587,8 +588,6 @@ window.openDonorFile = async (id) => {
                 <input type="text" id="edit-company" class="luxe-input" value="${donor.company_name || ''}" placeholder="ENTREPRISE" style="margin-bottom:8px;">
                 <input type="email" id="edit-email" class="luxe-input" value="${donor.email || ''}" placeholder="EMAIL" style="margin-bottom:8px;">
                 <input type="text" id="edit-phone" class="luxe-input" value="${donor.phone || ''}" placeholder="TÉLÉPHONE" style="margin-bottom:8px;">
-                
-                <p class="mini-label" style="margin-top:10px;">ADRESSE</p>
                 <input type="text" id="edit-address" class="luxe-input" value="${donor.address || ''}" placeholder="ADRESSE" style="margin-bottom:8px;">
                 <div style="display:grid; grid-template-columns:1fr 2fr; gap:8px;">
                     <input type="text" id="edit-zip" class="luxe-input" value="${donor.zip_code || ''}" placeholder="CP">
@@ -598,32 +597,28 @@ window.openDonorFile = async (id) => {
 
             <div>
                 <p class="mini-label">SUIVI CRM</p>
-                <label class="mini-label" style="font-size:0.6rem; opacity:0.7;">ORIGINE DU CONTACT</label>
                 <input type="text" id="edit-origin" class="luxe-input" value="${donor.origin || ''}" placeholder="Origine" style="margin-bottom:8px;">
+                <input type="text" id="edit-next" class="luxe-input" value="${donor.next_action || ''}" placeholder="Prochaine action" style="margin-bottom:8px;">
+                <textarea id="edit-notes" class="luxe-input" style="height:115px; margin-bottom:10px;" placeholder="Notes...">${donor.notes || ''}</textarea>
                 
-                <label class="mini-label" style="font-size:0.6rem; opacity:0.7;">PROCHAINE ACTION</label>
-                <input type="text" id="edit-next" class="luxe-input" value="${donor.next_action || ''}" placeholder="Relancer le..." style="margin-bottom:8px;">
-                
-                <label class="mini-label" style="font-size:0.6rem; opacity:0.7;">NOTES INTERNES</label>
-                <textarea id="edit-notes" class="luxe-input" style="height:80px; margin-bottom:10px;">${donor.notes || ''}</textarea>
-                
-                <button onclick="window.updateDonorFields('${donor.id}')" class="btn-gold" style="width:100%; height:40px; font-weight:800;">ENREGISTRER TOUTES LES MODIFICATIONS</button>
-                <button onclick="window.addDonationPrompt('${id}')" style="width:100%; margin-top:8px; background:var(--primary); color:white; border:none; padding:8px; border-radius:6px; cursor:pointer; font-size:0.7rem;">+ ENREGISTRER UN DON</button>
+                <button onclick="window.updateDonorFields('${donor.id}')" class="btn-gold" style="width:100%; height:40px; font-weight:800; margin-bottom:8px;">ENREGISTRER LES MODIFICATIONS</button>
+                <button onclick="window.addDonationPrompt('${id}')" style="width:100%; background:var(--primary); color:white; border:none; padding:8px; border-radius:6px; cursor:pointer; font-size:0.7rem;">+ AJOUTER UN DON</button>
             </div>
         </div>
 
         <div style="margin-top:20px; max-height:180px; overflow-y:auto; border-top:1px solid #eee;">
             <table class="luxe-table">
-                <thead><tr><th>DATE</th><th>MONTANT</th><th>MODE</th><th style="text-align:right;">ACTIONS</th></tr></thead>
+                <thead><tr><th>DATE</th><th>MONTANT</th><th>MODE</th><th>REÇU FISCAL</th><th style="text-align:right;">ACTIONS</th></tr></thead>
                 <tbody>
                     ${dons.map(don => `
                         <tr>
                             <td>${new Date(don.date).toLocaleDateString()}</td>
                             <td style="font-weight:700;">${don.amount}€</td>
                             <td>${don.payment_mode || '-'}</td>
+                            <td>${don.fiscal_receipt_id || '-'}</td>
                             <td style="text-align:right;">
-                                <i data-lucide="file-text" class="icon-btn" style="color:var(--gold); cursor:pointer; margin-right:8px;" onclick="window.generateReceipt('${don.id}')"></i>
-                                <i data-lucide="trash-2" class="icon-btn" style="color:#ef4444; cursor:pointer;" onclick="window.askDeleteDonation('${don.id}')"></i>
+                                <i data-lucide="file-text" style="width:14px; color:var(--gold); cursor:pointer; margin-right:10px;" onclick="window.generateReceipt('${don.id}')"></i>
+                                <i data-lucide="trash-2" style="width:14px; color:#ef4444; cursor:pointer;" onclick="window.askDeleteDonation('${don.id}')"></i>
                             </td>
                         </tr>`).join('')}
                 </tbody>
@@ -633,7 +628,6 @@ window.openDonorFile = async (id) => {
 };
 
 window.updateDonorFields = async (id) => {
-    // Récupération de TOUTES les valeurs des inputs
     const payload = {
         last_name: document.getElementById('edit-last').value.toUpperCase(),
         first_name: document.getElementById('edit-first').value,
@@ -649,156 +643,97 @@ window.updateDonorFields = async (id) => {
         last_modified_by: `${currentUser.first_name} ${currentUser.last_name}`
     };
 
-    const { error } = await supabaseClient
-        .from('donors')
-        .update(payload)
-        .eq('id', id);
-
-    if (error) {
-        window.showNotice("Erreur", "Impossible de mettre à jour : " + error.message, "error");
-    } else {
-        window.showNotice("Mise à jour", "La fiche a été intégralement synchronisée.");
-        loadDonors(); // Rafraîchit la liste principale
-    }
-};
-};
-
-// FONCTION MOTEUR POUR LES CONFIRMATIONS (SANS WINDOW.CONFIRM)
-window.askConfirmation = (title, message, onConfirm) => {
-    showCustomModal(`
-        <div style="text-align:center; padding:10px;">
-            <div style="background:#fee2e2; width:50px; height:50px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 15px;">
-                <i data-lucide="alert-triangle" style="color:#ef4444; width:24px; height:24px;"></i>
-            </div>
-            <h3 style="margin:0 0 10px 0; color:var(--primary); font-family:'Playfair Display', serif;">${title}</h3>
-            <p style="font-size:0.85rem; color:#64748b; line-height:1.5; margin-bottom:25px;">${message}</p>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-                <button onclick="closeCustomModal()" class="luxe-input" style="cursor:pointer; margin:0; background:#f8fafc;">ANNULER</button>
-                <button id="confirm-btn-action" class="btn-gold" style="background:#ef4444; border:none; margin:0; color:white; font-weight:800;">CONFIRMER</button>
-            </div>
-        </div>
-    `);
-    lucide.createIcons();
+    const { error } = await supabaseClient.from('donors').update(payload).eq('id', id);
+    if (error) return window.showNotice("Erreur", error.message, "error");
     
-    // On attache l'action au bouton de confirmation
-    document.getElementById('confirm-btn-action').onclick = onConfirm;
+    window.showNotice("Mise à jour", "Fiche synchronisée avec succès.");
+    loadDonors();
 };
 
 // ==========================================
-// 4. GESTION FINANCIÈRE, EXPORTS ET SUPPRESSION
+// 4. GESTION FINANCIÈRE ET EXPORTS
 // ==========================================
 window.addDonationPrompt = (donorId) => {
     showCustomModal(`
         <h3 class="luxe-title">NOUVEAU DON</h3>
-        <label class="mini-label">MONTANT (€) *</label><input type="number" id="don-amt" class="luxe-input">
-        <label class="mini-label">DATE *</label><input type="date" id="don-date" class="luxe-input" value="${new Date().toISOString().split('T')[0]}">
-        <label class="mini-label">N° REÇU FISCAL (OPTIONNEL)</label><input type="text" id="don-fiscal" class="luxe-input" placeholder="Ex: RF-2025-001">
-        <label class="mini-label">MODE DE PAIEMENT</label>
-        <select id="don-method" class="luxe-input">
+        <input type="number" id="don-amt" class="luxe-input" placeholder="MONTANT (€) *">
+        <input type="date" id="don-date" class="luxe-input" value="${new Date().toISOString().split('T')[0]}" style="margin-top:10px;">
+        <input type="text" id="don-fiscal" class="luxe-input" placeholder="N° REÇU FISCAL" style="margin-top:10px;">
+        <select id="don-method" class="luxe-input" style="margin-top:10px;">
             <option value="Virement">Virement</option>
             <option value="Chèque">Chèque</option>
             <option value="Espèces">Espèces</option>
-            <option value="CB">Carte Bancaire</option>
+            <option value="CB">CB</option>
         </select>
         <button onclick="window.execAddDonation('${donorId}')" class="btn-gold" style="width:100%; margin-top:20px;">VALIDER</button>
     `);
 };
 
 window.execAddDonation = async (donorId) => {
-    const amountVal = document.getElementById('don-amt').value;
-    const dateVal = document.getElementById('don-date').value;
-    const modeVal = document.getElementById('don-method').value;
-    const fiscalId = document.getElementById('don-fiscal').value;
+    const amount = document.getElementById('don-amt').value;
+    const date = document.getElementById('don-date').value;
+    if (!amount || !date) return window.showNotice("Champs requis", "Montant et date obligatoires.", "error");
 
-    if (!amountVal || !dateVal) {
-        return window.showNotice("Champs requis", "Le montant et la date sont obligatoires.", "error");
-    }
+    const { error } = await supabaseClient.from('donations').insert([{
+        donor_id: donorId,
+        amount: parseFloat(amount),
+        date: date,
+        payment_mode: document.getElementById('don-method').value,
+        fiscal_receipt_id: document.getElementById('don-fiscal').value,
+        thanked: false
+    }]);
 
-    const { error } = await supabaseClient
-        .from('donations')
-        .insert([{
-            donor_id: donorId,
-            amount: parseFloat(amountVal),
-            date: dateVal,
-            payment_mode: modeVal,
-            fiscal_receipt_id: fiscalId,
-            thanked: false
-        }]);
-
-    if (error) return window.showNotice("Erreur SQL", error.message, "error");
-
+    if (error) return window.showNotice("Erreur", error.message, "error");
     window.showNotice("Succès", "Don enregistré.");
     closeCustomModal();
     loadDonors();
 };
 
-window.askDeleteDonation = (donationId) => {
-    window.askConfirmation(
-        "Supprimer ce don ?",
-        "Cette transaction sera définitivement retirée de l'historique financier.",
-        async () => {
-            const { error } = await supabaseClient.from('donations').delete().eq('id', donationId);
-            if (!error) {
-                window.showNotice("Supprimé", "La transaction a été effacée.");
-                closeCustomModal();
-                loadDonors();
-            }
-        }
-    );
-};
-
 window.exportDonorToExcel = (donorId) => {
     const donor = allDonorsData.find(d => d.id === donorId);
     if (!donor) return;
-
-    const infoData = [{
-        NOM: donor.last_name, PRENOM: donor.first_name || '', SOCIETE: donor.company_name || '',
-        EMAIL: donor.email || '', TEL: donor.phone || '', ADRESSE: donor.address || '',
-        CP: donor.zip_code || '', VILLE: donor.city || '', ORIGINE: donor.origin || '',
-        SUIVI: donor.next_action || '', NOTES: donor.notes || ''
-    }];
-
-    const donsData = (donor.donations || []).map(don => ({
-        DATE: don.date, MONTANT: don.amount + " €", MODE: don.payment_mode, RECU_FISCAL: don.fiscal_receipt_id || '-'
-    }));
-
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(infoData), "COORDONNÉES");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(donsData), "HISTORIQUE DONS");
-    XLSX.writeFile(wb, `Fiche_${donor.last_name.toUpperCase()}.xlsx`);
-    window.showNotice("Export", "Le fichier Excel a été généré.");
+    const wsInfo = XLSX.utils.json_to_sheet([donor]);
+    const wsDons = XLSX.utils.json_to_sheet(donor.donations || []);
+    XLSX.utils.book_append_sheet(wb, wsInfo, "COORDONNÉES");
+    XLSX.utils.book_append_sheet(wb, wsDons, "DONS");
+    XLSX.writeFile(wb, `Fiche_${donor.last_name}.xlsx`);
 };
 
 // ==========================================
 // 5. SÉCURITÉ ET MAINTENANCE
 // ==========================================
+window.askDeleteDonation = (donationId) => {
+    window.askConfirmation("SUPPRIMER DON ?", "Effacer cette transaction ?", async () => {
+        await supabaseClient.from('donations').delete().eq('id', donationId);
+        window.showNotice("Supprimé", "Don effacé.");
+        closeCustomModal(); 
+        loadDonors();
+    });
+};
+
 window.askDeleteDonor = (id, name) => {
-    window.askConfirmation(
-        "SUPPRESSION DÉFINITIVE",
-        `Voulez-vous supprimer la fiche de ${name} ainsi que tout son historique ?`,
-        () => window.execDeleteDonor(id)
-    );
+    window.askConfirmation("SUPPRESSION TOTALE", `Supprimer la fiche de ${name} ?`, async () => {
+        await supabaseClient.from('donations').delete().eq('donor_id', id);
+        await supabaseClient.from('donors').delete().eq('id', id);
+        window.showNotice("CRM", "Fiche supprimée.");
+        closeCustomModal(); 
+        loadDonors();
+    });
 };
 
-window.execDeleteDonor = async (id) => {
-    await supabaseClient.from('donations').delete().eq('donor_id', id);
-    await supabaseClient.from('donors').delete().eq('id', id);
-    closeCustomModal();
-    loadDonors();
-    window.showNotice("Suppression", "La fiche a été retirée du CRM.");
-};
-
-window.exportAllDonors = (year = new Date().getFullYear()) => {
-    const data = allDonorsData.map(d => ({
-        Nom: d.last_name, Entreprise: d.company_name || '', 
-        Total: d.donations?.reduce((acc, cur) => acc + Number(cur.amount), 0) || 0,
-        Portail: d.entity
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, `Donateurs ${year}`);
-    XLSX.writeFile(wb, `Export_Global_Alsatia_${year}.xlsx`);
-    window.showNotice("Export", "Export global terminé.");
+window.askConfirmation = (title, message, onConfirm) => {
+    showCustomModal(`
+        <div style="text-align:center;">
+            <h3 style="color:var(--primary); font-family:'Playfair Display', serif;">${title}</h3>
+            <p style="font-size:0.9rem; margin-bottom:20px;">${message}</p>
+            <div style="display:flex; gap:10px;">
+                <button onclick="closeCustomModal()" class="luxe-input" style="flex:1;">NON</button>
+                <button id="btn-confirm" class="btn-gold" style="flex:1; background:#ef4444; border:none;">OUI</button>
+            </div>
+        </div>
+    `);
+    document.getElementById('btn-confirm').onclick = onConfirm;
 };
 
 window.generateReceipt = (id) => { window.showNotice("PDF", "Génération du reçu fiscal CERFA..."); };
