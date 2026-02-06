@@ -50,25 +50,22 @@ function initInterface() {
     const portal = currentUser.portal;
     const logoSrc = LOGOS[portal] || 'logo_alsatia.png';
 
-    // 1. Sidebar : Petit logo et infos
+    // Sidebar
     const sideLogo = document.getElementById('entity-logo-container');
     if(sideLogo) sideLogo.innerHTML = `<img src="${logoSrc}" class="entity-logo">`;
+    
     document.getElementById('user-name-display').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
     document.getElementById('current-portal-display').innerText = portal;
 
-    // 2. Accueil : Logo géant et Bienvenue (Prénom + Nom)
+    // Accueil (Logo Géant)
     const bigLogo = document.getElementById('big-logo-display');
-    if(bigLogo) {
-        bigLogo.innerHTML = `<img src="${logoSrc}" style="width:280px; max-width:80%; filter:drop-shadow(0 20px 30px rgba(0,0,0,0.15));">`;
-    }
+    if(bigLogo) bigLogo.innerHTML = `<img src="${logoSrc}" style="width:250px; filter:drop-shadow(0 20px 30px rgba(0,0,0,0.15));">`;
     
-    const welcomeName = document.getElementById('welcome-full-name');
-    if(welcomeName) welcomeName.innerText = `${currentUser.first_name} ${currentUser.last_name}`;
-    
-    const welcomePortal = document.getElementById('welcome-portal-label');
-    if(welcomePortal) welcomePortal.innerText = `Accès sécurisé — ${portal}`;
+    document.getElementById('welcome-full-name').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
+    document.getElementById('welcome-portal-label').innerText = `Portail Officiel — ${portal}`;
 
-    // 3. Gestion de l'onglet Donateurs (Uniquement pour l'Institut)
+    // GESTION DYNAMIQUE DU MENU
+    // On affiche l'onglet donateurs seulement pour l'Institut
     const navDonors = document.getElementById('nav-donors');
     if (navDonors) {
         navDonors.style.display = (portal === "Institut Alsatia") ? "flex" : "none";
@@ -76,6 +73,30 @@ function initInterface() {
 
     lucide.createIcons();
 }
+
+// Fonction de changement d'onglet (à mettre en dehors de initInterface)
+window.switchTab = (id) => {
+    // 1. Gérer les classes actives sur les menus
+    document.querySelectorAll('.side-nav li').forEach(li => li.classList.remove('active'));
+    const activeNav = document.getElementById(`nav-${id}`);
+    if (activeNav) activeNav.classList.add('active');
+
+    // 2. Gérer l'affichage des sections
+    document.querySelectorAll('.page-content').forEach(section => section.classList.remove('active'));
+    const targetSection = document.getElementById(`tab-${id}`);
+    if (targetSection) {
+        targetSection.classList.add('active');
+        // Reset du scroll pour ne pas rester en bas de page
+        targetSection.scrollTop = 0; 
+    }
+
+    // 3. Chargements spécifiques
+    if (id === 'contacts') loadContacts();
+    if (id === 'chat' && typeof loadChatMessages === 'function') loadChatMessages();
+    if (id === 'donors' && typeof loadDonors === 'function') loadDonors();
+
+    lucide.createIcons();
+};
 
 window.switchTab = (id) => {
     document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
