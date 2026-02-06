@@ -97,33 +97,27 @@ window.switchTab = (id) => {
 // ==========================================
 async function loadContacts() {
     const list = document.getElementById('contacts-list');
-    list.innerHTML = `<p>Chargement des membres...</p>`;
+    if(!list) return;
+    
+    list.innerHTML = `<p style="grid-column: 1/-1; text-align: center; padding: 20px;">Chargement de l'annuaire...</p>`;
 
     const { data: users, error } = await supabaseClient
         .from('profiles')
         .select('*')
-        .order('portal', { ascending: true })
-        .order('last_name', { ascending: true });
+        .order('portal', { ascending: true });
 
     if (error) return list.innerHTML = "Erreur de chargement.";
 
     list.innerHTML = users.map(u => `
-        <div class="contact-card" style="background:white; padding:20px; border-radius:12px; border:1px solid #e2e8f0; box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);">
-            <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:10px;">
-                <span style="font-size:0.65rem; font-weight:800; color:#d4af37; letter-spacing:1px; background:rgba(212,175,55,0.1); padding:4px 8px; border-radius:4px;">${u.portal}</span>
-                <i data-lucide="shield-check" style="width:16px; color:#107c10;"></i>
+        <div class="contact-card" style="background:white; padding:20px; border-radius:12px; border:1px solid #e2e8f0; display:flex; flex-direction:column; justify-content:space-between; min-height:180px;">
+            <div>
+                <span style="font-size:0.65rem; font-weight:800; color:#d4af37; letter-spacing:1px; text-transform:uppercase;">${u.portal}</span>
+                <h3 style="margin:5px 0; font-size:1.1rem; color:#1e293b;">${u.first_name} ${u.last_name.toUpperCase()}</h3>
+                <p style="font-size:0.85rem; color:#64748b;">${u.job_title || 'Collaborateur'}</p>
             </div>
-            <h3 style="margin:0; font-size:1.1rem; color:#1e293b;">${u.first_name} ${u.last_name.toUpperCase()}</h3>
-            <p style="margin:5px 0 20px 0; font-size:0.85rem; color:#64748b; font-weight:500;">${u.job_title || 'Membre Alsatia'}</p>
-            
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; padding-top:15px; border-top:1px solid #f1f5f9;">
-                <a href="mailto:${u.email}" style="text-decoration:none; display:flex; align-items:center; justify-content:center; gap:8px; background:#f8fafc; color:#1e293b; padding:10px; border-radius:8px; font-size:0.75rem; border:1px solid #e2e8f0;">
-                    <i data-lucide="mail" style="width:14px;"></i> Écrire
-                </a>
-                ${u.phone ? `
-                <a href="tel:${u.phone}" style="text-decoration:none; display:flex; align-items:center; justify-content:center; gap:8px; background:#f8fafc; color:#1e293b; padding:10px; border-radius:8px; font-size:0.75rem; border:1px solid #e2e8f0;">
-                    <i data-lucide="phone" style="width:14px;"></i> Appeler
-                </a>` : ''}
+            <div style="display:flex; gap:10px; margin-top:15px; border-top:1px solid #f1f5f9; padding-top:15px;">
+                <a href="mailto:${u.email}" style="flex:1; text-align:center; text-decoration:none; color:#1e293b; background:#f8fafc; padding:8px; border-radius:6px; font-size:0.75rem; border:1px solid #eee;">Mail</a>
+                ${u.phone ? `<a href="tel:${u.phone}" style="flex:1; text-align:center; text-decoration:none; color:#1e293b; background:#f8fafc; padding:8px; border-radius:6px; font-size:0.75rem; border:1px solid #eee;">Appeler</a>` : ''}
             </div>
         </div>
     `).join('');
