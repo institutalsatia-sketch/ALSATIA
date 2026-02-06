@@ -199,3 +199,36 @@ body { font-family: 'Inter', sans-serif; margin: 0; background: var(--bg); displ
     gap: 20px;
     margin-bottom: 40px;
 }
+
+/* Correction de l'affichage coupé */
+.main-content {
+    height: 100vh;
+    overflow: hidden; /* Empêche le double scroll */
+    display: flex;
+    flex-direction: column;
+}
+
+.page-content {
+    flex: 1;
+    overflow-y: auto; /* Active le scroll seulement ici */
+    padding: 40px;
+    /* Ajustement pour éviter que le dernier élément touche le bord bas */
+    padding-bottom: 100px; 
+}
+
+/* Style spécifique pour l'Annuaire (Grid) */
+#contacts-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+    padding-bottom: 40px;
+}
+
+/* Amélioration visuelle du scrollbar (optionnel mais plus joli) */
+.page-content::-webkit-scrollbar {
+    width: 6px;
+}
+.page-content::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+}
