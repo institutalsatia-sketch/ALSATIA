@@ -266,13 +266,17 @@ window.updateSecurityPin = async () => {
 };
 
 // ==========================================
-// MESSAGERIE & MENTIONS @
+// MESSAGERIE & MENTIONS @ (VERSION PRO)
 // ==========================================
+
+let allUsersForMentions = [];
+let selectedFile = null; // Correction : Variable initialisée
 
 async function loadUsersForMentions() {
     const { data } = await supabaseClient.from('profiles').select('first_name, last_name, portal');
     const entities = ["Institut Alsatia", "Academia Alsatia", "Cours Herrade de Landsberg", "Collège Saints Louis et Zélie Martin"];
     if (data) {
+        // Formatage propre pour les suggestions
         const users = data.map(u => `${u.first_name} ${u.last_name} (${u.portal})`);
         allUsersForMentions = [...entities, ...users];
     } else {
@@ -282,20 +286,21 @@ async function loadUsersForMentions() {
 
 function setupMentionLogic() {
     const input = document.getElementById('chat-input');
-    const container = document.querySelector('.input-wrapper');
+    const container = document.querySelector('.chat-input-area'); // Assure-toi que ce container est en position: relative
     if(!input || !container) return;
 
     let suggestList = document.getElementById('mention-suggestions');
     if(!suggestList) {
         suggestList = document.createElement('div');
         suggestList.id = "mention-suggestions";
-        suggestList.className = "mention-suggestions-box";
+        suggestList.className = "mention-suggestions-box"; // Style à définir en CSS (white, shadow, border-gold)
         container.appendChild(suggestList);
     }
 
-    input.addEventListener('input', () => {
-        const val = input.value;
-        const words = val.split(/\s/);
+    input.addEventListener('input', (e) => {
+        const cursorPosition = input.selectionStart;
+        const textBeforeCursor = input.value.substring(0, cursorPosition);
+        const words = textBeforeCursor.split(/\s/);
         const lastWord = words[words.length - 1];
 
         if (lastWord.startsWith('@')) {
@@ -308,8 +313,13 @@ function setupMentionLogic() {
                 
                 document.querySelectorAll('.suggest-item').forEach(item => {
                     item.onclick = () => {
-                        words[words.length - 1] = `@${item.innerText} `;
-                        input.value = words.join(' ');
+                        const textAfterCursor = input.value.substring(cursorPosition);
+                        const mention = `@${item.innerText} `;
+                        
+                        // Reconstruction intelligente du texte à la position du curseur
+                        words[words.length - 1] = mention;
+                        input.value = words.join(' ') + textAfterCursor;
+                        
                         suggestList.style.display = 'none';
                         input.focus();
                     };
@@ -317,6 +327,13 @@ function setupMentionLogic() {
             } else { suggestList.style.display = 'none'; }
         } else { suggestList.style.display = 'none'; }
     });
+}
+
+// Sécurisation contre les injections XSS
+function escapeHTML(str) {
+    const p = document.createElement('p');
+    p.textContent = str;
+    return p.innerHTML;
 }
 
 async function loadChatMessages() {
@@ -327,42 +344,58 @@ async function loadChatMessages() {
     
     const { data } = await supabaseClient.from('chat_global').select('*').eq('subject', subj).order('created_at');
     const box = document.getElementById('chat-box');
-    
+    if(!box) return;
+
     box.innerHTML = (data || []).map(m => {
-        const isMe = m.author_name === currentUser.first_name;
-        const fullName = m.author_full_name || m.author_name;
-        const content = m.content.replace(/@([\wÀ-ÿ-\s()]+)/g, '<span class="mention-badge">@$1</span>');
+        const isMe = m.author_full_name === `${currentUser.first_name} ${currentUser.last_name}`;
+        
+        // Sécurisation puis application du badge de mention
+        let contentHtml = escapeHTML(m.content);
+        contentHtml = contentHtml.replace(/@([\wÀ-ÿ-\s()]+)/g, '<span class="mention-badge">@$1</span>');
         
         return `
             <div class="message ${isMe ? 'my-msg' : ''}">
-                <div class="msg-meta" style="font-size:0.7rem; margin-bottom:3px;">
-                    <b style="color:var(--gold);">${fullName}</b> <span style="opacity:0.7;"> • ${m.portal}</span>
+                <div class="msg-meta" style="font-size:0.7rem; margin-bottom:4px; display:flex; justify-content: ${isMe ? 'flex-end' : 'flex-start'}; gap:8px;">
+                    <b style="color:var(--gold);">${m.author_full_name}</b> 
+                    <span style="opacity:0.6;">• ${m.portal}</span>
                 </div>
-                <div class="msg-body" onclick="${isMe ? `askEditMsg('${m.id}','${m.content.replace(/'/g, "\\'")}')` : ''}">
-                    ${content}
+                <div class="msg-bubble" style="${isMe ? 'background:var(--primary); color:white;' : 'background:#f1f5f9; color:var(--primary);'} border-radius:12px; padding:10px; position:relative;">
+                    <div class="msg-body" style="font-size:0.9rem; cursor: ${isMe ? 'pointer' : 'default'};" onclick="${isMe ? `askEditMsg('${m.id}','${m.content.replace(/'/g, "\\'")}')` : ''}">
+                        ${contentHtml}
+                    </div>
+                    ${m.file_url ? `
+                        <a href="${m.file_url}" target="_blank" class="file-link" style="display:block; margin-top:8px; font-size:0.75rem; color:var(--gold); text-decoration:none; border-top:1px solid rgba(180,145,87,0.3); padding-top:5px;">
+                            <i data-lucide="file-text" style="width:12px; vertical-align:middle;"></i> Document joint
+                        </a>` : ''}
                 </div>
-                ${m.file_url ? `<a href="${m.file_url}" target="_blank" class="file-link">📄 Document</a>` : ''}
-                ${isMe ? `<div class="msg-actions"><span onclick="askDeleteMsg('${m.id}')">Supprimer</span></div>` : ''}
+                ${isMe ? `<div class="msg-actions" style="text-align:right; margin-top:3px;">
+                            <span onclick="askDeleteMsg('${id}')" style="font-size:0.65rem; color:#ef4444; cursor:pointer; opacity:0.7;">Supprimer</span>
+                          </div>` : ''}
             </div>
         `;
     }).join('');
+    
+    lucide.createIcons();
     box.scrollTop = box.scrollHeight;
 }
 
 window.sendChatMessage = async () => {
     const input = document.getElementById('chat-input');
     const subj = document.getElementById('chat-subject-filter').value;
-    if(!input.value.trim() && !selectedFile) return;
+    const content = input.value.trim();
+    
+    if(!content && !selectedFile) return;
 
     let fUrl = null;
     if (selectedFile) {
         const path = `chat/${Date.now()}_${selectedFile.name}`;
-        const { data } = await supabaseClient.storage.from('documents').upload(path, selectedFile);
+        const { data, error } = await supabaseClient.storage.from('documents').upload(path, selectedFile);
         if (data) fUrl = supabaseClient.storage.from('documents').getPublicUrl(path).data.publicUrl;
+        if (error) { alert("Erreur upload fichier."); return; }
     }
 
-    await supabaseClient.from('chat_global').insert([{ 
-        content: input.value, 
+    const { error } = await supabaseClient.from('chat_global').insert([{ 
+        content: content, 
         author_name: currentUser.first_name,
         author_full_name: `${currentUser.first_name} ${currentUser.last_name}`,
         portal: currentUser.portal, 
@@ -370,96 +403,80 @@ window.sendChatMessage = async () => {
         file_url: fUrl 
     }]);
 
-    input.value = ''; selectedFile = null;
-    const preview = document.getElementById('file-preview');
-    if(preview) preview.innerText = "";
-    loadChatMessages();
+    if(!error) {
+        input.value = ''; 
+        selectedFile = null;
+        const preview = document.getElementById('file-preview');
+        if(preview) preview.innerHTML = "";
+        loadChatMessages();
+    }
 };
+
+// --- MODALS HARMONISÉES ---
 
 window.askEditMsg = (id, old) => {
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
-        <h3>Modifier le message</h3>
-        <textarea id="edit-area" class="luxe-input" style="height:100px;">${old}</textarea>
-        <button onclick="execEditMsg('${id}')" class="btn-gold" style="width:100%; margin-top:10px;">SAUVEGARDER</button>
+        <h3 style="font-family:'Playfair Display'; color:var(--primary); border-bottom:2px solid var(--gold); padding-bottom:10px;">Modifier le message</h3>
+        <textarea id="edit-area" class="luxe-input" style="height:120px; width:100%; margin-top:15px;">${old}</textarea>
+        <div style="display:flex; gap:10px; margin-top:15px;">
+            <button onclick="execEditMsg('${id}')" class="btn-gold" style="flex:2;">SAUVEGARDER</button>
+            <button onclick="closeCustomModal()" class="btn-gold" style="flex:1; background:#64748b;">ANNULER</button>
+        </div>
     `;
-};
-
-window.execEditMsg = async (id) => {
-    const val = document.getElementById('edit-area').value;
-    await supabaseClient.from('chat_global').update({ content: val }).eq('id', id);
-    closeCustomModal(); loadChatMessages();
 };
 
 window.askDeleteMsg = (id) => {
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
-        <h3>Supprimer ?</h3>
-        <p>Voulez-vous retirer ce message ?</p>
-        <button onclick="execDeleteMsg('${id}')" class="btn-danger" style="width:100%; margin-top:10px;">CONFIRMER</button>
+        <div style="text-align:center; padding:10px;">
+            <h3 style="color:var(--danger);">Supprimer le message ?</h3>
+            <p style="font-size:0.9rem; opacity:0.8;">Cette action est irréversible.</p>
+            <div style="display:flex; gap:10px; margin-top:20px;">
+                <button onclick="execDeleteMsg('${id}')" class="btn-danger" style="flex:1;">SUPPRIMER</button>
+                <button onclick="closeCustomModal()" class="btn-gold" style="flex:1; background:#64748b;">ANNULER</button>
+            </div>
+        </div>
     `;
 };
 
-window.execDeleteMsg = async (id) => {
-    await supabaseClient.from('chat_global').delete().eq('id', id);
-    closeCustomModal(); loadChatMessages();
-};
-
-// ==========================================
-// GESTION DES SUJETS (CHANNELS)
-// ==========================================
+// --- GESTION DES SALONS (CHANNELS) ---
 
 async function loadSubjects() {
     const { data } = await supabaseClient.from('chat_subjects').select('*').order('name');
     const select = document.getElementById('chat-subject-filter');
     if(!select) return;
+    
     const mySubjects = (data || []).filter(s => s.entity === "Tous" || s.entity === currentUser.portal || !s.entity);
     
     select.innerHTML = mySubjects.map(s => {
         const icon = (s.entity === "Tous") ? "🌍" : "🔒";
         return `<option value="${s.name}">${icon} # ${s.name}</option>`;
     }).join('');
+    
+    // Ajout d'un écouteur pour recharger les messages au changement de salon
+    select.onchange = () => loadChatMessages();
+    
     loadChatMessages();
 }
 
 window.showNewSubjectModal = () => {
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
-        <h3>Nouveau Salon</h3>
-        <label class="mini-label">NOM</label>
-        <input type="text" id="n-subject-name" class="luxe-input">
-        <label class="mini-label">VISIBILITÉ</label>
-        <select id="n-subject-entity" class="luxe-input">
-            <option value="Tous">🌍 Public (Tous)</option>
-            <option value="${currentUser.portal}">🔒 Privé (${currentUser.portal})</option>
-        </select>
-        <button onclick="execCreateSubject()" class="btn-gold" style="width:100%; margin-top:10px;">CRÉER</button>
+        <h3 style="font-family:'Playfair Display'; color:var(--primary); border-bottom:2px solid var(--gold); padding-bottom:10px;">Nouveau Salon</h3>
+        <div style="margin-top:15px;">
+            <label class="mini-label">NOM DU SALON</label>
+            <input type="text" id="n-subject-name" class="luxe-input" placeholder="ex: developpement-alsatia">
+            
+            <label class="mini-label" style="margin-top:15px; display:block;">VISIBILITÉ</label>
+            <select id="n-subject-entity" class="luxe-input" style="width:100%;">
+                <option value="Tous">🌍 Public (Tous les portails)</option>
+                <option value="${currentUser.portal}">🔒 Privé (${currentUser.portal})</option>
+            </select>
+            
+            <button onclick="execCreateSubject()" class="btn-gold" style="width:100%; margin-top:20px; height:45px;">CRÉER LE SALON</button>
+        </div>
     `;
-};
-
-window.execCreateSubject = async () => {
-    const name = document.getElementById('n-subject-name').value.trim();
-    const entity = document.getElementById('n-subject-entity').value;
-    if(!name) return;
-    await supabaseClient.from('chat_subjects').insert([{ name, entity }]);
-    closeCustomModal(); loadSubjects();
-};
-
-window.askDeleteSubject = () => {
-    if (currentUser.portal !== "Institut Alsatia") return alert("Admin uniquement.");
-    const subj = document.getElementById('chat-subject-filter').value;
-    if (subj === "Général") return alert("Suppression impossible.");
-
-    document.getElementById('custom-modal').style.display = 'flex';
-    document.getElementById('modal-body').innerHTML = `
-        <h3 style="color:var(--danger);">Supprimer #${subj} ?</h3>
-        <button onclick="execDeleteSubject('${subj}')" class="btn-danger" style="width:100%; margin-top:15px;">CONFIRMER</button>
-    `;
-};
-
-window.execDeleteSubject = async (name) => {
-    await supabaseClient.from('chat_subjects').delete().eq('name', name);
-    closeCustomModal(); loadSubjects();
 };
 
 // ==========================================
