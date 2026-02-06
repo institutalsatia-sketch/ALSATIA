@@ -586,9 +586,14 @@ window.openDonorFile = async (id) => {
         </div>
 
         <div style="margin-top:20px; border-top:1px solid #e2e8f0; padding-top:15px; display:flex; justify-content:space-between; align-items:center;">
-             <button onclick="askDeleteDonor('${d.id}', '${(d.company_name || d.last_name).replace(/'/g, "\\'")}')" class="btn-danger" style="padding:10px 20px;">
-                 SUPPRIMER LA FICHE
-             </button>
+             <div style="display:flex; gap:10px;">
+                <button onclick="askDeleteDonor('${d.id}', '${(d.company_name || d.last_name).replace(/'/g, "\\'")}')" class="btn-danger" style="padding:10px 20px;">
+                    SUPPRIMER LA FICHE
+                </button>
+                <button onclick="exportDonorToExcel('${d.id}')" class="btn-gold" style="background:#64748b; color:white; border:none; padding:10px 15px;">
+                    <i data-lucide="file-spreadsheet" style="width:14px; margin-right:5px; vertical-align:middle;"></i> EXPORT EXCEL
+                </button>
+             </div>
 
              <div style="text-align:right; display:flex; flex-direction:column; gap:5px;">
                  <small style="opacity:0.5; font-size:0.65rem;">Dernière modif : ${d.last_modified_by || 'N/A'}</small>
@@ -598,11 +603,41 @@ window.openDonorFile = async (id) => {
              </div>
         </div>
     `;
-    // CRITIQUE : Génère les icônes Lucide après avoir injecté le HTML
     lucide.createIcons();
 };
 
-// --- LOGIQUE DE GESTION DES DONS ---
+window.exportDonorToExcel = async (id) => {
+    const { data: d } = await supabaseClient.from('donors').select('*, donations(*)').eq('id', id).single();
+    const profileData = [
+        ["CHAMP", "VALEUR"],
+        ["NOM", d.last_name?.toUpperCase()],
+        ["PRÉNOM", d.first_name || ""],
+        ["SOCIÉTÉ", d.company_name || "-"],
+        ["EMAIL", d.email || "-"],
+        ["TÉLÉPHONE", d.phone || "-"],
+        ["ADRESSE", d.address || "-"],
+        ["CODE POSTAL", d.zip_code || "-"],
+        ["VILLE", d.city || "-"],
+        ["ENTITÉ", d.origin || d.entities || "-"],
+        ["PROCHAINE ACTION", d.next_action || "-"],
+        ["NOTES", d.notes || ""],
+        ["DATE EXPORT", new Date().toLocaleDateString()]
+    ];
+    const donationsData = (d.donations || []).sort((a,b) => new Date(b.date) - new Date(a.date)).map(don => ({
+        "Date": don.date,
+        "Montant (€)": don.amount,
+        "N° Reçu Fiscal": don.tax_receipt_number || "-",
+        "Remercié": don.thanked ? "OUI" : "NON"
+    }));
+    const wb = XLSX.utils.book_new();
+    const ws1 = XLSX.utils.aoa_to_sheet(profileData);
+    XLSX.utils.book_append_sheet(wb, ws1, "Profil Donateur");
+    if (donationsData.length > 0) {
+        const ws2 = XLSX.utils.json_to_sheet(donationsData);
+        XLSX.utils.book_append_sheet(wb, ws2, "Historique Dons");
+    }
+    XLSX.writeFile(wb, `FICHE_${d.last_name.replace(/\s/g, '_')}.xlsx`);
+};
 
 window.addDonation = async (id) => {
     const amt = document.getElementById('d-amt').value;
@@ -661,8 +696,6 @@ window.updateThanks = async (donId, donorId, val) => {
     loadDonors();
 };
 
-// --- LOGIQUE DONATEURS ---
-
 window.saveDonor = async (id) => {
     const upd = {
         company_name: document.getElementById('e-company').value,
@@ -678,7 +711,6 @@ window.saveDonor = async (id) => {
         next_action: document.getElementById('e-next').value,
         last_modified_by: currentUser.first_name + " " + currentUser.last_name 
     };
-
     const { error } = await supabaseClient.from('donors').update(upd).eq('id', id);
     if (!error) { closeCustomModal(); loadDonors(); } 
     else { alert("Erreur lors de la sauvegarde."); }
@@ -704,13 +736,11 @@ window.openNewDonorModal = () => {
                 <i data-lucide="x" style="width:16px; height:16px;"></i>
             </button>
         </div>
-
         <div style="display:flex; flex-direction:column; gap:15px;">
             <div>
                 <label class="mini-label">ENTREPRISE / SOCIÉTÉ</label>
                 <input type="text" id="n-company" placeholder="Ex: Cabinet Durant" class="luxe-input">
             </div>
-
             <div style="display:flex; gap:10px;">
                 <div style="flex:1;">
                     <label class="mini-label">PRÉNOM</label>
@@ -721,7 +751,6 @@ window.openNewDonorModal = () => {
                     <input type="text" id="n-last" placeholder="Dupont" class="luxe-input">
                 </div>
             </div>
-
             <div>
                 <label class="mini-label">ENTITÉ RATTACHÉE (ORIGINE)</label>
                 <select id="n-origin" class="luxe-input" style="width:100%; cursor:pointer;">
@@ -731,7 +760,6 @@ window.openNewDonorModal = () => {
                     <option value="Academia Alsatia">Academia Alsatia</option>
                 </select>
             </div>
-
             <div style="margin-top:10px; padding-top:15px; border-top:1px solid #e2e8f0; display:flex; gap:10px;">
                 <button onclick="execCreateDonor()" class="btn-gold" style="flex:2; height:45px; font-weight:bold; font-size:0.9rem;">
                     <i data-lucide="user-plus" style="width:18px; vertical-align:middle; margin-right:8px;"></i> CRÉER LA FICHE
@@ -751,7 +779,6 @@ window.execCreateDonor = async () => {
         alert("Le nom de famille est obligatoire.");
         return;
     }
-
     const { error } = await supabaseClient.from('donors').insert([{ 
         last_name: lastName, 
         first_name: document.getElementById('n-first').value.trim(),
@@ -759,27 +786,22 @@ window.execCreateDonor = async () => {
         origin: document.getElementById('n-origin').value,
         last_modified_by: currentUser.first_name + " " + currentUser.last_name 
     }]);
-
     if (!error) {
         closeCustomModal();
         loadDonors();
-        // Optionnel : petit message de succès si tu as une fonction showNotice
         if(window.showNotice) window.showNotice("Fiche créée", "Le donateur a été ajouté.");
     } else {
         alert("Erreur lors de la création.");
     }
 };
+
 window.exportAllDonors = () => {
-    // Préparation des données avec calculs intelligents
     const dataToExport = allDonorsData.map(d => {
         const totalAmount = d.donations?.reduce((s, n) => s + Number(n.amount), 0) || 0;
         const countDons = d.donations?.length || 0;
         const needsThanks = d.donations?.some(don => !don.thanked) ? "OUI" : "Non";
-        
-        // Trier pour trouver le dernier don
         const sortedDons = [...(d.donations || [])].sort((a, b) => new Date(b.date) - new Date(a.date));
         const lastDonDate = sortedDons.length > 0 ? sortedDons[0].date : "-";
-
         return {
             "SOCIÉTÉ": d.company_name || "-",
             "NOM": d.last_name?.toUpperCase(),
@@ -796,22 +818,15 @@ window.exportAllDonors = () => {
             "NOTES": d.notes || ""
         };
     });
-
-    // Création du fichier Excel (XLSX)
     const ws = XLSX.utils.json_to_sheet(dataToExport);
-    
-    // Style rapide : On ajuste la largeur des colonnes
     const wscols = [
         {wch:20}, {wch:15}, {wch:15}, {wch:25}, {wch:15}, 
         {wch:15}, {wch:20}, {wch:15}, {wch:10}, {wch:15}, 
         {wch:12}, {wch:25}, {wch:30}
     ];
     ws['!cols'] = wscols;
-
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Base Donateurs");
-    
-    // Nom du fichier avec la date du jour
     const dateFile = new Date().toISOString().split('T')[0];
     XLSX.writeFile(wb, `EXPORT_CRM_ALSATIA_${dateFile}.xlsx`);
 };
