@@ -584,17 +584,21 @@ window.handleFileUpload = (input) => {
 };
 
 // ==========================================
-// GESTION DES ÉVÉNEMENTS (VUE KANBAN)
+// GESTION DES ÉVÉNEMENTS (VUE CHRONOLOGIQUE)
 // ==========================================
 
 // --- CHARGEMENT ---
 window.loadEvents = async () => {
+    // Requête explicite pour éviter l'erreur 400
     const { data, error } = await supabaseClient
         .from('events')
-        .select('*, event_resources(id, file_url, description)')
+        .select(`
+            id, title, event_date, event_time, location, entity, description,
+            event_resources(id, file_url, description)
+        `)
         .order('event_date', { ascending: true });
 
-    if (error) return console.error("Erreur events:", error);
+    if (error) return console.error("Erreur chargement events:", error);
     renderEvents(data);
 };
 
@@ -612,7 +616,7 @@ function renderEvents(events) {
     const grouped = {};
     events.forEach(ev => {
         const date = new Date(ev.event_date);
-        const monthYear = date.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+        const monthYear = date.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }).toUpperCase();
         if (!grouped[monthYear]) grouped[monthYear] = [];
         grouped[monthYear].push(ev);
     });
@@ -621,53 +625,56 @@ function renderEvents(events) {
     let html = "";
     
     for (const [month, monthEvents] of Object.entries(grouped)) {
-        // En-tête du mois
         html += `
             <div class="month-divider">
                 <h2>${month}</h2>
             </div>
-            <div class="kanban-grid">
+            <div class="kanban-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 30px;">
         `;
 
-        // Séparation interne par statut pour ce mois précis
+        // Séparation par statut pour ce mois
         const categories = {
-            todo: monthEvents.filter(ev => !ev.event_resources?.some(r => r.description || r.file_url)),
-            progress: monthEvents.filter(ev => ev.event_resources?.some(r => r.description || r.file_url) && !isEventReady(ev)),
+            todo: monthEvents.filter(ev => !isStarted(ev)),
+            progress: monthEvents.filter(ev => isStarted(ev) && !isEventReady(ev)),
             ready: monthEvents.filter(ev => isEventReady(ev))
         };
 
         html += `
-            <div class="kanban-column">
-                <h3 style="font-size:0.75rem; color:#64748b; margin-bottom:10px;">À PLANIFIER (${categories.todo.length})</h3>
+            <div class="kanban-column" style="background:#f8fafc; padding:12px; border-radius:10px; border:1px solid #e2e8f0;">
+                <h3 style="font-size:0.7rem; color:#64748b; margin-bottom:12px; font-weight:800; border-bottom:1px solid #ddd; padding-bottom:5px;">À PLANIFIER (${categories.todo.length})</h3>
                 <div style="display:flex; flex-direction:column; gap:10px;">
                     ${categories.todo.map(ev => renderMiniCard(ev)).join('')}
                 </div>
             </div>
 
-            <div class="kanban-column" style="background:#fff7ed; border-color:#ffedd5;">
-                <h3 style="font-size:0.75rem; color:#b45309; margin-bottom:10px;">EN PRÉPARATION (${categories.progress.length})</h3>
+            <div class="kanban-column" style="background:#fff7ed; padding:12px; border-radius:10px; border:1px solid #ffedd5;">
+                <h3 style="font-size:0.7rem; color:#b45309; margin-bottom:12px; font-weight:800; border-bottom:1px solid #fed7aa; padding-bottom:5px;">EN PRÉPARATION (${categories.progress.length})</h3>
                 <div style="display:flex; flex-direction:column; gap:10px;">
                     ${categories.progress.map(ev => renderMiniCard(ev)).join('')}
                 </div>
             </div>
 
-            <div class="kanban-column" style="background:#f0fdf4; border-color:#dcfce7;">
-                <h3 style="font-size:0.75rem; color:#166534; margin-bottom:10px;">PRÊT COM (${categories.ready.length})</h3>
+            <div class="kanban-column" style="background:#f0fdf4; padding:12px; border-radius:10px; border:1px solid #dcfce7;">
+                <h3 style="font-size:0.7rem; color:#166534; margin-bottom:12px; font-weight:800; border-bottom:1px solid #bbf7d0; padding-bottom:5px;">PRÊT COM (${categories.ready.length})</h3>
                 <div style="display:flex; flex-direction:column; gap:10px;">
                     ${categories.ready.map(ev => renderMiniCard(ev)).join('')}
                 </div>
             </div>
         `;
 
-        html += `</div>`; // Fin de la kanban-grid
+        html += `</div>`;
     }
 
-    container.style.display = "block"; // On passe en block pour gérer les titres
+    container.style.display = "block";
     container.innerHTML = html;
     lucide.createIcons();
 }
 
-// Fonction utilitaire pour vérifier si un événement est complet
+// --- HELPERS DE STATUT ---
+function isStarted(ev) {
+    return ev.event_resources?.some(r => (r.description && r.description.length > 5) || r.file_url);
+}
+
 function isEventReady(ev) {
     const hasText = ev.event_resources?.some(r => r.description && r.description.length > 10);
     const hasPhoto = ev.event_resources?.some(r => r.file_url);
@@ -679,24 +686,24 @@ function renderMiniCard(ev) {
     const dateFr = new Date(ev.event_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
     
     return `
-        <div class="event-card-mini" style="border-left: 4px solid ${getColorByEntity(ev.entity)};">
+        <div class="event-card-mini" style="background:white; padding:10px; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.05); border-left: 4px solid ${getColorByEntity(ev.entity)};">
             <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:5px;">
                 <span style="font-size: 0.65rem; color: ${getColorByEntity(ev.entity)}; font-weight: bold; background:${getColorByEntity(ev.entity)}15; padding:2px 6px; border-radius:4px;">
-                    ${ev.entity.split(' ')[0]}...
+                    ${ev.entity}
                 </span>
                 <span style="font-size:0.7rem; font-weight:700; color:#64748b;">${dateFr}</span>
             </div>
-            <h4 style="margin: 5px 0 10px 0; font-size: 0.9rem; line-height:1.2; color:#1e293b;">${ev.title}</h4>
+            <h4 style="margin: 5px 0 10px 0; font-size: 0.85rem; line-height:1.2; color:#1e293b;">${ev.title}</h4>
             <div style="display: flex; gap: 4px;">
-                <button onclick="openEventMedia('${ev.id}')" class="btn-mini-gold" style="flex:2; font-size:0.7rem; padding:5px;"><i data-lucide="camera" style="width:12px;"></i> COM</button>
-                <button onclick="openEventGuests('${ev.id}')" class="btn-mini-gold" style="flex:1; padding:5px; background:#f1f5f9; color:black; border:1px solid #ddd;"><i data-lucide="users" style="width:12px;"></i></button>
-                ${canManage ? `<button onclick="askDeleteEvent('${ev.id}', '${ev.title.replace(/'/g, "\\'")}')" style="padding:5px; background:none; border:none; color:#ef4444; cursor:pointer;"><i data-lucide="trash-2" style="width:14px;"></i></button>` : ''}
+                <button onclick="window.openEventMedia('${ev.id}')" class="btn-mini-gold" style="flex:2; font-size:0.7rem; padding:5px;"><i data-lucide="camera" style="width:12px;"></i> COM</button>
+                <button onclick="window.openEventGuests('${ev.id}')" class="btn-mini-gold" style="flex:1; padding:5px; background:#f1f5f9; color:black; border:1px solid #ddd;"><i data-lucide="users" style="width:12px;"></i></button>
+                ${canManage ? `<button onclick="window.askDeleteEvent('${ev.id}', '${ev.title.replace(/'/g, "\\'")}')" style="padding:5px; background:none; border:none; color:#ef4444; cursor:pointer;"><i data-lucide="trash-2" style="width:14px;"></i></button>` : ''}
             </div>
         </div>
     `;
 }
 
-// --- DOSSIER MÉDIA (AVEC TÉLÉCHARGEMENT & COPIE) ---
+// --- DOSSIER MÉDIA ---
 window.openEventMedia = async (eventId) => {
     const { data: ev } = await supabaseClient.from('events').select('*').eq('id', eventId).single();
     const { data: res } = await supabaseClient.from('event_resources').select('*').eq('event_id', eventId);
@@ -711,14 +718,12 @@ window.openEventMedia = async (eventId) => {
             <button onclick="closeCustomModal()" class="btn-gold">X</button>
         </div>
         <div style="margin-top:15px; max-height:75vh; overflow-y:auto; padding-right:5px;">
-            
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
                 <label class="mini-label" style="margin:0;">LÉGENDE / POST RÉSEAUX</label>
                 <button onclick="window.copyEventText()" class="btn-mini-gold" style="font-size:0.65rem; padding:2px 8px; background:#1e293b; color:white;">
-                    <i data-lucide="copy" style="width:10px; display:inline;"></i> COPIER LE TEXTE
+                    <i data-lucide="copy" style="width:10px;"></i> COPIER LE TEXTE
                 </button>
             </div>
-            
             <textarea id="res-text" class="luxe-input" style="height:120px; font-size:0.9rem; margin-bottom:15px;" placeholder="Rédigez ici le post...">${textData ? textData.description : ''}</textarea>
             
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
@@ -742,51 +747,68 @@ window.openEventMedia = async (eventId) => {
                     </div>
                 `).join('')}
             </div>
-            
-            <button onclick="window.saveEventContent('${eventId}')" class="btn-gold" style="width:100%; margin-top:20px; background:#107c10; border:none;">
-                ENREGISTRER LES MODIFICATIONS
-            </button>
+            <button onclick="window.saveEventContent('${eventId}')" class="btn-gold" style="width:100%; margin-top:20px; background:#107c10; border:none;">ENREGISTRER</button>
         </div>
     `;
     lucide.createIcons();
 };
 
-// --- FONCTION DE TÉLÉCHARGEMENT ---
+// --- LOGIQUE MÉDIA (COPIE, UPLOAD, TÉLÉCHARGEMENT) ---
+window.copyEventText = () => {
+    const textArea = document.getElementById('res-text');
+    if (!textArea || !textArea.value) return window.showNotice("Info", "Rien à copier.");
+    navigator.clipboard.writeText(textArea.value);
+    window.showNotice("Copié !", "Texte prêt à être collé.");
+};
+
 window.downloadImage = async (url, filename) => {
     try {
-        const response = await fetch(url);
-        const blob = await response.blob();
-        const blobUrl = window.URL.createObjectURL(blob);
+        const res = await fetch(url);
+        const blob = await res.blob();
         const link = document.createElement('a');
-        link.href = blobUrl;
-        link.download = filename || 'image_institut_alsatia';
-        document.body.appendChild(link);
+        link.href = window.URL.createObjectURL(blob);
+        link.download = filename;
         link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(blobUrl);
-    } catch (error) {
-        window.showNotice("Erreur", "Impossible de télécharger l'image.");
+    } catch (e) { window.showNotice("Erreur", "Téléchargement impossible."); }
+};
+
+window.uploadEventFile = async (eventId) => {
+    const file = document.getElementById('res-file').files[0];
+    if(!file) return;
+    const path = `events/${eventId}/${Date.now()}_${file.name}`;
+    const { data } = await supabaseClient.storage.from('documents').upload(path, file);
+    if (data) {
+        const url = supabaseClient.storage.from('documents').getPublicUrl(path).data.publicUrl;
+        await supabaseClient.from('event_resources').insert([{ event_id: eventId, file_url: url }]);
+        window.openEventMedia(eventId);
+        window.loadEvents();
     }
 };
 
-// --- FONCTION DE COPIE DU TEXTE ---
-window.copyEventText = () => {
-    const textArea = document.getElementById('res-text');
-    if (!textArea || !textArea.value) {
-        return window.showNotice("Info", "Rien à copier.");
+window.saveEventContent = async (eventId) => {
+    const text = document.getElementById('res-text').value;
+    const { data: resources } = await supabaseClient.from('event_resources').select('*').eq('event_id', eventId);
+    const existingText = resources?.find(r => !r.file_url);
+    if(existingText) {
+        await supabaseClient.from('event_resources').update({ description: text }).eq('id', existingText.id);
+    } else {
+        await supabaseClient.from('event_resources').insert([{ event_id: eventId, description: text }]);
     }
-    textArea.select();
-    navigator.clipboard.writeText(textArea.value);
-    window.showNotice("Copié !", "Le texte est prêt à être collé.");
+    window.showNotice("Succès", "Texte mis à jour.");
+    window.loadEvents();
+};
+
+window.deleteResource = async (resId, eventId) => {
+    await supabaseClient.from('event_resources').delete().eq('id', resId);
+    window.openEventMedia(eventId);
+    window.loadEvents();
 };
 
 // --- GESTION DES INVITÉS ---
 window.openEventGuests = async (eventId) => {
     const { data: donors } = await supabaseClient.from('donors').select('id, last_name, first_name, company_name, entity').order('last_name');
     const { data: guests } = await supabaseClient.from('event_guests').select('donor_id').eq('event_id', eventId);
-    
     const guestIds = (guests || []).map(g => g.donor_id);
-    const donorsList = donors || [];
 
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
@@ -795,21 +817,14 @@ window.openEventGuests = async (eventId) => {
             <button onclick="closeCustomModal()" class="btn-gold">X</button>
         </div>
         <div style="margin-top:15px; display:flex; flex-direction:column; gap:10px;">
-            <input type="text" id="guest-search" class="luxe-input" placeholder="Chercher un nom..." oninput="filterGuestList()">
-            <select id="guest-filter-entity" class="luxe-input" onchange="filterGuestList()">
-                <option value="ALL">Toutes les écoles</option>
-                <option value="Institut Alsatia">Institut Alsatia</option>
-                <option value="Cours Herrade de Landsberg">Cours Herrade de Landsberg</option>
-                <option value="Collège Saints Louis et Zélie Martin">Collège Saints Louis et Zélie Martin</option>
-                <option value="Academia Alsatia">Academia Alsatia</option>
-            </select>
-            <div id="guest-list-scroll" style="max-height:350px; overflow-y:auto; border:1px solid #eee; border-radius:8px;">
-                ${donorsList.map(d => `
-                    <label class="guest-item" data-name="${d.last_name} ${d.first_name}" data-entity="${d.entity || ''}" style="display:flex; align-items:center; padding:10px; border-bottom:1px solid #f9f9f9; cursor:pointer;">
-                        <input type="checkbox" ${guestIds.includes(d.id) ? 'checked' : ''} onchange="toggleGuest('${eventId}', '${d.id}', this.checked)" style="margin-right:12px; width:18px; height:18px;">
+            <input type="text" id="guest-search" class="luxe-input" placeholder="Rechercher..." oninput="window.filterGuestList()">
+            <div id="guest-list-scroll" style="max-height:400px; overflow-y:auto; border:1px solid #eee; border-radius:8px;">
+                ${donors.map(d => `
+                    <label class="guest-item" data-name="${d.last_name} ${d.first_name}" style="display:flex; align-items:center; padding:10px; border-bottom:1px solid #f9f9f9; cursor:pointer;">
+                        <input type="checkbox" ${guestIds.includes(d.id) ? 'checked' : ''} onchange="window.toggleGuest('${eventId}', '${d.id}', this.checked)" style="margin-right:12px; width:18px; height:18px;">
                         <div style="flex:1; font-size:0.85rem;">
                             <strong>${d.last_name} ${d.first_name || ''}</strong><br>
-                            <span style="color:gray; font-size:0.75rem;">${d.company_name || d.entity || 'Donateur'}</span>
+                            <span style="color:gray; font-size:0.75rem;">${d.company_name || d.entity || ''}</span>
                         </div>
                     </label>
                 `).join('')}
@@ -820,46 +835,22 @@ window.openEventGuests = async (eventId) => {
 
 window.filterGuestList = () => {
     const q = document.getElementById('guest-search').value.toLowerCase();
-    const ent = document.getElementById('guest-filter-entity').value;
     document.querySelectorAll('.guest-item').forEach(item => {
-        const nameMatch = item.getAttribute('data-name').toLowerCase().includes(q);
-        const entMatch = ent === 'ALL' || item.getAttribute('data-entity') === ent;
-        item.style.display = (nameMatch && entMatch) ? 'flex' : 'none';
+        item.style.display = item.getAttribute('data-name').toLowerCase().includes(q) ? 'flex' : 'none';
     });
 };
 
 window.toggleGuest = async (eventId, donorId, isChecked) => {
-    if (isChecked) {
-        await supabaseClient.from('event_guests').insert([{ event_id: eventId, donor_id: donorId }]);
-    } else {
-        await supabaseClient.from('event_guests').delete().eq('event_id', eventId).eq('donor_id', donorId);
-    }
+    if (isChecked) await supabaseClient.from('event_guests').insert([{ event_id: eventId, donor_id: donorId }]);
+    else await supabaseClient.from('event_guests').delete().eq('event_id', eventId).eq('donor_id', donorId);
 };
 
-// --- OUTILS & ACTIONS ---
-function getColorByEntity(entity) {
-    const colors = {
-        "Institut Alsatia": "#1e3a8a",
-        "Cours Herrade de Landsberg": "#15803d",
-        "Collège Saints Louis et Zélie Martin": "#b91c1c",
-        "Academia Alsatia": "#b45309"
-    };
-    return colors[entity] || "#666";
-}
-
-window.copyEventText = () => {
-    const t = document.getElementById('res-text').value;
-    if(!t) return;
-    navigator.clipboard.writeText(t);
-    showNotice("Copié !", "Texte dans le presse-papier.");
-};
-
+// --- CRÉATION ---
 window.openNewEventModal = () => {
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
         <h3 style="color:var(--primary); border-bottom:1px solid var(--gold); padding-bottom:10px;">Nouvel Événement</h3>
-        <label class="mini-label">TITRE</label>
-        <input type="text" id="ev-title" class="luxe-input">
+        <label class="mini-label">TITRE</label><input type="text" id="ev-title" class="luxe-input">
         <div style="display:flex; gap:10px;">
             <div style="flex:1;"><label class="mini-label">DATE</label><input type="date" id="ev-date" class="luxe-input"></div>
             <div style="flex:1;"><label class="mini-label">HEURE</label><input type="time" id="ev-time" class="luxe-input"></div>
@@ -871,53 +862,42 @@ window.openNewEventModal = () => {
             <option value="Collège Saints Louis et Zélie Martin">Collège Saints Louis et Zélie Martin</option>
             <option value="Academia Alsatia">Academia Alsatia</option>
         </select>
-        <label class="mini-label">LIEU</label>
-        <input type="text" id="ev-loc" class="luxe-input">
-        <button onclick="execCreateEvent()" class="btn-gold" style="width:100%; margin-top:15px;">CRÉER</button>
+        <label class="mini-label">LIEU</label><input type="text" id="ev-loc" class="luxe-input">
+        <button onclick="window.execCreateEvent()" class="btn-gold" style="width:100%; margin-top:15px;">PUBLIER</button>
     `;
 };
 
 window.execCreateEvent = async () => {
     const title = document.getElementById('ev-title').value;
     const date = document.getElementById('ev-date').value;
-    if (!title || !date) return showNotice("Erreur", "Titre et date requis.");
+    if (!title || !date) return window.showNotice("Erreur", "Titre et date requis.");
 
     const { error } = await supabaseClient.from('events').insert([{
-        title,
-        event_date: date,
-        event_time: document.getElementById('ev-time').value,
-        location: document.getElementById('ev-loc').value,
+        title, event_date: date,
+        event_time: document.getElementById('ev-time').value || null,
+        location: document.getElementById('ev-loc').value || null,
         entity: document.getElementById('ev-entity').value,
-        created_by: currentUser.first_name + " " + currentUser.last_name
+        created_by: `${currentUser.first_name} ${currentUser.last_name}`
     }]);
 
     if (!error) { 
-        showNotice("Succès", "Événement créé.");
+        window.showNotice("Succès", "Événement créé.");
         closeCustomModal(); 
-        loadEvents(); 
-    }
+        window.loadEvents(); 
+    } else { window.showNotice("Erreur 400", "Vérifiez les champs."); }
 };
 
+// --- SUPPRESSION CUSTOM ---
 window.askDeleteEvent = (id, title) => {
-    // On réutilise la modale custom existante pour la confirmation
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
         <div style="text-align:center; padding: 20px;">
-            <div style="color:#ef4444; margin-bottom:15px;">
-                <i data-lucide="alert-triangle" style="width:48px; height:48px; margin:0 auto;"></i>
-            </div>
-            <h3 style="margin-bottom:10px;">Supprimer l'événement ?</h3>
-            <p style="color:#64748b; font-size:0.9rem; margin-bottom:20px;">
-                Êtes-vous sûr de vouloir supprimer <strong>"${title}"</strong> ? <br>
-                Cette action supprimera également toutes les photos et textes associés.
-            </p>
+            <div style="color:#ef4444; margin-bottom:15px;"><i data-lucide="alert-triangle" style="width:48px; height:48px; margin:0 auto;"></i></div>
+            <h3>Supprimer l'événement ?</h3>
+            <p style="color:#64748b; font-size:0.9rem; margin-bottom:20px;">Voulez-vous supprimer <strong>"${title}"</strong> ?</p>
             <div style="display:flex; gap:10px;">
-                <button onclick="closeCustomModal()" class="btn-gold" style="flex:1; background:#f1f5f9; color:#1e293b; border:1px solid #cbd5e1;">
-                    ANNULER
-                </button>
-                <button onclick="window.execDeleteEvent('${id}')" class="btn-mini-danger" style="flex:1; padding:12px;">
-                    OUI, SUPPRIMER
-                </button>
+                <button onclick="closeCustomModal()" class="btn-gold" style="flex:1; background:#f1f5f9; color:#1e293b; border:1px solid #cbd5e1;">ANNULER</button>
+                <button onclick="window.execDeleteEvent('${id}')" style="flex:1; background:#fee2e2; color:#ef4444; border:1px solid #fecaca; border-radius:8px; font-weight:bold; cursor:pointer;">SUPPRIMER</button>
             </div>
         </div>
     `;
@@ -925,20 +905,15 @@ window.askDeleteEvent = (id, title) => {
 };
 
 window.execDeleteEvent = async (id) => {
-    // 1. Suppression des ressources liées (pour le propre)
     await supabaseClient.from('event_resources').delete().eq('event_id', id);
-    
-    // 2. Suppression des invités
     await supabaseClient.from('event_guests').delete().eq('event_id', id);
-    
-    // 3. Suppression de l'événement
-    const { error } = await supabaseClient.from('events').delete().eq('id', id);
-
-    if (!error) {
-        window.showNotice("Supprimé", "L'événement a été retiré avec succès.");
-        closeCustomModal();
-        window.loadEvents();
-    } else {
-        window.showNotice("Erreur", "Impossible de supprimer l'événement.");
-    }
+    await supabaseClient.from('events').delete().eq('id', id);
+    window.showNotice("Supprimé", "Événement retiré.");
+    closeCustomModal();
+    window.loadEvents();
 };
+
+function getColorByEntity(ent) {
+    const colors = {"Institut Alsatia":"#1e3a8a", "Cours Herrade de Landsberg":"#15803d", "Collège Saints Louis et Zélie Martin":"#b91c1c", "Academia Alsatia":"#b45309"};
+    return colors[ent] || "#666";
+}
