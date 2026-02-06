@@ -61,6 +61,13 @@ window.switchTab = (id) => {
     lucide.createIcons();
 };
 
+<div class="nav-links">
+    <button onclick="window.openProfileModal()" class="btn-nav" title="Gérer mon profil">
+        <i data-lucide="user-circle" style="width: 18px; margin-right: 8px;"></i>
+        MON PROFIL
+    </button>
+</div>
+
 window.logout = () => { localStorage.clear(); window.location.href = 'login.html'; };
 window.closeCustomModal = () => { document.getElementById('custom-modal').style.display = 'none'; };
 
@@ -87,7 +94,7 @@ window.openProfileModal = async () => {
         .eq('id', currentUser.id)
         .single();
 
-    if (error) {
+    if (error || !profile) {
         console.error("Erreur profil:", error);
         return window.showNotice("Erreur", "Impossible de charger votre profil.");
     }
@@ -95,12 +102,17 @@ window.openProfileModal = async () => {
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
         <div style="display:flex; justify-content:space-between; border-bottom:2px solid var(--gold); padding-bottom:10px; margin-bottom:20px;">
-            <h3><i data-lucide="user" style="width:20px; vertical-align:middle;"></i> Mon Profil Personnel</h3>
-            <button onclick="closeCustomModal()" class="btn-gold">X</button>
+            <h3><i data-lucide="settings" style="width:20px; vertical-align:middle; margin-right:8px;"></i>PARAMÈTRES DU PROFIL</h3>
+            <button onclick="closeCustomModal()" class="btn-gold" style="padding: 2px 8px;">X</button>
         </div>
 
-        <div style="background: #f8fafc; padding: 10px; border-radius: 8px; margin-bottom: 20px; font-size: 0.8rem; border: 1px solid #e2e8f0;">
-            <span style="color: #64748b;">Portail :</span> <strong>${profile.portal}</strong>
+        <div style="background: linear-gradient(135deg, #1e293b, #0f172a); color: white; padding: 20px; border-radius: 12px; margin-bottom: 25px; border: 1px solid var(--gold);">
+            <div style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 2px; color: var(--gold); margin-bottom: 5px;">Accès Portail</div>
+            <div style="font-size: 1.1rem; font-weight: 800; margin-bottom: 10px;">${profile.portal}</div>
+            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
+                <span style="font-size: 0.75rem; opacity: 0.8;">ID: ${profile.id.substring(0,8)}...</span>
+                <span style="font-size: 0.75rem; background: rgba(212, 175, 55, 0.2); padding: 2px 8px; border-radius: 20px; border: 1px solid var(--gold);">Actif</span>
+            </div>
         </div>
 
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
@@ -115,21 +127,21 @@ window.openProfileModal = async () => {
         </div>
 
         <label class="mini-label" style="margin-top:15px;">FONCTION DANS L'ENTITÉ</label>
-        <input type="text" id="prof-job" class="luxe-input" placeholder="ex: Responsable Communication" value="${profile.job_title || ''}">
+        <input type="text" id="prof-job" class="luxe-input" placeholder="ex: Directeur, Bénévole, etc." value="${profile.job_title || ''}">
 
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-top:15px;">
             <div>
                 <label class="mini-label">TÉLÉPHONE</label>
-                <input type="tel" id="prof-phone" class="luxe-input" placeholder="06 00 00 00 00" value="${profile.phone || ''}">
+                <input type="tel" id="prof-phone" class="luxe-input" placeholder="06..." value="${profile.phone || ''}">
             </div>
             <div>
-                <label class="mini-label">MAIL</label>
-                <input type="email" id="prof-email" class="luxe-input" placeholder="nom@exemple.fr" value="${profile.email || ''}">
+                <label class="mini-label">MAIL PERSONNEL / PRO</label>
+                <input type="email" id="prof-email" class="luxe-input" placeholder="nom@exemple.com" value="${profile.email || ''}">
             </div>
         </div>
 
-        <button onclick="window.saveMyProfile()" class="btn-gold" style="width:100%; margin-top:25px; padding:12px; background:var(--primary); color:white; border:none;">
-            METTRE À JOUR MON PROFIL
+        <button onclick="window.saveMyProfile()" class="btn-gold" style="width:100%; margin-top:25px; padding:15px; background:var(--gold); color:var(--primary); font-weight:bold; border:none; border-radius:8px;">
+            METTRE À JOUR MES INFORMATIONS
         </button>
     `;
     lucide.createIcons();
