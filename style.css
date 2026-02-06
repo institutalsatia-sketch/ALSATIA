@@ -253,3 +253,13 @@ body {
 /* Utils pour titres dans les modals */
 .luxe-title { font-family: 'Playfair Display', serif; font-size: 1.5rem; margin-bottom: 20px; color: var(--primary); }
 .mini-label { font-size: 0.65rem; font-weight: 800; color: var(--gold); text-transform: uppercase; margin-bottom: 5px; display: block; }
+
+@keyframes blink-red {
+    0% { background-color: transparent; }
+    50% { background-color: rgba(239, 68, 68, 0.2); }
+    100% { background-color: transparent; }
+}
+
+.blink-warning {
+    animation: blink-red 2s infinite;
+}
