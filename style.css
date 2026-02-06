@@ -213,3 +213,13 @@ body {
 /* Mentions et Badges */
 .mention-badge { color: #d4af37; font-weight: bold; background: rgba(212, 175, 55, 0.1); padding: 2px 4px; border-radius: 4px; }
 .delete-link { font-size: 0.6rem; color: #ff4444; cursor: pointer; display: block; text-align: right; margin-top: 5px; opacity: 0.6; }
+
+@keyframes blinkRed {
+    0% { background-color: transparent; }
+    50% { background-color: rgba(239, 68, 68, 0.15); } /* Rouge très léger */
+    100% { background-color: transparent; }
+}
+
+.blink-warning {
+    animation: blinkRed 2s infinite ease-in-out;
+}
