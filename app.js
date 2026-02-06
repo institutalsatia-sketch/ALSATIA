@@ -533,7 +533,7 @@ window.showAddDonorModal = () => {
 
 window.execCreateDonor = async () => {
     const last_name = document.getElementById('n-d-last').value.toUpperCase();
-    if(!last_name) return alert("Le nom est obligatoire.");
+    if(!last_name) return window.showNotice("Erreur", "Le nom est obligatoire.", "error");
 
     const payload = {
         last_name,
@@ -550,7 +550,7 @@ window.execCreateDonor = async () => {
     };
 
     const { error } = await supabaseClient.from('donors').insert([payload]);
-    if(error) return window.showNotice("Erreur", error.message);
+    if(error) return window.showNotice("Erreur", error.message, "error");
     
     closeCustomModal();
     loadDonors();
@@ -571,6 +571,7 @@ window.openDonorFile = async (id) => {
                 <h3 style="margin:0;">${donor.company_name ? donor.company_name + ' / ' : ''}${donor.first_name || ''} ${donor.last_name.toUpperCase()}</h3>
             </div>
             <div style="display:flex; gap:10px;">
+                <button onclick="window.exportDonorToExcel('${donor.id}')" style="background:#f1f5f9; color:var(--primary); border:none; padding:5px 10px; border-radius:6px; cursor:pointer; font-size:0.7rem; font-weight:bold;">EXCEL</button>
                 <button onclick="window.askDeleteDonor('${donor.id}', '${donor.last_name.replace(/'/g, "\\'")}')" style="background:#fee2e2; color:#ef4444; border:none; padding:5px 10px; border-radius:6px; cursor:pointer; font-size:0.7rem; font-weight:bold;">SUPPRIMER</button>
                 <button onclick="closeCustomModal()" style="border:none; background:none; cursor:pointer; font-size:1.2rem;">&times;</button>
             </div>
@@ -599,14 +600,17 @@ window.openDonorFile = async (id) => {
         </div>
         <div style="margin-top:20px; max-height:150px; overflow-y:auto; border-top:1px solid #eee;">
             <table class="luxe-table">
-                <thead><tr><th>DATE</th><th>MONTANT</th><th>MODE</th><th style="text-align:right;">CERFA</th></tr></thead>
+                <thead><tr><th>DATE</th><th>MONTANT</th><th>MODE</th><th style="text-align:right;">ACTIONS</th></tr></thead>
                 <tbody>
                     ${dons.map(don => `
                         <tr>
                             <td>${new Date(don.date).toLocaleDateString()}</td>
                             <td style="font-weight:700;">${don.amount}€</td>
-                            <td>${don.method || '-'}</td>
-                            <td style="text-align:right;"><i data-lucide="file-text" style="width:14px; color:var(--gold); cursor:pointer;" onclick="window.generateReceipt('${don.id}')"></i></td>
+                            <td>${don.payment_mode || '-'}</td>
+                            <td style="text-align:right;">
+                                <i data-lucide="file-text" style="width:14px; color:var(--gold); cursor:pointer; margin-right:8px;" onclick="window.generateReceipt('${don.id}')" title="Reçu fiscal"></i>
+                                <i data-lucide="trash-2" style="width:14px; color:#ef4444; cursor:pointer;" onclick="window.askDeleteDonation('${don.id}')" title="Supprimer"></i>
+                            </td>
                         </tr>`).join('')}
                 </tbody>
             </table>
@@ -625,65 +629,102 @@ window.updateDonorFields = async (id) => {
 };
 
 // ==========================================
-// 4. DONS, EXPORTS ET SUPPRESSION
+// 4. GESTION FINANCIÈRE, EXPORTS ET SUPPRESSION
 // ==========================================
 window.addDonationPrompt = (donorId) => {
     showCustomModal(`
         <h3 class="luxe-title">NOUVEAU DON</h3>
-        <label class="mini-label">MONTANT (€)</label><input type="number" id="don-amt" class="luxe-input">
-        <label class="mini-label">DATE</label><input type="date" id="don-date" class="luxe-input" value="${new Date().toISOString().split('T')[0]}">
-        <label class="mini-label">MÉTHODE</label>
+        <label class="mini-label">MONTANT (€) *</label><input type="number" id="don-amt" class="luxe-input">
+        <label class="mini-label">DATE *</label><input type="date" id="don-date" class="luxe-input" value="${new Date().toISOString().split('T')[0]}">
+        <label class="mini-label">N° REÇU FISCAL (OPTIONNEL)</label><input type="text" id="don-fiscal" class="luxe-input" placeholder="Ex: RF-2025-001">
+        <label class="mini-label">MODE DE PAIEMENT</label>
         <select id="don-method" class="luxe-input">
-            <option>Virement</option><option>Chèque</option><option>Espèces</option>
+            <option value="Virement">Virement</option>
+            <option value="Chèque">Chèque</option>
+            <option value="Espèces">Espèces</option>
+            <option value="CB">Carte Bancaire</option>
         </select>
         <button onclick="window.execAddDonation('${donorId}')" class="btn-gold" style="width:100%; margin-top:20px;">VALIDER</button>
     `);
 };
 
 window.execAddDonation = async (donorId) => {
-    // Récupération des valeurs du formulaire
     const amountVal = document.getElementById('don-amt').value;
     const dateVal = document.getElementById('don-date').value;
-    const modeVal = document.getElementById('don-method').value; // La valeur du select
+    const modeVal = document.getElementById('don-method').value;
+    const fiscalId = document.getElementById('don-fiscal').value;
 
-    // Validation simple
     if (!amountVal || !dateVal) {
         return window.showNotice("Champs requis", "Le montant et la date sont obligatoires.", "error");
     }
 
-    // Préparation de l'objet selon ta structure SQL exacte
-    const donationData = {
-        donor_id: donorId,
-        amount: parseFloat(amountVal), // Conversion en nombre pour le type numeric
-        date: dateVal,
-        payment_mode: modeVal, // CORRIGÉ : 'payment_mode' au lieu de 'method'
-        thanked: false         // Valeur par défaut cohérente
-    };
-
-    // Insertion Supabase
     const { error } = await supabaseClient
         .from('donations')
-        .insert([donationData]);
+        .insert([{
+            donor_id: donorId,
+            amount: parseFloat(amountVal),
+            date: dateVal,
+            payment_mode: modeVal,
+            fiscal_receipt_id: fiscalId,
+            thanked: false
+        }]);
 
-    if (error) {
-        console.error("Détails erreur Supabase:", error);
-        return window.showNotice("Erreur SQL", error.message, "error");
-    }
+    if (error) return window.showNotice("Erreur SQL", error.message, "error");
 
-    // Succès
-    window.showNotice("Don enregistré", "La base de données a été mise à jour avec succès.");
+    window.showNotice("Succès", "Don enregistré.");
     closeCustomModal();
-    loadDonors(); // Rafraîchit la liste pour voir le nouveau total
+    loadDonors();
 };
 
+window.askDeleteDonation = (donationId) => {
+    window.askConfirmation(
+        "Supprimer ce don ?",
+        "Cette transaction sera définitivement retirée de l'historique financier.",
+        async () => {
+            const { error } = await supabaseClient.from('donations').delete().eq('id', donationId);
+            if (!error) {
+                window.showNotice("Supprimé", "La transaction a été effacée.");
+                closeCustomModal();
+                loadDonors();
+            }
+        }
+    );
+};
+
+window.exportDonorToExcel = (donorId) => {
+    const donor = allDonorsData.find(d => d.id === donorId);
+    if (!donor) return;
+
+    const infoData = [{
+        NOM: donor.last_name, PRENOM: donor.first_name || '', SOCIETE: donor.company_name || '',
+        EMAIL: donor.email || '', TEL: donor.phone || '', ADRESSE: donor.address || '',
+        CP: donor.zip_code || '', VILLE: donor.city || '', ORIGINE: donor.origin || '',
+        SUIVI: donor.next_action || '', NOTES: donor.notes || ''
+    }];
+
+    const donsData = (donor.donations || []).map(don => ({
+        DATE: don.date, MONTANT: don.amount + " €", MODE: don.payment_mode, RECU_FISCAL: don.fiscal_receipt_id || '-'
+    }));
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(infoData), "COORDONNÉES");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(donsData), "HISTORIQUE DONS");
+    XLSX.writeFile(wb, `Fiche_${donor.last_name.toUpperCase()}.xlsx`);
+    window.showNotice("Export", "Le fichier Excel a été généré.");
+};
+
+// ==========================================
+// 5. SÉCURITÉ ET MAINTENANCE
+// ==========================================
 window.askDeleteDonor = (id, name) => {
-    if(confirm(`Êtes-vous sûr de vouloir supprimer définitivement la fiche de ${name} ainsi que tout son historique de dons ?`)) {
-        window.execDeleteDonor(id);
-    }
+    window.askConfirmation(
+        "SUPPRESSION DÉFINITIVE",
+        `Voulez-vous supprimer la fiche de ${name} ainsi que tout son historique ?`,
+        () => window.execDeleteDonor(id)
+    );
 };
 
 window.execDeleteDonor = async (id) => {
-    // Suppression cascade manuelle (si non gérée par DB)
     await supabaseClient.from('donations').delete().eq('donor_id', id);
     await supabaseClient.from('donors').delete().eq('id', id);
     closeCustomModal();
@@ -691,9 +732,20 @@ window.execDeleteDonor = async (id) => {
     window.showNotice("Suppression", "La fiche a été retirée du CRM.");
 };
 
-window.exportAllDonors = () => { window.showNotice("Export", "Génération du fichier Excel global..."); };
+window.exportAllDonors = (year = new Date().getFullYear()) => {
+    const data = allDonorsData.map(d => ({
+        Nom: d.last_name, Entreprise: d.company_name || '', 
+        Total: d.donations?.reduce((acc, cur) => acc + Number(cur.amount), 0) || 0,
+        Portail: d.entity
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, `Donateurs ${year}`);
+    XLSX.writeFile(wb, `Export_Global_Alsatia_${year}.xlsx`);
+    window.showNotice("Export", "Export global terminé.");
+};
+
 window.generateReceipt = (id) => { window.showNotice("PDF", "Génération du reçu fiscal CERFA..."); };
-window.exportDonorToExcel = (id) => { window.showNotice("Export", "Génération de la fiche Excel..."); };
 
 // ==========================================
 // 1. CHARGEMENT ET RENDU DES ÉVÉNEMENTS
