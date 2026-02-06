@@ -30,18 +30,31 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initInterface() {
+    // 1. Gestion des Logos
     const logoContainer = document.getElementById('entity-logo-container');
     if(logoContainer) logoContainer.innerHTML = `<img src="${LOGOS[currentUser.portal] || 'logo_alsatia.png'}" class="entity-logo">`;
     
+    // 2. Affichage Nom et Portail
     document.getElementById('user-name-display').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
     document.getElementById('current-portal-display').innerText = currentUser.portal;
 
-    // Affichage conditionnel de l'onglet CRM pour l'Institut
+    // 3. Insertion du bouton "Mon Profil" dans la navigation
+    const nav = document.getElementById('main-nav');
+    if (nav && !document.getElementById('nav-profile')) {
+        const li = document.createElement('li');
+        li.id = "nav-profile";
+        li.className = "nav-profile-item";
+        li.innerHTML = `<i data-lucide="user-circle"></i> Mon Profil`;
+        li.onclick = () => window.openProfileModal();
+        nav.appendChild(li); // Ajout à la fin du menu
+    }
+
+    // 4. Affichage conditionnel de l'onglet CRM pour l'Institut
     if (currentUser.portal === "Institut Alsatia") {
-        const nav = document.getElementById('main-nav');
         if (nav && !document.getElementById('nav-donors')) {
             const li = document.createElement('li');
-            li.id = "nav-donors"; li.innerHTML = `<i data-lucide="users"></i> Base Donateurs`;
+            li.id = "nav-donors"; 
+            li.innerHTML = `<i data-lucide="users"></i> Base Donateurs`;
             li.onclick = () => switchTab('donors');
             nav.insertBefore(li, nav.children[1]);
         }
@@ -52,7 +65,10 @@ function initInterface() {
 window.switchTab = (id) => {
     document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.side-nav li').forEach(l => l.classList.remove('active'));
-    document.getElementById(`tab-${id}`).classList.add('active');
+    
+    const targetPage = document.getElementById(`tab-${id}`);
+    if(targetPage) targetPage.classList.add('active');
+    
     if(document.getElementById(`nav-${id}`)) document.getElementById(`nav-${id}`).classList.add('active');
     
     if(id === 'donors') loadDonors();
@@ -61,18 +77,10 @@ window.switchTab = (id) => {
     lucide.createIcons();
 };
 
-<div class="nav-links">
-    <button onclick="window.openProfileModal()" class="btn-nav" title="Gérer mon profil">
-        <i data-lucide="user-circle" style="width: 18px; margin-right: 8px;"></i>
-        MON PROFIL
-    </button>
-</div>
-
 window.logout = () => { localStorage.clear(); window.location.href = 'login.html'; };
 window.closeCustomModal = () => { document.getElementById('custom-modal').style.display = 'none'; };
 
 window.showNotice = (title, message) => {
-    // Si vous n'avez pas d'élément toast, on le crée
     let toast = document.getElementById('notification-toast');
     if (!toast) {
         toast = document.createElement('div');
@@ -84,10 +92,12 @@ window.showNotice = (title, message) => {
     setTimeout(() => { toast.style.display = 'none'; }, 3000);
 };
 
-// --- GESTION DU PROFIL UTILISATEUR ---
+// ==========================================
+// GESTION DU PROFIL UTILISATEUR
+// ==========================================
 
 window.openProfileModal = async () => {
-    // 1. Récupération des données du profil
+    // 1. Récupération des données fraîches du profil
     const { data: profile, error } = await supabaseClient
         .from('profiles')
         .select('*')
@@ -101,53 +111,54 @@ window.openProfileModal = async () => {
 
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
-        <div style="display:flex; justify-content:space-between; border-bottom:2px solid var(--gold); padding-bottom:10px; margin-bottom:20px;">
-            <h3><i data-lucide="settings" style="width:20px; vertical-align:middle; margin-right:8px;"></i>PARAMÈTRES DU PROFIL</h3>
-            <button onclick="closeCustomModal()" class="btn-gold" style="padding: 2px 8px;">X</button>
+        <div style="display:flex; justify-content:space-between; border-bottom:2px solid #d4af37; padding-bottom:10px; margin-bottom:20px;">
+            <h3 style="margin:0; color:#1e293b;"><i data-lucide="settings" style="width:20px; vertical-align:middle; margin-right:8px;"></i>PARAMÈTRES DU PROFIL</h3>
+            <button onclick="closeCustomModal()" class="btn-gold" style="padding: 2px 8px; border:none; background:none; font-weight:bold; cursor:pointer;">X</button>
         </div>
 
-        <div style="background: linear-gradient(135deg, #1e293b, #0f172a); color: white; padding: 20px; border-radius: 12px; margin-bottom: 25px; border: 1px solid var(--gold);">
-            <div style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 2px; color: var(--gold); margin-bottom: 5px;">Accès Portail</div>
+        <div style="background: linear-gradient(135deg, #1e293b, #0f172a); color: white; padding: 20px; border-radius: 12px; margin-bottom: 25px; border: 1px solid #d4af37; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+            <div style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 2px; color: #d4af37; margin-bottom: 5px;">Accès Portail</div>
             <div style="font-size: 1.1rem; font-weight: 800; margin-bottom: 10px;">${profile.portal}</div>
             <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
                 <span style="font-size: 0.75rem; opacity: 0.8;">ID: ${profile.id.substring(0,8)}...</span>
-                <span style="font-size: 0.75rem; background: rgba(212, 175, 55, 0.2); padding: 2px 8px; border-radius: 20px; border: 1px solid var(--gold);">Actif</span>
+                <span style="font-size: 0.75rem; background: rgba(212, 175, 55, 0.2); padding: 2px 8px; border-radius: 20px; border: 1px solid #d4af37;">Profil Actif</span>
             </div>
         </div>
 
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
             <div>
-                <label class="mini-label">PRÉNOM</label>
-                <input type="text" id="prof-first" class="luxe-input" value="${profile.first_name || ''}">
+                <label class="mini-label" style="display:block; font-size:0.65rem; color:#64748b; margin-bottom:5px;">PRÉNOM</label>
+                <input type="text" id="prof-first" class="luxe-input" value="${profile.first_name || ''}" style="width:100%; padding:10px; border-radius:6px; border:1px solid #ddd;">
             </div>
             <div>
-                <label class="mini-label">NOM</label>
-                <input type="text" id="prof-last" class="luxe-input" value="${profile.last_name || ''}">
+                <label class="mini-label" style="display:block; font-size:0.65rem; color:#64748b; margin-bottom:5px;">NOM</label>
+                <input type="text" id="prof-last" class="luxe-input" value="${profile.last_name || ''}" style="width:100%; padding:10px; border-radius:6px; border:1px solid #ddd;">
             </div>
         </div>
 
-        <label class="mini-label" style="margin-top:15px;">FONCTION DANS L'ENTITÉ</label>
-        <input type="text" id="prof-job" class="luxe-input" placeholder="ex: Directeur, Bénévole, etc." value="${profile.job_title || ''}">
+        <div style="margin-top:15px;">
+            <label class="mini-label" style="display:block; font-size:0.65rem; color:#64748b; margin-bottom:5px;">FONCTION DANS L'ENTITÉ</label>
+            <input type="text" id="prof-job" class="luxe-input" placeholder="ex: Responsable Communication" value="${profile.job_title || ''}" style="width:100%; padding:10px; border-radius:6px; border:1px solid #ddd;">
+        </div>
 
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-top:15px;">
             <div>
-                <label class="mini-label">TÉLÉPHONE</label>
-                <input type="tel" id="prof-phone" class="luxe-input" placeholder="06..." value="${profile.phone || ''}">
+                <label class="mini-label" style="display:block; font-size:0.65rem; color:#64748b; margin-bottom:5px;">TÉLÉPHONE</label>
+                <input type="tel" id="prof-phone" class="luxe-input" placeholder="06..." value="${profile.phone || ''}" style="width:100%; padding:10px; border-radius:6px; border:1px solid #ddd;">
             </div>
             <div>
-                <label class="mini-label">MAIL PERSONNEL / PRO</label>
-                <input type="email" id="prof-email" class="luxe-input" placeholder="nom@exemple.com" value="${profile.email || ''}">
+                <label class="mini-label" style="display:block; font-size:0.65rem; color:#64748b; margin-bottom:5px;">MAIL PERSONNEL / PRO</label>
+                <input type="email" id="prof-email" class="luxe-input" placeholder="nom@exemple.com" value="${profile.email || ''}" style="width:100%; padding:10px; border-radius:6px; border:1px solid #ddd;">
             </div>
         </div>
 
-        <button onclick="window.saveMyProfile()" class="btn-gold" style="width:100%; margin-top:25px; padding:15px; background:var(--gold); color:var(--primary); font-weight:bold; border:none; border-radius:8px;">
+        <button onclick="window.saveMyProfile()" class="btn-gold" style="width:100%; margin-top:25px; padding:15px; background:#1e293b; color:#d4af37; font-weight:bold; border:1px solid #d4af37; border-radius:8px; cursor:pointer; transition:0.3s;">
             METTRE À JOUR MES INFORMATIONS
         </button>
     `;
     lucide.createIcons();
 };
 
-// --- SAUVEGARDE DES MODIFICATIONS ---
 window.saveMyProfile = async () => {
     const updates = {
         first_name: document.getElementById('prof-first').value.trim(),
@@ -168,9 +179,15 @@ window.saveMyProfile = async () => {
 
     if (!error) {
         window.showNotice("Succès", "Vos informations ont été enregistrées.");
-        // Mise à jour de l'affichage local (nom dans le header etc.)
+        
+        // Mise à jour de l'affichage local
         currentUser.first_name = updates.first_name;
         currentUser.last_name = updates.last_name;
+        localStorage.setItem('alsatia_user', JSON.stringify(currentUser));
+        
+        // Rafraîchir l'interface (nom en haut à droite)
+        document.getElementById('user-name-display').innerText = `${updates.first_name} ${updates.last_name}`;
+        
         closeCustomModal();
     } else {
         console.error(error);
