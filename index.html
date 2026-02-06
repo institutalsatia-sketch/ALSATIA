@@ -21,7 +21,7 @@
             <li id="nav-chat" class="active" onclick="switchTab('chat')"><i data-lucide="message-square"></i> Discussion <span id="chat-badge" class="badge-notif"></span></li>
             <li id="nav-campaigns" onclick="switchTab('campaigns')"><i data-lucide="megaphone"></i> Campagnes</li>
             <li id="nav-events" onclick="switchTab('events')"><i data-lucide="calendar"></i> Événements</li>
-        </ul>
+            </ul>
         <div class="user-bottom">
             <div class="user-info"><i data-lucide="user-circle"></i><span id="user-name-display">Utilisateur</span></div>
             <button onclick="logout()" class="btn-logout"><i data-lucide="log-out"></i> Quitter</button>
@@ -57,6 +57,14 @@
                     <div id="file-preview" class="file-preview"></div>
                 </div>
             </div>
+        </section>
+
+        <section id="tab-contacts" class="page-content">
+            <div class="header-tab">
+                <h1>Annuaire des Contacts</h1>
+            </div>
+            <div id="contacts-list" class="grid-cards" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; padding: 20px;">
+                </div>
         </section>
 
         <section id="tab-donors" class="page-content">
