@@ -186,23 +186,23 @@ async function loadContacts() {
 }
 
 // ==========================================
-// SECTION MON PROFIL (GESTION COMPLÈTE)
+// SECTION MON PROFIL (VERSION COMPLÈTE + EMAIL & PIN)
 // ==========================================
 window.openProfileModal = async () => {
-    // On force la récupération pour avoir les données les plus récentes (ex: tel ajouté)
+    // On force la récupération pour avoir les données les plus récentes
     const { data: profile, error } = await supabaseClient
         .from('profiles')
         .select('*')
         .eq('id', currentUser.id)
         .single();
 
-    if (error || !profile) return window.showNotice("Erreur Profil", "Impossible de récupérer vos informations.");
+    if (error || !profile) return window.showNotice("Erreur Profil", "Impossible de récupérer vos informations.", "error");
 
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
-        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid #d4af37; padding-bottom:15px; margin-bottom:25px;">
-            <h3 style="margin:0; color:#1e293b; font-family: 'Montserrat', sans-serif; letter-spacing:1px;">
-                <i data-lucide="user-cog" style="width:22px; height:22px; vertical-align:middle; margin-right:10px; color:#d4af37;"></i>MON PROFIL UTILISATEUR
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid var(--gold); padding-bottom:15px; margin-bottom:25px;">
+            <h3 style="margin:0; color:var(--primary); font-family: 'Playfair Display', serif; letter-spacing:1px;">
+                <i data-lucide="user-cog" style="width:22px; height:22px; vertical-align:middle; margin-right:10px; color:var(--gold);"></i>GESTION DU COMPTE
             </h3>
             <button onclick="closeCustomModal()" style="border:none; background:none; font-size:1.5rem; cursor:pointer; color:#94a3b8;">&times;</button>
         </div>
@@ -210,49 +210,71 @@ window.openProfileModal = async () => {
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px;">
             <div class="form-group">
                 <label class="mini-label">PRÉNOM</label>
-                <input type="text" id="prof-first" class="luxe-input" value="${profile.first_name || ''}" style="width:100%;">
+                <input type="text" id="prof-first" class="luxe-input" value="${profile.first_name || ''}">
             </div>
             <div class="form-group">
                 <label class="mini-label">NOM</label>
-                <input type="text" id="prof-last" class="luxe-input" value="${profile.last_name || ''}" style="width:100%;">
+                <input type="text" id="prof-last" class="luxe-input" value="${profile.last_name || ''}">
             </div>
         </div>
 
-        <div style="margin-top:20px;">
-            <label class="mini-label">FONCTION ACTUELLE</label>
-            <input type="text" id="prof-job" class="luxe-input" value="${profile.job_title || ''}" placeholder="Ex: Responsable logistique" style="width:100%;">
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top:20px;">
+            <div class="form-group">
+                <label class="mini-label">ADRESSE EMAIL (IDENTIFIANT)</label>
+                <input type="email" id="prof-email" class="luxe-input" value="${profile.email || ''}">
+            </div>
+            <div class="form-group">
+                <label class="mini-label">NOUVEAU CODE PIN (4 CHIFFRES)</label>
+                <input type="password" id="prof-pin" class="luxe-input" maxlength="4" placeholder="••••" value="${profile.pin || ''}">
+            </div>
         </div>
 
-        <div style="margin-top:20px;">
-            <label class="mini-label">NUMÉRO DE CONTACT DIRECT</label>
-            <input type="text" id="prof-phone" class="luxe-input" value="${profile.phone || ''}" placeholder="Ex: +33 6 12 34 56 78" style="width:100%;">
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top:20px;">
+            <div class="form-group">
+                <label class="mini-label">FONCTION ACTUELLE</label>
+                <input type="text" id="prof-job" class="luxe-input" value="${profile.job_title || ''}">
+            </div>
+            <div class="form-group">
+                <label class="mini-label">TÉLÉPHONE DIRECT</label>
+                <input type="text" id="prof-phone" class="luxe-input" value="${profile.phone || ''}">
+            </div>
         </div>
 
-        <div style="background: #fffbeb; padding: 15px; border-radius: 10px; margin-top: 25px; border: 1px solid #fef3c7; display:flex; gap:12px; align-items:center;">
-            <i data-lucide="shield-alert" style="color:#d97706; width:24px; height:24px; flex-shrink:0;"></i>
-            <p style="margin:0; font-size:0.75rem; color:#92400e; line-height:1.4;">
-                Votre identifiant unique est rattaché au portail <strong>${profile.portal}</strong>. 
-                L'adresse email <strong>${profile.email}</strong> est utilisée pour vos notifications officielles.
+        <div style="background: rgba(197, 160, 89, 0.05); padding: 15px; border-radius: 12px; margin-top: 25px; border: 1px dashed var(--gold); display:flex; gap:12px; align-items:center;">
+            <i data-lucide="shield-check" style="color:var(--gold); width:24px; height:24px; flex-shrink:0;"></i>
+            <p style="margin:0; font-size:0.75rem; color:var(--primary); line-height:1.4;">
+                Compte rattaché au portail <strong>${profile.portal}</strong>.<br>
+                <span style="opacity:0.7;">Toute modification de l'email ou du PIN sera effective dès la prochaine connexion.</span>
             </p>
         </div>
 
-        <button onclick="window.saveMyProfile()" class="btn-gold" style="width:100%; margin-top:30px; padding:15px; font-weight:800; letter-spacing:1px; text-transform:uppercase; box-shadow: 0 4px 15px rgba(212,175,55,0.25);">
-            METTRE À JOUR MES INFORMATIONS
+        <button onclick="window.saveMyProfile()" class="btn-gold" style="width:100%; margin-top:30px; height:50px; font-weight:800; letter-spacing:1px;">
+            SAUVEGARDER LES MODIFICATIONS
         </button>
     `;
     lucide.createIcons();
 };
 
 window.saveMyProfile = async () => {
+    const emailVal = document.getElementById('prof-email').value.trim();
+    const pinVal = document.getElementById('prof-pin').value.trim();
+
     const updates = {
         first_name: document.getElementById('prof-first').value.trim(),
         last_name: document.getElementById('prof-last').value.trim(),
+        email: emailVal,
+        pin: pinVal,
         job_title: document.getElementById('prof-job').value.trim(),
         phone: document.getElementById('prof-phone').value.trim()
     };
 
-    if (!updates.first_name || !updates.last_name) {
-        return window.showNotice("Champs obligatoires", "Le prénom et le nom ne peuvent pas être vides.");
+    // VALIDATIONS SÉCURITÉ
+    if (!updates.first_name || !updates.last_name || !updates.email || !updates.pin) {
+        return window.showNotice("Champs obligatoires", "Prénom, Nom, Email et PIN sont requis.", "error");
+    }
+
+    if (updates.pin.length !== 4 || isNaN(updates.pin)) {
+        return window.showNotice("Format PIN", "Le code PIN doit être composé de 4 chiffres.", "error");
     }
 
     const { error } = await supabaseClient
@@ -262,18 +284,17 @@ window.saveMyProfile = async () => {
 
     if (error) {
         console.error("Update Error:", error);
-        return window.showNotice("Erreur SQL", "Impossible de sauvegarder les modifications.");
+        return window.showNotice("Erreur SQL", "Impossible de sauvegarder : l'email est peut-être déjà utilisé.", "error");
     }
 
-    // Mise à jour de la session locale pour impacter l'Accueil immédiatement
-    currentUser.first_name = updates.first_name;
-    currentUser.last_name = updates.last_name;
+    // MISE À JOUR DE LA SESSION LOCALE
+    currentUser = { ...currentUser, ...updates };
     localStorage.setItem('alsatia_user', JSON.stringify(currentUser));
 
-    // Refresh Interface & Feedback
-    initInterface();
+    // REFRESH INTERFACE & FEEDBACK
+    initInterface(); 
     closeCustomModal();
-    window.showNotice("Profil à jour", "Vos modifications ont été enregistrées avec succès.");
+    window.showNotice("Profil mis à jour", "Vos informations de compte ont été synchronisées avec succès.");
 };
 
 // ==========================================
