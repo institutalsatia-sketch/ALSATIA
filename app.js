@@ -617,10 +617,10 @@ window.askConfirmation = (title, message, onConfirm) => {
 };
 
 // ==========================================
-// GESTION DES ÉVÉNEMENTS - WORKFLOW COMPLET
+// GESTION DES ÉVÉNEMENTS - SYSTÈME COMPLET
 // ==========================================
 
-// 1. CHARGEMENT GLOBAL (Toutes les entités voient tout)
+// 1. DASHBOARD : LISTE GLOBALE
 async function loadEvents() {
     const { data, error } = await supabaseClient
         .from('events')
@@ -628,34 +628,27 @@ async function loadEvents() {
         .order('event_date', { ascending: true });
 
     const container = document.getElementById('events-container');
-    if (!container) return;
+    if (!container || error) return;
 
-    if (error || !data || data.length === 0) {
-        container.innerHTML = `<p style="text-align:center; padding:40px; color:#64748b;">Aucun événement planifié.</p>`;
+    if (data.length === 0) {
+        container.innerHTML = `<p style="text-align:center; padding:40px; opacity:0.6;">Aucun événement planifié.</p>`;
         return;
     }
 
     container.innerHTML = data.map(ev => {
-        // Un événement est "Prêt" si Heure, Lieu et Description sont saisis
-        const isReady = ev.event_time && ev.location && ev.description && ev.description.trim().length > 5;
-        
+        const isReady = ev.event_time && ev.location && ev.description && ev.description.length > 10;
         return `
             <div class="event-card" onclick="window.openEventDetails('${ev.id}')" 
-                 style="background:white; border-radius:12px; border:1px solid #e2e8f0; border-left: 6px solid ${isReady ? '#22c55e' : '#f59e0b'}; cursor:pointer; padding:15px; position:relative; transition: transform 0.2s;">
-                
-                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
+                 style="background:white; border-radius:12px; border:1px solid #e2e8f0; border-left: 6px solid ${isReady ? '#22c55e' : '#f59e0b'}; cursor:pointer; padding:15px; transition:all 0.3s ease;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
                     <span class="mini-label" style="color:var(--gold);">${ev.entity}</span>
-                    <span style="font-size:0.6rem; font-weight:800; padding:2px 6px; border-radius:4px; background:${isReady ? '#f0fdf4' : '#fff7ed'}; color:${isReady ? '#166534' : '#9a3412'}; border:1px solid ${isReady ? '#bbf7d0' : '#ffedd5'};">
-                        ${isReady ? '✅ PRÊT RÉSEAUX' : '⏳ INFOS MANQUANTES'}
+                    <span style="font-size:0.6rem; font-weight:800; color:${isReady ? '#166534' : '#9a3412'}; background:${isReady ? '#f0fdf4' : '#fff7ed'}; padding:2px 6px; border-radius:4px;">
+                        ${isReady ? '✅ PRÊT' : '⏳ EN COURS'}
                     </span>
                 </div>
-
-                <h3 style="margin:5px 0; font-family:'Playfair Display'; color:#1e293b; font-size:1.1rem;">${ev.title}</h3>
-                
-                <div style="font-size:0.8rem; color:#64748b; margin-top:10px;">
-                    <i data-lucide="calendar" style="width:12px; vertical-align:middle;"></i> 
-                    ${new Date(ev.event_date).toLocaleDateString()} 
-                    ${ev.event_time ? ` à ${ev.event_time.substring(0,5)}` : ''}
+                <h3 style="margin:5px 0; font-family:'Playfair Display'; font-size:1.1rem; color:#1e293b;">${ev.title}</h3>
+                <div style="font-size:0.8rem; color:#64748b;">
+                    <i data-lucide="calendar" style="width:12px; vertical-align:middle;"></i> ${new Date(ev.event_date).toLocaleDateString()}
                 </div>
             </div>
         `;
@@ -663,7 +656,7 @@ async function loadEvents() {
     lucide.createIcons();
 }
 
-// 2. CRÉATION (ÉTAPE 1 : BASES)
+// 2. CRÉATION (ÉTAPE 1)
 window.showAddEventModal = () => {
     const userPortal = currentUser.portal;
     showCustomModal(`
@@ -671,10 +664,8 @@ window.showAddEventModal = () => {
             <h3 class="luxe-title" style="margin:0;">PLANIFIER UN ÉVÉNEMENT</h3>
             <button onclick="closeCustomModal()" style="border:none; background:none; cursor:pointer; font-size:1.5rem; color:#94a3b8;">&times;</button>
         </div>
-
         <p class="mini-label">TITRE DE L'ÉVÉNEMENT *</p>
         <input type="text" id="ev-title" class="luxe-input" placeholder="Ex: Gala de Charité...">
-        
         <p class="mini-label" style="margin-top:15px;">ENTITÉ CONCERNÉE *</p>
         <select id="ev-entity" class="luxe-input" style="width:100%;">
             <option ${userPortal === 'Institut Alsatia' ? 'selected' : ''}>Institut Alsatia</option>
@@ -682,13 +673,9 @@ window.showAddEventModal = () => {
             <option ${userPortal === 'Cours Herrade de Landsberg' ? 'selected' : ''}>Cours Herrade de Landsberg</option>
             <option ${userPortal === 'Collège Saints Louis et Zélie Martin' ? 'selected' : ''}>Collège Saints Louis et Zélie Martin</option>
         </select>
-
         <p class="mini-label" style="margin-top:15px;">DATE PRÉVUE *</p>
         <input type="date" id="ev-date" class="luxe-input">
-
-        <button onclick="window.execCreateEvent()" class="btn-gold" style="width:100%; margin-top:25px; height:45px; font-weight:bold;">
-            CRÉER ET ATTENDRE LES INFOS
-        </button>
+        <button onclick="window.execCreateEvent()" class="btn-gold" style="width:100%; margin-top:25px; height:45px; font-weight:bold;">CRÉER ET ATTENDRE LES INFOS</button>
     `);
 };
 
@@ -696,8 +683,7 @@ window.execCreateEvent = async () => {
     const title = document.getElementById('ev-title').value.trim();
     const event_date = document.getElementById('ev-date').value;
     const entity = document.getElementById('ev-entity').value;
-    
-    if(!title || !event_date) return window.showNotice("Champs requis", "Le titre et la date sont obligatoires.");
+    if(!title || !event_date) return window.showNotice("Champs requis", "Titre et Date obligatoires.");
 
     const { error } = await supabaseClient.from('events').insert([{
         title, event_date, entity,
@@ -709,12 +695,12 @@ window.execCreateEvent = async () => {
     loadEvents();
 };
 
-// 3. DOSSIER LOGISTIQUE ET MÉDIAS (ÉTAPE 2 & 3)
+// 3. DOSSIER LOGISTIQUE & GALERIE (ÉTAPE 2 & 3)
 window.openEventDetails = async (id) => {
     const { data: ev } = await supabaseClient.from('events').select('*').eq('id', id).single();
     if(!ev) return;
 
-    const isReady = ev.event_time && ev.location && ev.description && ev.description.trim().length > 5;
+    const isReady = ev.event_time && ev.location && ev.description && ev.description.length > 5;
 
     showCustomModal(`
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
@@ -724,94 +710,93 @@ window.openEventDetails = async (id) => {
 
         <div style="display:grid; grid-template-columns: 1.2fr 1fr; gap:25px;">
             <div>
-                <p class="mini-label" style="color:var(--primary); font-weight:800; border-bottom:1px solid #eee; padding-bottom:5px;">1. COMPLÉTER LE DOSSIER</p>
-                
+                <p class="mini-label" style="color:var(--primary); font-weight:800; border-bottom:1px solid #eee; padding-bottom:5px;">1. LOGISTIQUE & MÉDIAS</p>
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:15px;">
-                    <div>
-                        <label class="mini-label">HEURE</label>
-                        <input type="time" class="luxe-input" value="${ev.event_time || ''}" onchange="window.updateEventField('${ev.id}', 'event_time', this.value)">
-                    </div>
-                    <div>
-                        <label class="mini-label">DATE</label>
-                        <input type="date" class="luxe-input" value="${ev.event_date}" onchange="window.updateEventField('${ev.id}', 'event_date', this.value)">
-                    </div>
+                    <input type="time" class="luxe-input" value="${ev.event_time || ''}" onchange="window.updateEventField('${ev.id}', 'event_time', this.value)">
+                    <input type="text" class="luxe-input" placeholder="Lieu..." value="${ev.location || ''}" onblur="window.updateEventField('${ev.id}', 'location', this.value)">
                 </div>
-
-                <label class="mini-label" style="margin-top:15px; display:block;">LIEU</label>
-                <input type="text" class="luxe-input" value="${ev.location || ''}" onblur="window.updateEventField('${ev.id}', 'location', this.value)">
+                <textarea class="luxe-input" style="height:100px; margin-top:10px;" placeholder="Texte réseaux..." onblur="window.updateEventField('${ev.id}', 'description', this.value)">${ev.description || ''}</textarea>
                 
-                <label class="mini-label" style="margin-top:15px; display:block;">TEXTE RÉSEAUX SOCIAUX</label>
-                <textarea class="luxe-input" style="height:100px;" onblur="window.updateEventField('${ev.id}', 'description', this.value)">${ev.description || ''}</textarea>
-                
-                <div style="margin-top:15px; background:#f8fafc; padding:10px; border-radius:8px; border:1px dashed #cbd5e1;">
-                    <label class="mini-label">MÉDIAS (Dossier : events_media)</label>
-                    <input type="file" id="ev-media-file" style="display:none;" onchange="window.uploadEventMedia('${ev.id}', this.files[0])">
-                    <button onclick="document.getElementById('ev-media-file').click()" class="btn-gold" style="width:100%; font-size:0.7rem;">
-                        <i data-lucide="upload" style="width:12px; margin-right:5px;"></i> CHARGER UNE PHOTO / DOC
-                    </button>
+                <div style="margin-top:20px; padding:15px; background:#f8fafc; border-radius:12px; border:1px dashed #cbd5e1;">
+                    <p class="mini-label">DOCUMENTS & PHOTOS</p>
+                    <div id="event-gallery" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin:15px 0; max-height:200px; overflow-y:auto;"></div>
+                    <input type="file" id="ev-upload-multi" style="display:none;" multiple onchange="window.uploadMultipleMedia('${ev.id}', this.files)">
+                    <button onclick="document.getElementById('ev-upload-multi').click()" class="btn-gold" style="width:100%; font-size:0.75rem;">+ AJOUTER FICHIERS</button>
                 </div>
             </div>
 
-            <div style="background:${isReady ? '#f0fdf4' : '#fff7ed'}; padding:20px; border-radius:12px; border:1px solid ${isReady ? '#bbf7d0' : '#ffedd5'};">
-                <p class="mini-label" style="color:${isReady ? '#166534' : '#9a3412'}; font-weight:800;">2. ACTIONS RÉSEAUX</p>
-                
-                ${isReady ? `
-                    <p style="font-size:0.8rem; color:#166534; margin:15px 0;">✨ Dossier complet.</p>
-                    <button onclick="window.copyToClipboard('${ev.description.replace(/'/g, "\\'")}')" class="btn-gold" style="width:100%; background:#22c55e; border:none; margin-bottom:10px;">
-                        COPIER LE TEXTE
-                    </button>
-                    <button onclick="window.showNotice('Média', 'Accès au dossier events_media activé.')" class="btn-gold" style="width:100%; background:#1e293b; border:none;">
-                        TÉLÉCHARGER LES PHOTOS
-                    </button>
-                ` : `
-                    <p style="font-size:0.75rem; color:#9a3412; margin:15px 0;">⚠️ En attente des informations logistiques (Heure, Lieu, Texte).</p>
-                    <div style="opacity:0.2; pointer-events:none;">
-                        <button class="btn-gold" style="width:100%; margin-bottom:10px;">COPIER LE TEXTE</button>
-                        <button class="btn-gold" style="width:100%;">TÉLÉCHARGER LES PHOTOS</button>
-                    </div>
-                `}
+            <div style="background:#f8fafc; padding:20px; border-radius:12px; border:1px solid #e2e8f0; align-self: start;">
+                <p class="mini-label" style="color:var(--primary); font-weight:800;">2. ACTIONS RÉSEAUX</p>
+                ${!isReady ? `<p style="font-size:0.7rem; color:#9a3412; background:#fff7ed; padding:10px; border-radius:8px; margin:10px 0;">⚠️ Dossier incomplet.</p>` : ''}
+                <button onclick="window.copyToClipboard('${(ev.description || "").replace(/'/g, "\\'")}')" class="btn-gold" style="width:100%; background:#22c55e; border:none; margin-bottom:10px; height:45px;">COPIER LE TEXTE</button>
+                <button onclick="window.downloadAllMedia('${ev.id}')" class="btn-gold" style="width:100%; background:#1e293b; border:none; height:45px;">TOUT TÉLÉCHARGER</button>
             </div>
         </div>
-
         <div style="margin-top:20px; text-align:right;">
              <button onclick="window.askDeleteEvent('${ev.id}', '${ev.title.replace(/'/g, "\\'")}')" style="color:#ef4444; background:none; border:none; font-size:0.65rem; cursor:pointer;">SUPPRIMER L'ÉVÉNEMENT</button>
         </div>
     `);
-    lucide.createIcons();
+    window.refreshGallery(id);
 };
 
-// 4. LOGIQUE DE TÉLÉCHARGEMENT (STORAGE)
-window.uploadEventMedia = async (eventId, file) => {
-    if(!file) return;
-    const fileName = `${eventId}/${Date.now()}_${file.name}`;
-    
-    window.showNotice("Upload", "Envoi du fichier vers events_media...");
-    
-    const { error } = await supabaseClient.storage
-        .from('documents')
-        .upload(`events_media/${fileName}`, file);
-
-    if(error) return window.showNotice("Erreur Storage", error.message);
-    window.showNotice("Succès", "Fichier ajouté au dossier de l'événement.");
+// 4. STORAGE (UPLOAD / LISTE / DELETE)
+window.uploadMultipleMedia = async (eventId, files) => {
+    if(!files.length) return;
+    for(let file of files) {
+        const path = `events_media/${eventId}/${Date.now()}_${file.name}`;
+        await supabaseClient.storage.from('documents').upload(path, file);
+    }
+    window.showNotice("Succès", "Fichiers envoyés.");
+    window.refreshGallery(eventId);
 };
 
-// 5. UTILITAIRES
-window.updateEventField = async (id, field, value) => {
-    await supabaseClient.from('events').update({ [field]: value }).eq('id', id);
-    loadEvents(); // Actualise le dashboard en arrière-plan
+window.refreshGallery = async (eventId) => {
+    const { data } = await supabaseClient.storage.from('documents').list(`events_media/${eventId}`);
+    const gallery = document.getElementById('event-gallery');
+    if(!gallery) return;
+    if(!data || data.length === 0) {
+        gallery.innerHTML = `<p style="font-size:0.6rem; color:#94a3b8; grid-column:span 3; text-align:center;">Aucun média.</p>`;
+        return;
+    }
+    gallery.innerHTML = data.map(file => {
+        const { data: { publicUrl } } = supabaseClient.storage.from('documents').getPublicUrl(`events_media/${eventId}/${file.name}`);
+        const isImg = file.name.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+        return `
+            <div style="position:relative; aspect-ratio:1; border-radius:8px; overflow:hidden; border:1px solid #e2e8f0;">
+                ${isImg ? `<img src="${publicUrl}" style="width:100%; height:100%; object-fit:cover;">` : `<div style="display:flex; align-items:center; justify-content:center; height:100%; font-size:0.5rem;">DOC</div>`}
+                <button onclick="window.deleteMedia('${eventId}', '${file.name}')" style="position:absolute; top:2px; right:2px; background:#ef4444; color:white; border:none; border-radius:50%; width:18px; height:18px; cursor:pointer; font-size:10px;">&times;</button>
+            </div>
+        `;
+    }).join('');
 };
 
-window.copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text).then(() => {
-        window.showNotice("Copié", "Texte prêt à être collé sur les réseaux.");
+window.deleteMedia = async (eventId, fileName) => {
+    if(confirm("Supprimer ce fichier ?")) {
+        await supabaseClient.storage.from('documents').remove([`events_media/${eventId}/${fileName}`]);
+        window.refreshGallery(eventId);
+    }
+};
+
+window.downloadAllMedia = async (eventId) => {
+    const { data } = await supabaseClient.storage.from('documents').list(`events_media/${eventId}`);
+    if(data) data.forEach(f => {
+        const { data: { publicUrl } } = supabaseClient.storage.from('documents').getPublicUrl(`events_media/${eventId}/${f.name}`);
+        window.open(publicUrl, '_blank');
     });
 };
 
+// 5. MISES À JOUR
+window.updateEventField = async (id, field, value) => {
+    await supabaseClient.from('events').update({ [field]: value }).eq('id', id);
+    loadEvents();
+};
+
+window.copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text).then(() => window.showNotice("Copié !", "Texte prêt."));
+};
+
 window.askDeleteEvent = (id, title) => {
-    if(confirm(`Supprimer définitivement "${title}" ?`)) {
-        supabaseClient.from('events').delete().eq('id', id).then(() => {
-            closeCustomModal();
-            loadEvents();
-        });
+    if(confirm(`Supprimer "${title}" ?`)) {
+        supabaseClient.from('events').delete().eq('id', id).then(() => { closeCustomModal(); loadEvents(); });
     }
 };
