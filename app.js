@@ -266,180 +266,62 @@ window.updateSecurityPin = async () => {
 };
 
 // ==========================================
-// MESSAGERIE & MENTIONS @ (VERSION PRO)
+// MESSAGERIE & MENTIONS @ (VERSION PRO FINALE)
 // ==========================================
+/**
+ * Active l'écoute en temps réel des nouveaux messages sur Supabase
+ */
+function subscribeToChat() {
+    supabaseClient
+        .channel('public:chat_global')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_global' }, (payload) => {
+            const currentSubj = document.getElementById('chat-subject-filter')?.value;
+            // On rafraîchit si c'est un nouveau message dans le salon actuel 
+            // ou si un message a été supprimé/modifié
+            if (!currentSubj || (payload.new && payload.new.subject === currentSubj) || payload.eventType === 'DELETE') {
+                loadChatMessages();
+            }
+        })
+        .subscribe();
+}
 
-let selectedFile = null; // Correction : Variable initialisée
-
+/**
+ * Charge les noms des utilisateurs pour le système de @mentions
+ */
 async function loadUsersForMentions() {
-    const { data } = await supabaseClient.from('profiles').select('first_name, last_name, portal');
-    const entities = ["Institut Alsatia", "Academia Alsatia", "Cours Herrade de Landsberg", "Collège Saints Louis et Zélie Martin"];
-    if (data) {
-        // Formatage propre pour les suggestions
-        const users = data.map(u => `${u.first_name} ${u.last_name} (${u.portal})`);
-        allUsersForMentions = [...entities, ...users];
-    } else {
-        allUsersForMentions = entities;
-    }
-}
-
-function setupMentionLogic() {
-    const input = document.getElementById('chat-input');
-    const container = document.querySelector('.chat-input-area'); // Assure-toi que ce container est en position: relative
-    if(!input || !container) return;
-
-    let suggestList = document.getElementById('mention-suggestions');
-    if(!suggestList) {
-        suggestList = document.createElement('div');
-        suggestList.id = "mention-suggestions";
-        suggestList.className = "mention-suggestions-box"; // Style à définir en CSS (white, shadow, border-gold)
-        container.appendChild(suggestList);
-    }
-
-    input.addEventListener('input', (e) => {
-        const cursorPosition = input.selectionStart;
-        const textBeforeCursor = input.value.substring(0, cursorPosition);
-        const words = textBeforeCursor.split(/\s/);
-        const lastWord = words[words.length - 1];
-
-        if (lastWord.startsWith('@')) {
-            const query = lastWord.substring(1).toLowerCase();
-            const matches = allUsersForMentions.filter(s => s.toLowerCase().includes(query));
-            
-            if (matches.length > 0) {
-                suggestList.innerHTML = matches.map(m => `<div class="suggest-item">${m}</div>`).join('');
-                suggestList.style.display = 'block';
-                
-                document.querySelectorAll('.suggest-item').forEach(item => {
-                    item.onclick = () => {
-                        const textAfterCursor = input.value.substring(cursorPosition);
-                        const mention = `@${item.innerText} `;
-                        
-                        // Reconstruction intelligente du texte à la position du curseur
-                        words[words.length - 1] = mention;
-                        input.value = words.join(' ') + textAfterCursor;
-                        
-                        suggestList.style.display = 'none';
-                        input.focus();
-                    };
-                });
-            } else { suggestList.style.display = 'none'; }
-        } else { suggestList.style.display = 'none'; }
-    });
-}
-
-// Sécurisation contre les injections XSS
-function escapeHTML(str) {
-    const p = document.createElement('p');
-    p.textContent = str;
-    return p.innerHTML;
-}
-
-async function loadChatMessages() {
-    const filter = document.getElementById('chat-subject-filter');
-    if(!filter) return;
-    const subj = filter.value;
-    if(!subj) return;
-    
-    const { data } = await supabaseClient.from('chat_global').select('*').eq('subject', subj).order('created_at');
-    const box = document.getElementById('chat-box');
-    if(!box) return;
-
-    box.innerHTML = (data || []).map(m => {
-        const isMe = m.author_full_name === `${currentUser.first_name} ${currentUser.last_name}`;
+    try {
+        const { data } = await supabaseClient.from('profiles').select('first_name, last_name, portal');
+        const entities = ["Institut Alsatia", "Academia Alsatia", "Cours Herrade de Landsberg", "Collège Saints Louis et Zélie Martin"];
         
-        // Sécurisation puis application du badge de mention
-        let contentHtml = escapeHTML(m.content);
-        contentHtml = contentHtml.replace(/@([\wÀ-ÿ-\s()]+)/g, '<span class="mention-badge">@$1</span>');
-        
-        return `
-            <div class="message ${isMe ? 'my-msg' : ''}">
-                <div class="msg-meta" style="font-size:0.7rem; margin-bottom:4px; display:flex; justify-content: ${isMe ? 'flex-end' : 'flex-start'}; gap:8px;">
-                    <b style="color:var(--gold);">${m.author_full_name}</b> 
-                    <span style="opacity:0.6;">• ${m.portal}</span>
-                </div>
-                <div class="msg-bubble" style="${isMe ? 'background:var(--primary); color:white;' : 'background:#f1f5f9; color:var(--primary);'} border-radius:12px; padding:10px; position:relative;">
-                    <div class="msg-body" style="font-size:0.9rem; cursor: ${isMe ? 'pointer' : 'default'};" onclick="${isMe ? `askEditMsg('${m.id}','${m.content.replace(/'/g, "\\'")}')` : ''}">
-                        ${contentHtml}
-                    </div>
-                    ${m.file_url ? `
-                        <a href="${m.file_url}" target="_blank" class="file-link" style="display:block; margin-top:8px; font-size:0.75rem; color:var(--gold); text-decoration:none; border-top:1px solid rgba(180,145,87,0.3); padding-top:5px;">
-                            <i data-lucide="file-text" style="width:12px; vertical-align:middle;"></i> Document joint
-                        </a>` : ''}
-                </div>
-                ${isMe ? `<div class="msg-actions" style="text-align:right; margin-top:3px;">
-                            <span onclick="askDeleteMsg('${id}')" style="font-size:0.65rem; color:#ef4444; cursor:pointer; opacity:0.7;">Supprimer</span>
-                          </div>` : ''}
-            </div>
-        `;
-    }).join('');
-    
-    lucide.createIcons();
-    box.scrollTop = box.scrollHeight;
+        if (data) {
+            const users = data.map(u => `${u.first_name} ${u.last_name} (${u.portal})`);
+            allUsersForMentions = [...entities, ...users];
+        } else {
+            allUsersForMentions = entities;
+        }
+    } catch (err) {
+        console.error("Erreur lors du chargement des membres pour mentions:", err);
+    }
 }
+// Initialisation des variables globales si non définies
+if (typeof allUsersForMentions === 'undefined') { var allUsersForMentions = []; }
+if (typeof selectedFile === 'undefined') { var selectedFile = null; }
 
-window.sendChatMessage = async () => {
-    const input = document.getElementById('chat-input');
-    const subj = document.getElementById('chat-subject-filter').value;
-    const content = input.value.trim();
-    
-    if(!content && !selectedFile) return;
-
-    let fUrl = null;
-    if (selectedFile) {
-        const path = `chat/${Date.now()}_${selectedFile.name}`;
-        const { data, error } = await supabaseClient.storage.from('documents').upload(path, selectedFile);
-        if (data) fUrl = supabaseClient.storage.from('documents').getPublicUrl(path).data.publicUrl;
-        if (error) { alert("Erreur upload fichier."); return; }
-    }
-
-    const { error } = await supabaseClient.from('chat_global').insert([{ 
-        content: content, 
-        author_name: currentUser.first_name,
-        author_full_name: `${currentUser.first_name} ${currentUser.last_name}`,
-        portal: currentUser.portal, 
-        subject: subj, 
-        file_url: fUrl 
-    }]);
-
-    if(!error) {
-        input.value = ''; 
-        selectedFile = null;
-        const preview = document.getElementById('file-preview');
-        if(preview) preview.innerHTML = "";
-        loadChatMessages();
-    }
-};
-
-// --- MODALS HARMONISÉES ---
-
-window.askEditMsg = (id, old) => {
-    document.getElementById('custom-modal').style.display = 'flex';
-    document.getElementById('modal-body').innerHTML = `
-        <h3 style="font-family:'Playfair Display'; color:var(--primary); border-bottom:2px solid var(--gold); padding-bottom:10px;">Modifier le message</h3>
-        <textarea id="edit-area" class="luxe-input" style="height:120px; width:100%; margin-top:15px;">${old}</textarea>
-        <div style="display:flex; gap:10px; margin-top:15px;">
-            <button onclick="execEditMsg('${id}')" class="btn-gold" style="flex:2;">SAUVEGARDER</button>
-            <button onclick="closeCustomModal()" class="btn-gold" style="flex:1; background:#64748b;">ANNULER</button>
-        </div>
-    `;
-};
-
-window.askDeleteMsg = (id) => {
-    document.getElementById('custom-modal').style.display = 'flex';
-    document.getElementById('modal-body').innerHTML = `
-        <div style="text-align:center; padding:10px;">
-            <h3 style="color:var(--danger);">Supprimer le message ?</h3>
-            <p style="font-size:0.9rem; opacity:0.8;">Cette action est irréversible.</p>
-            <div style="display:flex; gap:10px; margin-top:20px;">
-                <button onclick="execDeleteMsg('${id}')" class="btn-danger" style="flex:1;">SUPPRIMER</button>
-                <button onclick="closeCustomModal()" class="btn-gold" style="flex:1; background:#64748b;">ANNULER</button>
-            </div>
-        </div>
-    `;
-};
-
-// --- GESTION DES SALONS (CHANNELS) ---
+/**
+ * 1. CHARGEMENT DES DONNÉES DE RÉFÉRENCE
+ */
+async function loadUsersForMentions() {
+    try {
+        const { data } = await supabaseClient.from('profiles').select('first_name, last_name, portal');
+        const entities = ["Institut Alsatia", "Academia Alsatia", "Cours Herrade de Landsberg", "Collège Saints Louis et Zélie Martin"];
+        if (data) {
+            const users = data.map(u => `${u.first_name} ${u.last_name} (${u.portal})`);
+            allUsersForMentions = [...entities, ...users];
+        } else {
+            allUsersForMentions = entities;
+        }
+    } catch (err) { console.error("Erreur mentions:", err); }
+}
 
 async function loadSubjects() {
     const { data } = await supabaseClient.from('chat_subjects').select('*').order('name');
@@ -453,30 +335,207 @@ async function loadSubjects() {
         return `<option value="${s.name}">${icon} # ${s.name}</option>`;
     }).join('');
     
-    // Ajout d'un écouteur pour recharger les messages au changement de salon
     select.onchange = () => loadChatMessages();
-    
     loadChatMessages();
 }
 
-window.showNewSubjectModal = () => {
-    document.getElementById('custom-modal').style.display = 'flex';
-    document.getElementById('modal-body').innerHTML = `
-        <h3 style="font-family:'Playfair Display'; color:var(--primary); border-bottom:2px solid var(--gold); padding-bottom:10px;">Nouveau Salon</h3>
-        <div style="margin-top:15px;">
-            <label class="mini-label">NOM DU SALON</label>
-            <input type="text" id="n-subject-name" class="luxe-input" placeholder="ex: developpement-alsatia">
-            
-            <label class="mini-label" style="margin-top:15px; display:block;">VISIBILITÉ</label>
-            <select id="n-subject-entity" class="luxe-input" style="width:100%;">
-                <option value="Tous">🌍 Public (Tous les portails)</option>
-                <option value="${currentUser.portal}">🔒 Privé (${currentUser.portal})</option>
-            </select>
-            
-            <button onclick="execCreateSubject()" class="btn-gold" style="width:100%; margin-top:20px; height:45px;">CRÉER LE SALON</button>
-        </div>
-    `;
+/**
+ * 2. LOGIQUE DES MESSAGES (AFFICHAGE ET ENVOI)
+ */
+async function loadChatMessages() {
+    const filter = document.getElementById('chat-subject-filter');
+    if(!filter) return;
+    const subj = filter.value;
+    if(!subj) return;
+    
+    const { data } = await supabaseClient.from('chat_global').select('*').eq('subject', subj).order('created_at');
+    const box = document.getElementById('chat-box');
+    if(!box) return;
+
+    box.innerHTML = (data || []).map(m => {
+        const isMe = m.author_full_name === `${currentUser.first_name} ${currentUser.last_name}`;
+        let contentHtml = escapeHTML(m.content);
+        contentHtml = contentHtml.replace(/@([\wÀ-ÿ-\s()]+)/g, '<span class="mention-badge">@$1</span>');
+        
+        return `
+            <div class="message ${isMe ? 'my-msg' : ''}" style="margin-bottom:15px; display:flex; flex-direction:column; align-items:${isMe ? 'flex-end' : 'flex-start'};">
+                <div class="msg-meta" style="font-size:0.7rem; margin-bottom:4px; opacity:0.7;">
+                    <b style="color:var(--gold);">${m.author_full_name}</b> • ${m.portal}
+                </div>
+                <div class="msg-bubble" style="${isMe ? 'background:var(--primary); color:white;' : 'background:#f1f5f9; color:var(--primary);'} border-radius:12px; padding:10px; max-width:80%;">
+                    <div class="msg-body" style="font-size:0.9rem; cursor:${isMe ? 'pointer' : 'default'};" onclick="${isMe ? `askEditMsg('${m.id}','${m.content.replace(/'/g, "\\'")}')` : ''}">
+                        ${contentHtml}
+                    </div>
+                    ${m.file_url ? `<a href="${m.file_url}" target="_blank" style="display:block; margin-top:8px; font-size:0.7rem; color:var(--gold); border-top:1px solid rgba(180,145,87,0.2); padding-top:5px; text-decoration:none;">📄 Document joint</a>` : ''}
+                </div>
+                ${isMe ? `<div class="msg-actions" style="margin-top:3px;"><span onclick="askDeleteMsg('${m.id}')" style="font-size:0.6rem; color:#ef4444; cursor:pointer; opacity:0.8;">SUPPRIMER</span></div>` : ''}
+            </div>
+        `;
+    }).join('');
+    
+    if(window.lucide) lucide.createIcons();
+    box.scrollTop = box.scrollHeight;
+}
+
+window.sendChatMessage = async () => {
+    const input = document.getElementById('chat-input');
+    const subj = document.getElementById('chat-subject-filter').value;
+    const content = input.value.trim();
+    if(!content && !selectedFile) return;
+
+    let fUrl = null;
+    if (selectedFile) {
+        const path = `chat/${Date.now()}_${selectedFile.name}`;
+        const { data } = await supabaseClient.storage.from('documents').upload(path, selectedFile);
+        if (data) fUrl = supabaseClient.storage.from('documents').getPublicUrl(path).data.publicUrl;
+    }
+
+    const { error } = await supabaseClient.from('chat_global').insert([{ 
+        content, author_name: currentUser.first_name, 
+        author_full_name: `${currentUser.first_name} ${currentUser.last_name}`,
+        portal: currentUser.portal, subject: subj, file_url: fUrl 
+    }]);
+
+    if(!error) {
+        input.value = ''; selectedFile = null;
+        if(document.getElementById('file-preview')) document.getElementById('file-preview').innerHTML = "";
+        loadChatMessages();
+    }
 };
+
+/**
+ * 3. SYNC EN TEMPS RÉEL (REALTIME)
+ */
+function subscribeToChat() {
+    supabaseClient.channel('chat-realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_global' }, (payload) => {
+            const currentSubj = document.getElementById('chat-subject-filter').value;
+            if (payload.new && payload.new.subject === currentSubj || payload.old) {
+                loadChatMessages();
+            }
+        }).subscribe();
+}
+
+/**
+ * 4. LOGIQUE DES MENTIONS @
+ */
+function setupMentionLogic() {
+    const input = document.getElementById('chat-input');
+    const container = document.querySelector('.chat-input-area');
+    if(!input || !container) return;
+
+    let suggestList = document.getElementById('mention-suggestions') || document.createElement('div');
+    suggestList.id = "mention-suggestions";
+    suggestList.className = "mention-suggestions-box";
+    if(!document.getElementById('mention-suggestions')) container.appendChild(suggestList);
+
+    input.addEventListener('input', () => {
+        const pos = input.selectionStart;
+        const lastWord = input.value.substring(0, pos).split(/\s/).pop();
+
+        if (lastWord.startsWith('@')) {
+            const query = lastWord.substring(1).toLowerCase();
+            const matches = allUsersForMentions.filter(s => s.toLowerCase().includes(query));
+            if (matches.length > 0) {
+                suggestList.innerHTML = matches.map(m => `<div class="suggest-item">${m}</div>`).join('');
+                suggestList.style.display = 'block';
+                document.querySelectorAll('.suggest-item').forEach(item => {
+                    item.onclick = () => {
+                        const before = input.value.substring(0, pos - lastWord.length);
+                        const after = input.value.substring(pos);
+                        input.value = before + `@${item.innerText} ` + after;
+                        suggestList.style.display = 'none';
+                        input.focus();
+                    };
+                });
+            } else { suggestList.style.display = 'none'; }
+        } else { suggestList.style.display = 'none'; }
+    });
+}
+
+/**
+ * 5. GESTION DES SALONS (CREATE/DELETE)
+ */
+window.showNewSubjectModal = () => {
+    showCustomModal(`
+        <h3 class="luxe-title">Nouveau Salon</h3>
+        <label class="mini-label">NOM</label>
+        <input type="text" id="n-subject-name" class="luxe-input">
+        <label class="mini-label" style="margin-top:10px; display:block;">VISIBILITÉ</label>
+        <select id="n-subject-entity" class="luxe-input" style="width:100%;">
+            <option value="Tous">🌍 Public</option>
+            <option value="${currentUser.portal}">🔒 Privé (${currentUser.portal})</option>
+        </select>
+        <button onclick="execCreateSubject()" class="btn-gold" style="width:100%; margin-top:20px;">CRÉER</button>
+    `);
+};
+
+window.execCreateSubject = async () => {
+    const name = document.getElementById('n-subject-name').value.trim();
+    const entity = document.getElementById('n-subject-entity').value;
+    if(name) {
+        await supabaseClient.from('chat_subjects').insert([{ name, entity }]);
+        closeCustomModal(); loadSubjects();
+    }
+};
+
+window.askDeleteSubject = () => {
+    const subj = document.getElementById('chat-subject-filter').value;
+    if (subj === "Général") return alert("Action impossible.");
+    showCustomModal(`
+        <h3 style="color:var(--danger);">Supprimer #${subj} ?</h3>
+        <p style="font-size:0.8rem; margin:10px 0;">Tous les messages associés seront perdus.</p>
+        <button onclick="execDeleteSubject('${subj}')" class="btn-danger" style="width:100%;">CONFIRMER</button>
+    `);
+};
+
+window.execDeleteSubject = async (name) => {
+    await supabaseClient.from('chat_global').delete().eq('subject', name);
+    await supabaseClient.from('chat_subjects').delete().eq('name', name);
+    closeCustomModal(); loadSubjects();
+};
+
+/**
+ * 6. ACTIONS SUR LES MESSAGES (EDIT/DELETE)
+ */
+window.askEditMsg = (id, old) => {
+    showCustomModal(`
+        <h3 class="luxe-title">Modifier</h3>
+        <textarea id="edit-area" class="luxe-input" style="height:100px; width:100%;">${old}</textarea>
+        <button onclick="execEditMsg('${id}')" class="btn-gold" style="width:100%; margin-top:10px;">SAUVEGARDER</button>
+    `);
+};
+
+window.execEditMsg = async (id) => {
+    const val = document.getElementById('edit-area').value;
+    await supabaseClient.from('chat_global').update({ content: val }).eq('id', id);
+    closeCustomModal(); loadChatMessages();
+};
+
+window.askDeleteMsg = (id) => {
+    showCustomModal(`
+        <h3 style="color:var(--danger);">Supprimer ?</h3>
+        <button onclick="execDeleteMsg('${id}')" class="btn-danger" style="width:100%; margin-top:10px;">CONFIRMER</button>
+    `);
+};
+
+window.execDeleteMsg = async (id) => {
+    await supabaseClient.from('chat_global').delete().eq('id', id);
+    closeCustomModal(); loadChatMessages();
+};
+
+// Utils
+function escapeHTML(str) {
+    const p = document.createElement('p');
+    p.textContent = str;
+    return p.innerHTML;
+}
+
+function showCustomModal(html) {
+    const m = document.getElementById('custom-modal');
+    const b = document.getElementById('modal-body');
+    if(m && b) { b.innerHTML = html; m.style.display = 'flex'; }
+}
 
 // ==========================================
 // CRM COMPLET (DONATEURS)
