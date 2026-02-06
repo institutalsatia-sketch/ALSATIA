@@ -641,35 +641,39 @@ window.addDonationPrompt = (donorId) => {
 };
 
 window.execAddDonation = async (donorId) => {
-    const amountInput = document.getElementById('don-amt').value;
-    const dateInput = document.getElementById('don-date').value;
-    const methodInput = document.getElementById('don-method').value;
+    // Récupération des valeurs du formulaire
+    const amountVal = document.getElementById('don-amt').value;
+    const dateVal = document.getElementById('don-date').value;
+    const modeVal = document.getElementById('don-method').value; // La valeur du select
 
-    if (!amountInput || !dateInput) {
-        return window.showNotice("Champs manquants", "Le montant et la date sont obligatoires.", "error");
+    // Validation simple
+    if (!amountVal || !dateVal) {
+        return window.showNotice("Champs requis", "Le montant et la date sont obligatoires.", "error");
     }
 
-    // On prépare l'objet proprement
-    const newDonation = {
-        donor_id: donorId, // Doit être un UUID
-        amount: parseFloat(amountInput), // Force le type NOMBRE (crucial pour le SQL)
-        date: dateInput,
-        method: methodInput
+    // Préparation de l'objet selon ta structure SQL exacte
+    const donationData = {
+        donor_id: donorId,
+        amount: parseFloat(amountVal), // Conversion en nombre pour le type numeric
+        date: dateVal,
+        payment_mode: modeVal, // CORRIGÉ : 'payment_mode' au lieu de 'method'
+        thanked: false         // Valeur par défaut cohérente
     };
 
-    // INSERTION : On passe l'objet DANS un tableau [ ]
+    // Insertion Supabase
     const { error } = await supabaseClient
         .from('donations')
-        .insert([newDonation]); 
+        .insert([donationData]);
 
     if (error) {
-        console.error("Erreur détaillée:", error);
+        console.error("Détails erreur Supabase:", error);
         return window.showNotice("Erreur SQL", error.message, "error");
     }
 
-    window.showNotice("Succès", "Don enregistré avec succès.");
+    // Succès
+    window.showNotice("Don enregistré", "La base de données a été mise à jour avec succès.");
     closeCustomModal();
-    loadDonors(); // Pour rafraîchir les totaux
+    loadDonors(); // Rafraîchit la liste pour voir le nouveau total
 };
 
 window.askDeleteDonor = (id, name) => {
