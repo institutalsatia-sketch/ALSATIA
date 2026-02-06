@@ -557,7 +557,7 @@ window.execCreateDonor = async () => {
 };
 
 // ==========================================
-// 3. DOSSIER DÉTAILLÉ & ACTIONS CRM
+// 3. DOSSIER DÉTAILLÉ & ACTIONS CRM (ÉDITION TOTALE)
 // ==========================================
 window.openDonorFile = async (id) => {
     const donor = allDonorsData.find(d => d.id === id);
@@ -567,38 +567,52 @@ window.openDonorFile = async (id) => {
     document.getElementById('modal-body').innerHTML = `
         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px;">
             <div>
-                <span class="mini-label">${donor.origin || 'Contact'}</span>
-                <h3 style="margin:0;">${donor.company_name ? donor.company_name + ' / ' : ''}${donor.first_name || ''} ${donor.last_name.toUpperCase()}</h3>
+                <span class="mini-label">ID: ${donor.id.substring(0,8)}...</span>
+                <h3 style="margin:0; color:var(--primary);">DOSSIER DONATEUR</h3>
             </div>
             <div style="display:flex; gap:10px;">
-                <button onclick="window.exportDonorToExcel('${donor.id}')" style="background:#f1f5f9; color:var(--primary); border:none; padding:5px 10px; border-radius:6px; cursor:pointer; font-size:0.7rem; font-weight:bold;">EXCEL</button>
+                <button onclick="window.exportDonorToExcel('${donor.id}')" class="btn-gold" style="padding:5px 10px; font-size:0.7rem;">EXCEL</button>
                 <button onclick="window.askDeleteDonor('${donor.id}', '${donor.last_name.replace(/'/g, "\\'")}')" style="background:#fee2e2; color:#ef4444; border:none; padding:5px 10px; border-radius:6px; cursor:pointer; font-size:0.7rem; font-weight:bold;">SUPPRIMER</button>
                 <button onclick="closeCustomModal()" style="border:none; background:none; cursor:pointer; font-size:1.2rem;">&times;</button>
             </div>
         </div>
+
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
             <div>
-                <p class="mini-label">COORDONNÉES</p>
-                <p style="font-size:0.85rem; line-height:1.4;">
-                    📧 ${donor.email || '-'}<br>
-                    📞 ${donor.phone || '-'}<br>
-                    📍 ${donor.address || ''} ${donor.zip_code || ''} ${donor.city || ''}
-                </p>
-                <div style="margin-top:10px;">
-                    <label class="mini-label">PROCHAINE ACTION</label>
-                    <input type="text" id="donor-next-action" class="luxe-input" value="${donor.next_action || ''}">
-                    <button onclick="window.updateDonorFields('${donor.id}')" style="margin-top:5px; width:100%; font-size:0.6rem; background:var(--primary); color:white; border:none; padding:5px; border-radius:4px; cursor:pointer;">ENREGISTRER SUIVI</button>
+                <p class="mini-label">IDENTITÉ & COORDONNÉES</p>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;">
+                    <input type="text" id="edit-last" class="luxe-input" value="${donor.last_name || ''}" placeholder="NOM *">
+                    <input type="text" id="edit-first" class="luxe-input" value="${donor.first_name || ''}" placeholder="PRÉNOM">
+                </div>
+                <input type="text" id="edit-company" class="luxe-input" value="${donor.company_name || ''}" placeholder="ENTREPRISE" style="margin-bottom:8px;">
+                <input type="email" id="edit-email" class="luxe-input" value="${donor.email || ''}" placeholder="EMAIL" style="margin-bottom:8px;">
+                <input type="text" id="edit-phone" class="luxe-input" value="${donor.phone || ''}" placeholder="TÉLÉPHONE" style="margin-bottom:8px;">
+                
+                <p class="mini-label" style="margin-top:10px;">ADRESSE</p>
+                <input type="text" id="edit-address" class="luxe-input" value="${donor.address || ''}" placeholder="ADRESSE" style="margin-bottom:8px;">
+                <div style="display:grid; grid-template-columns:1fr 2fr; gap:8px;">
+                    <input type="text" id="edit-zip" class="luxe-input" value="${donor.zip_code || ''}" placeholder="CP">
+                    <input type="text" id="edit-city" class="luxe-input" value="${donor.city || ''}" placeholder="VILLE">
                 </div>
             </div>
-            <div style="text-align:right;">
-                <button onclick="window.addDonationPrompt('${id}')" class="btn-gold" style="width:100%; margin-bottom:10px;">+ ENREGISTRER DON</button>
-                <div style="background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #eee; text-align:left;">
-                    <p class="mini-label">NOTES</p>
-                    <textarea id="donor-notes-area" style="width:100%; height:80px; border:none; background:transparent; font-size:0.75rem;">${donor.notes || ''}</textarea>
-                </div>
+
+            <div>
+                <p class="mini-label">SUIVI CRM</p>
+                <label class="mini-label" style="font-size:0.6rem; opacity:0.7;">ORIGINE DU CONTACT</label>
+                <input type="text" id="edit-origin" class="luxe-input" value="${donor.origin || ''}" placeholder="Origine" style="margin-bottom:8px;">
+                
+                <label class="mini-label" style="font-size:0.6rem; opacity:0.7;">PROCHAINE ACTION</label>
+                <input type="text" id="edit-next" class="luxe-input" value="${donor.next_action || ''}" placeholder="Relancer le..." style="margin-bottom:8px;">
+                
+                <label class="mini-label" style="font-size:0.6rem; opacity:0.7;">NOTES INTERNES</label>
+                <textarea id="edit-notes" class="luxe-input" style="height:80px; margin-bottom:10px;">${donor.notes || ''}</textarea>
+                
+                <button onclick="window.updateDonorFields('${donor.id}')" class="btn-gold" style="width:100%; height:40px; font-weight:800;">ENREGISTRER TOUTES LES MODIFICATIONS</button>
+                <button onclick="window.addDonationPrompt('${id}')" style="width:100%; margin-top:8px; background:var(--primary); color:white; border:none; padding:8px; border-radius:6px; cursor:pointer; font-size:0.7rem;">+ ENREGISTRER UN DON</button>
             </div>
         </div>
-        <div style="margin-top:20px; max-height:150px; overflow-y:auto; border-top:1px solid #eee;">
+
+        <div style="margin-top:20px; max-height:180px; overflow-y:auto; border-top:1px solid #eee;">
             <table class="luxe-table">
                 <thead><tr><th>DATE</th><th>MONTANT</th><th>MODE</th><th style="text-align:right;">ACTIONS</th></tr></thead>
                 <tbody>
@@ -608,8 +622,8 @@ window.openDonorFile = async (id) => {
                             <td style="font-weight:700;">${don.amount}€</td>
                             <td>${don.payment_mode || '-'}</td>
                             <td style="text-align:right;">
-                                <i data-lucide="file-text" style="width:14px; color:var(--gold); cursor:pointer; margin-right:8px;" onclick="window.generateReceipt('${don.id}')" title="Reçu fiscal"></i>
-                                <i data-lucide="trash-2" style="width:14px; color:#ef4444; cursor:pointer;" onclick="window.askDeleteDonation('${don.id}')" title="Supprimer"></i>
+                                <i data-lucide="file-text" class="icon-btn" style="color:var(--gold); cursor:pointer; margin-right:8px;" onclick="window.generateReceipt('${don.id}')"></i>
+                                <i data-lucide="trash-2" class="icon-btn" style="color:#ef4444; cursor:pointer;" onclick="window.askDeleteDonation('${don.id}')"></i>
                             </td>
                         </tr>`).join('')}
                 </tbody>
@@ -619,13 +633,34 @@ window.openDonorFile = async (id) => {
 };
 
 window.updateDonorFields = async (id) => {
-    const next_action = document.getElementById('donor-next-action').value;
-    const notes = document.getElementById('donor-notes-area').value;
-    await supabaseClient.from('donors').update({ 
-        next_action, notes, last_modified_by: `${currentUser.first_name} ${currentUser.last_name}` 
-    }).eq('id', id);
-    loadDonors();
-    window.showNotice("Mise à jour", "Les informations ont été synchronisées.");
+    // Récupération de TOUTES les valeurs des inputs
+    const payload = {
+        last_name: document.getElementById('edit-last').value.toUpperCase(),
+        first_name: document.getElementById('edit-first').value,
+        company_name: document.getElementById('edit-company').value,
+        email: document.getElementById('edit-email').value,
+        phone: document.getElementById('edit-phone').value,
+        address: document.getElementById('edit-address').value,
+        zip_code: document.getElementById('edit-zip').value,
+        city: document.getElementById('edit-city').value,
+        origin: document.getElementById('edit-origin').value,
+        next_action: document.getElementById('edit-next').value,
+        notes: document.getElementById('edit-notes').value,
+        last_modified_by: `${currentUser.first_name} ${currentUser.last_name}`
+    };
+
+    const { error } = await supabaseClient
+        .from('donors')
+        .update(payload)
+        .eq('id', id);
+
+    if (error) {
+        window.showNotice("Erreur", "Impossible de mettre à jour : " + error.message, "error");
+    } else {
+        window.showNotice("Mise à jour", "La fiche a été intégralement synchronisée.");
+        loadDonors(); // Rafraîchit la liste principale
+    }
+};
 };
 
 // FONCTION MOTEUR POUR LES CONFIRMATIONS (SANS WINDOW.CONFIRM)
