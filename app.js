@@ -8,7 +8,6 @@ const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 let currentUser = JSON.parse(localStorage.getItem('alsatia_user'));
 let allDonorsData = [];
 let allUsersForMentions = []; 
-let selectedFile = null;
 
 const LOGOS = {
     "Institut Alsatia": "logo_alsatia.png",
@@ -23,36 +22,42 @@ const LOGOS = {
 document.addEventListener('DOMContentLoaded', () => {
     if (!currentUser) { window.location.href = 'login.html'; return; }
     initInterface();
-    listenRealtime();
-    loadSubjects();
-    loadUsersForMentions();
-    setupMentionLogic();
+    // Les autres fonctions de chargement (loadSubjects, etc.) doivent être ici
 });
 
 function initInterface() {
+    // 1. Logos & Textes
     const logoContainer = document.getElementById('entity-logo-container');
     if(logoContainer) logoContainer.innerHTML = `<img src="${LOGOS[currentUser.portal] || 'logo_alsatia.png'}" class="entity-logo">`;
-    
     document.getElementById('user-name-display').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
     document.getElementById('current-portal-display').innerText = currentUser.portal;
 
+    // 2. Injection dynamique des boutons de navigation
     const nav = document.getElementById('main-nav');
-    if (nav && !document.getElementById('nav-profile')) {
-        const li = document.createElement('li');
-        li.id = "nav-profile";
-        li.className = "nav-profile-item";
-        li.innerHTML = `<i data-lucide="user-circle"></i> Mon Profil`;
-        li.onclick = () => window.openProfileModal();
-        nav.appendChild(li);
-    }
-
-    if (currentUser.portal === "Institut Alsatia") {
-        if (nav && !document.getElementById('nav-donors')) {
+    if (nav) {
+        // Annuaire
+        if (!document.getElementById('nav-contacts')) {
+            const li = document.createElement('li');
+            li.id = "nav-contacts";
+            li.innerHTML = `<i data-lucide="book-user"></i> Annuaire`;
+            li.onclick = () => switchTab('contacts');
+            nav.appendChild(li);
+        }
+        // Profil
+        if (!document.getElementById('nav-profile')) {
+            const li = document.createElement('li');
+            li.id = "nav-profile";
+            li.innerHTML = `<i data-lucide="user-circle"></i> Mon Profil`;
+            li.onclick = () => window.openProfileModal();
+            nav.appendChild(li);
+        }
+        // CRM Institut
+        if (currentUser.portal === "Institut Alsatia" && !document.getElementById('nav-donors')) {
             const li = document.createElement('li');
             li.id = "nav-donors"; 
             li.innerHTML = `<i data-lucide="users"></i> Base Donateurs`;
             li.onclick = () => switchTab('donors');
-            nav.insertBefore(li, nav.children[1]);
+            nav.insertBefore(li, nav.children[0]);
         }
     }
     lucide.createIcons();
@@ -61,93 +66,53 @@ function initInterface() {
 window.switchTab = (id) => {
     document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.side-nav li').forEach(l => l.classList.remove('active'));
-    const targetPage = document.getElementById(`tab-${id}`);
-    if(targetPage) targetPage.classList.add('active');
-    if(document.getElementById(`nav-${id}`)) document.getElementById(`nav-${id}`).classList.add('active');
-    if(id === 'donors') loadDonors();
-    if(id === 'chat') loadChatMessages();
-    if(id === 'events') loadEvents();
+    
+    const target = document.getElementById(`tab-${id}`);
+    if (target) target.classList.add('active');
+    
+    const navBtn = document.getElementById(`nav-${id}`);
+    if (navBtn) navBtn.classList.add('active');
+
+    if (id === 'contacts') loadContacts();
+    // Appeler ici les autres loaders : if(id==='chat') loadChatMessages()...
     lucide.createIcons();
 };
 
-window.logout = () => { localStorage.clear(); window.location.href = 'login.html'; };
-window.closeCustomModal = () => { document.getElementById('custom-modal').style.display = 'none'; };
-
-window.showNotice = (title, message) => {
-    let toast = document.getElementById('notification-toast');
-    if (!toast) {
-        toast = document.createElement('div');
-        toast.id = 'notification-toast';
-        document.body.appendChild(toast);
-    }
-    toast.innerHTML = `<strong>${title}</strong><br>${message}`;
-    toast.style.display = 'block';
-    setTimeout(() => { toast.style.display = 'none'; }, 3000);
-};
-
 // ==========================================
-// GESTION DES CONTACTS (ANNUAIRE)
+// FONCTION ANNUAIRE (CONTACTS)
 // ==========================================
-
 async function loadContacts() {
-    const container = document.getElementById('tab-contacts');
-    container.innerHTML = `<div class="loader-simple">Chargement de l'annuaire...</div>`;
+    const list = document.getElementById('contacts-list');
+    list.innerHTML = `<p>Chargement des membres...</p>`;
 
-    const { data: profiles, error } = await supabaseClient
+    const { data: users, error } = await supabaseClient
         .from('profiles')
         .select('*')
         .order('portal', { ascending: true })
         .order('last_name', { ascending: true });
 
-    if (error) {
-        container.innerHTML = "Erreur de chargement des contacts.";
-        return;
-    }
+    if (error) return list.innerHTML = "Erreur de chargement.";
 
-    let html = `
-        <div style="padding: 20px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:25px;">
-                <h2 style="color:var(--primary); margin:0;">Annuaire Alsatia</h2>
-                <span style="font-size:0.8rem; background:#eee; padding:5px 12px; border-radius:15px;">${profiles.length} membres</span>
+    list.innerHTML = users.map(u => `
+        <div class="contact-card" style="background:white; padding:20px; border-radius:12px; border:1px solid #e2e8f0; box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);">
+            <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:10px;">
+                <span style="font-size:0.65rem; font-weight:800; color:#d4af37; letter-spacing:1px; background:rgba(212,175,55,0.1); padding:4px 8px; border-radius:4px;">${u.portal}</span>
+                <i data-lucide="shield-check" style="width:16px; color:#107c10;"></i>
             </div>
+            <h3 style="margin:0; font-size:1.1rem; color:#1e293b;">${u.first_name} ${u.last_name.toUpperCase()}</h3>
+            <p style="margin:5px 0 20px 0; font-size:0.85rem; color:#64748b; font-weight:500;">${u.job_title || 'Membre Alsatia'}</p>
             
-            <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap:20px;">
-    `;
-
-    profiles.forEach(p => {
-        html += `
-            <div class="contact-card" style="background:white; border-radius:12px; border:1px solid #e2e8f0; padding:20px; box-shadow:0 2px 5px rgba(0,0,0,0.05); transition: 0.3s;">
-                <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
-                    <span style="font-size:0.65rem; font-weight:bold; color:#d4af37; text-transform:uppercase; letter-spacing:1px; background:rgba(212,175,55,0.1); padding:4px 8px; border-radius:4px;">
-                        ${p.portal}
-                    </span>
-                    <i data-lucide="shield-check" style="width:16px; color:#64748b;"></i>
-                </div>
-                
-                <div style="font-size:1.1rem; font-weight:700; color:#1e293b; margin-bottom:4px;">
-                    ${p.first_name} ${p.last_name.toUpperCase()}
-                </div>
-                
-                <div style="font-size:0.85rem; color:#64748b; margin-bottom:20px; font-style:italic;">
-                    ${p.job_title || 'Membre Alsatia'}
-                </div>
-
-                <div style="display:flex; gap:10px; border-top:1px solid #f1f5f9; padding-top:15px;">
-                    <a href="mailto:${p.email}" class="btn-contact-action" style="flex:1; display:flex; align-items:center; justify-content:center; padding:10px; background:#f8fafc; border-radius:8px; text-decoration:none; color:#1e293b; font-size:0.8rem; border:1px solid #e2e8f0; gap:8px;">
-                        <i data-lucide="mail" style="width:16px;"></i> Mail
-                    </a>
-                    ${p.phone ? `
-                        <a href="tel:${p.phone}" class="btn-contact-action" style="flex:1; display:flex; align-items:center; justify-content:center; padding:10px; background:#f8fafc; border-radius:8px; text-decoration:none; color:#1e293b; font-size:0.8rem; border:1px solid #e2e8f0; gap:8px;">
-                            <i data-lucide="phone" style="width:16px;"></i> Appeler
-                        </a>
-                    ` : ''}
-                </div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; padding-top:15px; border-top:1px solid #f1f5f9;">
+                <a href="mailto:${u.email}" style="text-decoration:none; display:flex; align-items:center; justify-content:center; gap:8px; background:#f8fafc; color:#1e293b; padding:10px; border-radius:8px; font-size:0.75rem; border:1px solid #e2e8f0;">
+                    <i data-lucide="mail" style="width:14px;"></i> Écrire
+                </a>
+                ${u.phone ? `
+                <a href="tel:${u.phone}" style="text-decoration:none; display:flex; align-items:center; justify-content:center; gap:8px; background:#f8fafc; color:#1e293b; padding:10px; border-radius:8px; font-size:0.75rem; border:1px solid #e2e8f0;">
+                    <i data-lucide="phone" style="width:14px;"></i> Appeler
+                </a>` : ''}
             </div>
-        `;
-    });
-
-    html += `</div></div>`;
-    container.innerHTML = html;
+        </div>
+    `).join('');
     lucide.createIcons();
 }
 
