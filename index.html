@@ -11,6 +11,8 @@
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
+    <div id="notice-toast" class="notice-toast"></div>
+
     <nav class="side-nav">
         <div class="logo-area">
             <div id="entity-logo-container"></div>
@@ -19,7 +21,7 @@
         </div>
         <ul id="main-nav">
             <li id="nav-home" class="active" onclick="switchTab('home')"><i data-lucide="home"></i> Accueil</li>
-            <li id="nav-donors" style="display:none;" onclick="switchTab('donors')"><i data-lucide="users"></i> Base Donateurs</li>
+            <li id="nav-donors" onclick="switchTab('donors')"><i data-lucide="users"></i> Base Donateurs</li>
             <li id="nav-chat" onclick="switchTab('chat')"><i data-lucide="message-square"></i> Discussion</li>
             <li id="nav-contacts" onclick="switchTab('contacts')"><i data-lucide="book-user"></i> Annuaire</li>
             <li id="nav-campaigns" onclick="switchTab('campaigns')"><i data-lucide="megaphone"></i> Campagnes</li>
@@ -36,7 +38,6 @@
     </nav>
 
     <main class="main-content">
-        
         <section id="tab-home" class="page-content active">
             <div class="welcome-container">
                 <div id="big-logo-display" class="fade-in-logo"></div>
@@ -54,21 +55,15 @@
                 <div class="header-actions">
                     <select id="chat-subject-filter" class="luxe-input" onchange="loadChatMessages()"></select>
                     <button onclick="showNewSubjectModal()" class="btn-gold"><i data-lucide="plus-circle"></i> Nouveau Sujet</button>
-                    <button onclick="askDeleteSubject()" class="btn-danger-icon"><i data-lucide="trash-2"></i></button>
                 </div>
             </div>
             <div class="chat-container">
                 <div id="chat-box" class="chat-box"></div>
                 <div class="chat-footer">
-                    <div class="target-grid">
-                        <span class="mini-label">DIFFUSER À :</span>
-                        <label><input type="checkbox" class="target-check" value="Institut Alsatia"> Institut</label>
-                        <label><input type="checkbox" class="target-check" value="Academia Alsatia"> Academia</label>
-                        <label><input type="checkbox" class="target-check" value="Cours Herrade de Landsberg"> Herrade</label>
-                        <label><input type="checkbox" class="target-check" value="Collège Saints Louis et Zélie Martin"> Martin</label>
-                    </div>
-                    <div class="input-wrapper">
-                        <input type="text" id="chat-input" placeholder="Écrire un message..." autocomplete="off">
+                    <div class="input-wrapper" style="position:relative;">
+                        <div id="mention-suggestions" class="mention-suggestions-box"></div>
+                        
+                        <input type="text" id="chat-input" placeholder="Message (@ pour mentionner)..." autocomplete="off">
                         <label for="chat-file" class="icon-btn"><i data-lucide="paperclip"></i></label>
                         <input type="file" id="chat-file" style="display:none;" onchange="handleFileUpload(this)">
                         <button onclick="sendChatMessage()" class="btn-send"><i data-lucide="send"></i></button>
@@ -88,45 +83,39 @@
                 <h1>Fichier Donateurs</h1>
                 <div class="header-actions">
                     <button onclick="exportAllDonors()" class="btn-gold-green"><i data-lucide="download"></i> Excel</button>
-                    <button onclick="openNewDonorModal()" class="btn-gold"><i data-lucide="user-plus"></i> Nouveau</button>
+                    <button onclick="showAddDonorModal()" class="btn-gold"><i data-lucide="user-plus"></i> Nouveau</button>
                 </div>
             </div>
-            <div class="search-bar-box">
-                <input type="text" id="search-donor" placeholder="Rechercher..." onkeyup="filterDonors()" class="luxe-input">
-                <select id="filter-entity" class="luxe-input" onchange="filterDonors()">
+            <div class="search-bar-box" style="display: flex; gap: 10px;">
+                <input type="text" id="search-donor" placeholder="Rechercher..." onkeyup="filterDonors()" class="luxe-input" style="flex: 2;">
+                <select id="filter-entity" class="luxe-input" onchange="filterDonors()" style="flex: 1;">
                     <option value="ALL">Toutes les entités</option>
-                    <option value="Institut Alsatia">Institut</option>
-                    <option value="Academia Alsatia">Academia</option>
-                    <option value="Cours Herrade de Landsberg">Herrade</option>
-                    <option value="Collège Saints Louis et Zélie Martin">Martin</option>
+                    <option>Institut Alsatia</option>
+                    <option>Academia Alsatia</option>
+                    <option>Cours Herrade de Landsberg</option>
+                    <option>Collège Saints Louis et Zélie Martin</option>
                 </select>
             </div>
             <div class="table-container">
                 <table class="luxe-table">
                     <thead>
-                        <tr><th>Identité</th><th>Origine</th><th>Dernière Note</th><th>Total</th><th>Actions</th></tr>
+                        <tr><th>Identité / Entreprise</th><th>Origine</th><th>Total</th><th style="text-align:right;">Actions</th></tr>
                     </thead>
                     <tbody id="donors-list"></tbody>
                 </table>
             </div>
         </section>
 
-        <section id="tab-campaigns" class="page-content">
-            <div class="header-tab"><h1>Campagnes de levée de fonds</h1></div>
-            <div id="campaigns-list" class="grid-cards-container"></div>
-        </section>
-
         <section id="tab-events" class="page-content">
             <div class="header-tab">
-                <h1>Événements & Agenda</h1>
-                <button onclick="openNewEventModal()" class="btn-gold"><i data-lucide="calendar-plus"></i> Nouveau</button>
+                <h1>Événements & Logistique</h1>
+                <button onclick="showAddEventModal()" class="btn-gold"><i data-lucide="calendar-plus"></i> Planifier</button>
             </div>
             <div id="events-container" class="grid-cards-container"></div>
         </section>
-
     </main>
 
-    <div id="custom-modal" class="modal-overlay">
+    <div id="custom-modal" class="modal-overlay" style="display:none;">
         <div class="modal-card">
             <div id="modal-body"></div>
         </div>
