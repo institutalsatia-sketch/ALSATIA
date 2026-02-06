@@ -74,7 +74,7 @@ function initInterface() {
     lucide.createIcons();
 }
 
-// Fonction de changement d'onglet (à mettre en dehors de initInterface)
+// Fonction de changement d'onglet
 window.switchTab = (id) => {
     // 1. Gérer les classes actives sur les menus
     document.querySelectorAll('.side-nav li').forEach(li => li.classList.remove('active'));
@@ -94,22 +94,8 @@ window.switchTab = (id) => {
     if (id === 'contacts') loadContacts();
     if (id === 'chat' && typeof loadChatMessages === 'function') loadChatMessages();
     if (id === 'donors' && typeof loadDonors === 'function') loadDonors();
+    if (id === 'events' && typeof loadEvents === 'function') loadEvents();
 
-    lucide.createIcons();
-};
-
-window.switchTab = (id) => {
-    document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
-    document.querySelectorAll('.side-nav li').forEach(l => l.classList.remove('active'));
-    
-    const target = document.getElementById(`tab-${id}`);
-    if (target) target.classList.add('active');
-    
-    const navBtn = document.getElementById(`nav-${id}`);
-    if (navBtn) navBtn.classList.add('active');
-
-    if (id === 'contacts') loadContacts();
-    // if (id === 'donors') loadDonors(); // etc.
     lucide.createIcons();
 };
 
@@ -278,6 +264,7 @@ window.updateSecurityPin = async () => {
         window.showNotice("Erreur", "Échec de la modification du PIN.");
     }
 };
+
 // ==========================================
 // MESSAGERIE & MENTIONS @
 // ==========================================
@@ -333,7 +320,9 @@ function setupMentionLogic() {
 }
 
 async function loadChatMessages() {
-    const subj = document.getElementById('chat-subject-filter').value;
+    const filter = document.getElementById('chat-subject-filter');
+    if(!filter) return;
+    const subj = filter.value;
     if(!subj) return;
     
     const { data } = await supabaseClient.from('chat_global').select('*').eq('subject', subj).order('created_at');
@@ -423,6 +412,7 @@ window.execDeleteMsg = async (id) => {
 async function loadSubjects() {
     const { data } = await supabaseClient.from('chat_subjects').select('*').order('name');
     const select = document.getElementById('chat-subject-filter');
+    if(!select) return;
     const mySubjects = (data || []).filter(s => s.entity === "Tous" || s.entity === currentUser.portal || !s.entity);
     
     select.innerHTML = mySubjects.map(s => {
@@ -578,7 +568,7 @@ window.openDonorFile = async (id) => {
             </div>
         </div>
 
-<div style="margin-top:20px; border-top:1px solid #ddd; padding-top:15px; display:flex; justify-content:space-between; align-items:center;">
+        <div style="margin-top:20px; border-top:1px solid #ddd; padding-top:15px; display:flex; justify-content:space-between; align-items:center;">
              <button onclick="askDeleteDonor('${d.id}', '${(d.company_name || d.last_name).replace(/'/g, "\\'")}')" 
                      class="btn-danger" style="padding:10px 15px; font-size:0.8rem;">
                  SUPPRIMER LA FICHE
@@ -621,21 +611,12 @@ window.saveDonor = async (id) => {
         origin: document.getElementById('e-origin').value,
         notes: document.getElementById('e-notes').value,
         next_action: document.getElementById('e-next').value,
-        last_modified_by: currentUser.first_name + " " + currentUser.last_name // Enregistre qui a fait la modif
+        last_modified_by: currentUser.first_name + " " + currentUser.last_name 
     };
 
-    const { error } = await supabaseClient
-        .from('donors')
-        .update(upd)
-        .eq('id', id);
-
-    if (!error) {
-        closeCustomModal();
-        loadDonors(); // Rafraîchit la liste principale
-    } else {
-        console.error("Erreur sauvegarde:", error);
-        alert("Erreur lors de la sauvegarde. Vérifiez la connexion.");
-    }
+    const { error } = await supabaseClient.from('donors').update(upd).eq('id', id);
+    if (!error) { closeCustomModal(); loadDonors(); } 
+    else { alert("Erreur lors de la sauvegarde."); }
 };
 
 window.filterDonors = () => {
@@ -653,11 +634,9 @@ window.openNewDonorModal = () => {
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
         <h3 style="color:var(--primary); border-bottom:1px solid var(--gold); padding-bottom:10px;">Nouveau Donateur</h3>
-        
         <div style="margin-top:15px;">
             <label class="mini-label">ENTREPRISE / SOCIÉTÉ</label>
             <input type="text" id="n-company" placeholder="Nom de l'entreprise (optionnel)" class="luxe-input">
-            
             <div style="display:flex; gap:10px; margin-top:10px;">
                 <div style="flex:1;">
                     <label class="mini-label">PRÉNOM</label>
@@ -668,7 +647,6 @@ window.openNewDonorModal = () => {
                     <input type="text" id="n-last" placeholder="Nom de famille" class="luxe-input">
                 </div>
             </div>
-
             <label class="mini-label" style="margin-top:15px;">ENTITÉ RATTACHÉE (ORIGINE DU DON)</label>
             <select id="n-origin" class="luxe-input">
                 <option value="Institut Alsatia">Institut Alsatia</option>
@@ -676,45 +654,22 @@ window.openNewDonorModal = () => {
                 <option value="Collège Saints Louis et Zélie Martin">Collège Saints Louis et Zélie Martin</option>
                 <option value="Academia Alsatia">Academia Alsatia</option>
             </select>
-            
-            <button onclick="execCreateDonor()" class="btn-gold" style="width:100%; margin-top:20px; height:45px;">
-                CRÉER LA FICHE DONATEUR
-            </button>
-            <button onclick="closeCustomModal()" style="width:100%; background:none; border:none; color:gray; cursor:pointer; margin-top:10px; font-size:0.8rem;">
-                Annuler
-            </button>
+            <button onclick="execCreateDonor()" class="btn-gold" style="width:100%; margin-top:20px; height:45px;">CRÉER LA FICHE DONATEUR</button>
         </div>
     `;
 };
 
 window.execCreateDonor = async () => {
     const lastName = document.getElementById('n-last').value.trim();
-    const firstName = document.getElementById('n-first').value.trim();
-    const company = document.getElementById('n-company').value.trim();
-    const origin = document.getElementById('n-origin').value;
-
-    if (!lastName) {
-        alert("Le nom de famille est obligatoire pour créer une fiche.");
-        return;
-    }
-
-    const { error } = await supabaseClient
-        .from('donors')
-        .insert([{ 
-            last_name: lastName, 
-            first_name: firstName,
-            company_name: company, 
-            origin: origin,
-            last_modified_by: currentUser.first_name + " " + currentUser.last_name 
-        }]);
-
-    if (!error) {
-        closeCustomModal();
-        loadDonors(); // Recharge la liste pour voir le nouveau donateur
-    } else {
-        console.error("Erreur lors de la création du donateur:", error);
-        alert("Impossible de créer la fiche. Vérifiez la console.");
-    }
+    if (!lastName) return alert("Le nom est obligatoire.");
+    await supabaseClient.from('donors').insert([{ 
+        last_name: lastName, 
+        first_name: document.getElementById('n-first').value.trim(),
+        company_name: document.getElementById('n-company').value.trim(), 
+        origin: document.getElementById('n-origin').value,
+        last_modified_by: currentUser.first_name + " " + currentUser.last_name 
+    }]);
+    closeCustomModal(); loadDonors();
 };
 
 window.exportAllDonors = () => {
@@ -729,41 +684,23 @@ window.exportAllDonors = () => {
 };
 
 window.askDeleteDonor = (id, name) => {
-    // Seul l'Institut peut supprimer un donateur
-    if (currentUser.portal !== "Institut Alsatia") {
-        return alert("⚠️ Action réservée à l'administrateur de l'Institut.");
-    }
-
-    // On utilise la modale existante pour la confirmation
+    if (currentUser.portal !== "Institut Alsatia") return alert("Action réservée à l'administrateur.");
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
         <div style="text-align:center; padding:20px;">
             <h3 style="color:var(--danger); margin-bottom:15px;">Supprimer définitivement ?</h3>
             <p>Voulez-vous vraiment supprimer la fiche de :<br><b>${name}</b> ?</p>
-            <p style="font-size:0.8rem; color:gray; margin-top:10px;">Attention : Cela supprimera également tout l'historique des dons associés à ce donateur.</p>
-            
             <div style="margin-top:25px; display:flex; gap:10px;">
                 <button onclick="execDeleteDonor('${id}')" class="btn-danger" style="flex:2;">OUI, SUPPRIMER</button>
                 <button onclick="closeCustomModal()" class="btn-gold" style="background:#666; flex:1;">ANNULER</button>
             </div>
-        </div>
-    `;
+        </div>`;
 };
 
 window.execDeleteDonor = async (id) => {
-    // 1. Supprimer d'abord les dons (contrainte de clé étrangère)
     await supabaseClient.from('donations').delete().eq('donor_id', id);
-    
-    // 2. Supprimer le donateur
-    const { error } = await supabaseClient.from('donors').delete().eq('id', id);
-
-    if (!error) {
-        closeCustomModal();
-        loadDonors(); // Rafraîchir le tableau principal
-    } else {
-        console.error("Erreur suppression:", error);
-        alert("Une erreur est survenue lors de la suppression.");
-    }
+    await supabaseClient.from('donors').delete().eq('id', id);
+    closeCustomModal(); loadDonors();
 };
 
 // ==========================================
@@ -777,6 +714,7 @@ function listenRealtime() {
     }).subscribe();
 }
 
+let selectedFile = null;
 window.handleFileUpload = (input) => { 
     if(input.files[0]) { 
         selectedFile = input.files[0]; 
@@ -788,9 +726,7 @@ window.handleFileUpload = (input) => {
 // GESTION DES ÉVÉNEMENTS (VUE CHRONOLOGIQUE)
 // ==========================================
 
-// --- CHARGEMENT ---
 window.loadEvents = async () => {
-    // Requête explicite pour éviter l'erreur 400
     const { data, error } = await supabaseClient
         .from('events')
         .select(`
@@ -798,100 +734,60 @@ window.loadEvents = async () => {
             event_resources(id, file_url, description)
         `)
         .order('event_date', { ascending: true });
-
-    if (error) return console.error("Erreur chargement events:", error);
+    if (error) return console.error(error);
     renderEvents(data);
 };
 
-// --- RENDER PRINCIPAL ---
 function renderEvents(events) {
     const container = document.getElementById('events-container'); 
     if (!container) return;
-
     if (!events || events.length === 0) {
         container.innerHTML = `<div style="text-align:center; padding:40px; opacity:0.5;">Aucun événement programmé.</div>`;
         return;
     }
 
-    // 1. Groupement des événements par "Mois Année"
     const grouped = {};
     events.forEach(ev => {
-        const date = new Date(ev.event_date);
-        const monthYear = date.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }).toUpperCase();
+        const monthYear = new Date(ev.event_date).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }).toUpperCase();
         if (!grouped[monthYear]) grouped[monthYear] = [];
         grouped[monthYear].push(ev);
     });
 
-    // 2. Génération du HTML
     let html = "";
-    
     for (const [month, monthEvents] of Object.entries(grouped)) {
-        html += `
-            <div class="month-divider">
-                <h2>${month}</h2>
-            </div>
-            <div class="kanban-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 30px;">
-        `;
-
-        // Séparation par statut pour ce mois
-        const categories = {
+        html += `<div class="month-divider"><h2>${month}</h2></div><div class="kanban-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 30px;">`;
+        const cat = {
             todo: monthEvents.filter(ev => !isStarted(ev)),
             progress: monthEvents.filter(ev => isStarted(ev) && !isEventReady(ev)),
             ready: monthEvents.filter(ev => isEventReady(ev))
         };
-
         html += `
             <div class="kanban-column" style="background:#f8fafc; padding:12px; border-radius:10px; border:1px solid #e2e8f0;">
-                <h3 style="font-size:0.7rem; color:#64748b; margin-bottom:12px; font-weight:800; border-bottom:1px solid #ddd; padding-bottom:5px;">À PLANIFIER (${categories.todo.length})</h3>
-                <div style="display:flex; flex-direction:column; gap:10px;">
-                    ${categories.todo.map(ev => renderMiniCard(ev)).join('')}
-                </div>
+                <h3 style="font-size:0.7rem; color:#64748b; margin-bottom:12px; font-weight:800; border-bottom:1px solid #ddd; padding-bottom:5px;">À PLANIFIER (${cat.todo.length})</h3>
+                <div style="display:flex; flex-direction:column; gap:10px;">${cat.todo.map(ev => renderMiniCard(ev)).join('')}</div>
             </div>
-
             <div class="kanban-column" style="background:#fff7ed; padding:12px; border-radius:10px; border:1px solid #ffedd5;">
-                <h3 style="font-size:0.7rem; color:#b45309; margin-bottom:12px; font-weight:800; border-bottom:1px solid #fed7aa; padding-bottom:5px;">EN PRÉPARATION (${categories.progress.length})</h3>
-                <div style="display:flex; flex-direction:column; gap:10px;">
-                    ${categories.progress.map(ev => renderMiniCard(ev)).join('')}
-                </div>
+                <h3 style="font-size:0.7rem; color:#b45309; margin-bottom:12px; font-weight:800; border-bottom:1px solid #fed7aa; padding-bottom:5px;">EN PRÉPARATION (${cat.progress.length})</h3>
+                <div style="display:flex; flex-direction:column; gap:10px;">${cat.progress.map(ev => renderMiniCard(ev)).join('')}</div>
             </div>
-
             <div class="kanban-column" style="background:#f0fdf4; padding:12px; border-radius:10px; border:1px solid #dcfce7;">
-                <h3 style="font-size:0.7rem; color:#166534; margin-bottom:12px; font-weight:800; border-bottom:1px solid #bbf7d0; padding-bottom:5px;">PRÊT COM (${categories.ready.length})</h3>
-                <div style="display:flex; flex-direction:column; gap:10px;">
-                    ${categories.ready.map(ev => renderMiniCard(ev)).join('')}
-                </div>
-            </div>
-        `;
-
-        html += `</div>`;
+                <h3 style="font-size:0.7rem; color:#166534; margin-bottom:12px; font-weight:800; border-bottom:1px solid #bbf7d0; padding-bottom:5px;">PRÊT COM (${cat.ready.length})</h3>
+                <div style="display:flex; flex-direction:column; gap:10px;">${cat.ready.map(ev => renderMiniCard(ev)).join('')}</div>
+            </div></div>`;
     }
-
-    container.style.display = "block";
-    container.innerHTML = html;
-    lucide.createIcons();
+    container.style.display = "block"; container.innerHTML = html; lucide.createIcons();
 }
 
-// --- HELPERS DE STATUT ---
-function isStarted(ev) {
-    return ev.event_resources?.some(r => (r.description && r.description.length > 5) || r.file_url);
-}
-
-function isEventReady(ev) {
-    const hasText = ev.event_resources?.some(r => r.description && r.description.length > 10);
-    const hasPhoto = ev.event_resources?.some(r => r.file_url);
-    return hasText && hasPhoto;
-}
+function isStarted(ev) { return ev.event_resources?.some(r => (r.description && r.description.length > 5) || r.file_url); }
+function isEventReady(ev) { return ev.event_resources?.some(r => r.description && r.description.length > 10) && ev.event_resources?.some(r => r.file_url); }
 
 function renderMiniCard(ev) {
     const canManage = (currentUser.portal === "Institut Alsatia" || currentUser.portal === ev.entity);
     const dateFr = new Date(ev.event_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
-    
     return `
         <div class="event-card-mini" style="background:white; padding:10px; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,0.05); border-left: 4px solid ${getColorByEntity(ev.entity)};">
             <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:5px;">
-                <span style="font-size: 0.65rem; color: ${getColorByEntity(ev.entity)}; font-weight: bold; background:${getColorByEntity(ev.entity)}15; padding:2px 6px; border-radius:4px;">
-                    ${ev.entity}
-                </span>
+                <span style="font-size: 0.65rem; color: ${getColorByEntity(ev.entity)}; font-weight: bold; background:${getColorByEntity(ev.entity)}15; padding:2px 6px; border-radius:4px;">${ev.entity}</span>
                 <span style="font-size:0.7rem; font-weight:700; color:#64748b;">${dateFr}</span>
             </div>
             <h4 style="margin: 5px 0 10px 0; font-size: 0.85rem; line-height:1.2; color:#1e293b;">${ev.title}</h4>
@@ -900,15 +796,12 @@ function renderMiniCard(ev) {
                 <button onclick="window.openEventGuests('${ev.id}')" class="btn-mini-gold" style="flex:1; padding:5px; background:#f1f5f9; color:black; border:1px solid #ddd;"><i data-lucide="users" style="width:12px;"></i></button>
                 ${canManage ? `<button onclick="window.askDeleteEvent('${ev.id}', '${ev.title.replace(/'/g, "\\'")}')" style="padding:5px; background:none; border:none; color:#ef4444; cursor:pointer;"><i data-lucide="trash-2" style="width:14px;"></i></button>` : ''}
             </div>
-        </div>
-    `;
+        </div>`;
 }
 
-// --- DOSSIER MÉDIA ---
 window.openEventMedia = async (eventId) => {
     const { data: ev } = await supabaseClient.from('events').select('*').eq('id', eventId).single();
     const { data: res } = await supabaseClient.from('event_resources').select('*').eq('event_id', eventId);
-    
     const textData = (res || []).find(r => !r.file_url);
     const photos = (res || []).filter(r => r.file_url);
 
@@ -921,56 +814,43 @@ window.openEventMedia = async (eventId) => {
         <div style="margin-top:15px; max-height:75vh; overflow-y:auto; padding-right:5px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
                 <label class="mini-label" style="margin:0;">LÉGENDE / POST RÉSEAUX</label>
-                <button onclick="window.copyEventText()" class="btn-mini-gold" style="font-size:0.65rem; padding:2px 8px; background:#1e293b; color:white;">
-                    <i data-lucide="copy" style="width:10px;"></i> COPIER LE TEXTE
-                </button>
+                <button onclick="window.copyEventText()" class="btn-mini-gold" style="font-size:0.65rem; padding:2px 8px; background:#1e293b; color:white;"><i data-lucide="copy" style="width:10px;"></i> COPIER</button>
             </div>
             <textarea id="res-text" class="luxe-input" style="height:120px; font-size:0.9rem; margin-bottom:15px;" placeholder="Rédigez ici le post...">${textData ? textData.description : ''}</textarea>
-            
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
                 <label class="mini-label" style="margin:0;">PHOTOS & VISUELS</label>
                 <input type="file" id="res-file" style="display:none;" onchange="window.uploadEventFile('${eventId}')" accept="image/*">
                 <button onclick="document.getElementById('res-file').click()" class="btn-mini-gold" style="font-size:0.65rem;">+ AJOUTER PHOTO</button>
             </div>
-            
             <div id="media-gallery" style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:10px;">
                 ${photos.map(r => `
                     <div class="gallery-item" style="position:relative; height:100px; border:1px solid #eee; border-radius:5px; overflow:hidden; background:#f8fafc;">
                         <img src="${r.file_url}" style="width:100%; height:100%; object-fit:cover;">
                         <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.7); display:flex; justify-content:space-around; padding:5px;">
-                            <button onclick="window.downloadImage('${r.file_url}', 'photo_${eventId}')" title="Télécharger" style="background:none; border:none; color:white; cursor:pointer;">
-                                <i data-lucide="download" style="width:14px;"></i>
-                            </button>
-                            <button onclick="window.deleteResource('${r.id}', '${eventId}')" title="Supprimer" style="background:none; border:none; color:#ff4d4d; cursor:pointer;">
-                                <i data-lucide="trash-2" style="width:14px;"></i>
-                            </button>
+                            <button onclick="window.downloadImage('${r.file_url}', 'photo_${eventId}')" style="background:none; border:none; color:white; cursor:pointer;"><i data-lucide="download" style="width:14px;"></i></button>
+                            <button onclick="window.deleteResource('${r.id}', '${eventId}')" style="background:none; border:none; color:#ff4d4d; cursor:pointer;"><i data-lucide="trash-2" style="width:14px;"></i></button>
                         </div>
-                    </div>
-                `).join('')}
+                    </div>`).join('')}
             </div>
             <button onclick="window.saveEventContent('${eventId}')" class="btn-gold" style="width:100%; margin-top:20px; background:#107c10; border:none;">ENREGISTRER</button>
-        </div>
-    `;
+        </div>`;
     lucide.createIcons();
 };
 
-// --- LOGIQUE MÉDIA (COPIE, UPLOAD, TÉLÉCHARGEMENT) ---
 window.copyEventText = () => {
     const textArea = document.getElementById('res-text');
-    if (!textArea || !textArea.value) return window.showNotice("Info", "Rien à copier.");
+    if (!textArea || !textArea.value) return;
     navigator.clipboard.writeText(textArea.value);
     window.showNotice("Copié !", "Texte prêt à être collé.");
 };
 
 window.downloadImage = async (url, filename) => {
-    try {
-        const res = await fetch(url);
-        const blob = await res.blob();
-        const link = document.createElement('a');
-        link.href = window.URL.createObjectURL(blob);
-        link.download = filename;
-        link.click();
-    } catch (e) { window.showNotice("Erreur", "Téléchargement impossible."); }
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const link = document.createElement('a');
+    link.href = window.URL.createObjectURL(blob);
+    link.download = filename;
+    link.click();
 };
 
 window.uploadEventFile = async (eventId) => {
@@ -981,64 +861,46 @@ window.uploadEventFile = async (eventId) => {
     if (data) {
         const url = supabaseClient.storage.from('documents').getPublicUrl(path).data.publicUrl;
         await supabaseClient.from('event_resources').insert([{ event_id: eventId, file_url: url }]);
-        window.openEventMedia(eventId);
-        window.loadEvents();
+        window.openEventMedia(eventId); window.loadEvents();
     }
 };
 
 window.saveEventContent = async (eventId) => {
     const text = document.getElementById('res-text').value;
-    const { data: resources } = await supabaseClient.from('event_resources').select('*').eq('event_id', eventId);
-    const existingText = resources?.find(r => !r.file_url);
-    if(existingText) {
-        await supabaseClient.from('event_resources').update({ description: text }).eq('id', existingText.id);
-    } else {
-        await supabaseClient.from('event_resources').insert([{ event_id: eventId, description: text }]);
-    }
-    window.showNotice("Succès", "Texte mis à jour.");
-    window.loadEvents();
+    const { data: res } = await supabaseClient.from('event_resources').select('*').eq('event_id', eventId);
+    const existing = res?.find(r => !r.file_url);
+    if(existing) await supabaseClient.from('event_resources').update({ description: text }).eq('id', existing.id);
+    else await supabaseClient.from('event_resources').insert([{ event_id: eventId, description: text }]);
+    window.showNotice("Succès", "Texte mis à jour."); window.loadEvents();
 };
 
 window.deleteResource = async (resId, eventId) => {
     await supabaseClient.from('event_resources').delete().eq('id', resId);
-    window.openEventMedia(eventId);
-    window.loadEvents();
+    window.openEventMedia(eventId); window.loadEvents();
 };
 
-// --- GESTION DES INVITÉS ---
 window.openEventGuests = async (eventId) => {
-    const { data: donors } = await supabaseClient.from('donors').select('id, last_name, first_name, company_name, entity').order('last_name');
+    const { data: donors } = await supabaseClient.from('donors').select('id, last_name, first_name, company_name').order('last_name');
     const { data: guests } = await supabaseClient.from('event_guests').select('donor_id').eq('event_id', eventId);
     const guestIds = (guests || []).map(g => g.donor_id);
-
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
-        <div style="display:flex; justify-content:space-between; border-bottom:2px solid var(--gold); padding-bottom:10px;">
-            <h3>Liste des Invités</h3>
-            <button onclick="closeCustomModal()" class="btn-gold">X</button>
-        </div>
+        <div style="display:flex; justify-content:space-between; border-bottom:2px solid var(--gold); padding-bottom:10px;"><h3>Liste des Invités</h3><button onclick="closeCustomModal()" class="btn-gold">X</button></div>
         <div style="margin-top:15px; display:flex; flex-direction:column; gap:10px;">
             <input type="text" id="guest-search" class="luxe-input" placeholder="Rechercher..." oninput="window.filterGuestList()">
             <div id="guest-list-scroll" style="max-height:400px; overflow-y:auto; border:1px solid #eee; border-radius:8px;">
                 ${donors.map(d => `
                     <label class="guest-item" data-name="${d.last_name} ${d.first_name}" style="display:flex; align-items:center; padding:10px; border-bottom:1px solid #f9f9f9; cursor:pointer;">
                         <input type="checkbox" ${guestIds.includes(d.id) ? 'checked' : ''} onchange="window.toggleGuest('${eventId}', '${d.id}', this.checked)" style="margin-right:12px; width:18px; height:18px;">
-                        <div style="flex:1; font-size:0.85rem;">
-                            <strong>${d.last_name} ${d.first_name || ''}</strong><br>
-                            <span style="color:gray; font-size:0.75rem;">${d.company_name || d.entity || ''}</span>
-                        </div>
-                    </label>
-                `).join('')}
+                        <div style="flex:1; font-size:0.85rem;"><strong>${d.last_name} ${d.first_name || ''}</strong><br><span style="color:gray; font-size:0.75rem;">${d.company_name || ''}</span></div>
+                    </label>`).join('')}
             </div>
-        </div>
-    `;
+        </div>`;
 };
 
 window.filterGuestList = () => {
     const q = document.getElementById('guest-search').value.toLowerCase();
-    document.querySelectorAll('.guest-item').forEach(item => {
-        item.style.display = item.getAttribute('data-name').toLowerCase().includes(q) ? 'flex' : 'none';
-    });
+    document.querySelectorAll('.guest-item').forEach(item => { item.style.display = item.getAttribute('data-name').toLowerCase().includes(q) ? 'flex' : 'none'; });
 };
 
 window.toggleGuest = async (eventId, donorId, isChecked) => {
@@ -1046,7 +908,6 @@ window.toggleGuest = async (eventId, donorId, isChecked) => {
     else await supabaseClient.from('event_guests').delete().eq('event_id', eventId).eq('donor_id', donorId);
 };
 
-// --- CRÉATION ---
 window.openNewEventModal = () => {
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
@@ -1064,31 +925,21 @@ window.openNewEventModal = () => {
             <option value="Academia Alsatia">Academia Alsatia</option>
         </select>
         <label class="mini-label">LIEU</label><input type="text" id="ev-loc" class="luxe-input">
-        <button onclick="window.execCreateEvent()" class="btn-gold" style="width:100%; margin-top:15px;">PUBLIER</button>
-    `;
+        <button onclick="window.execCreateEvent()" class="btn-gold" style="width:100%; margin-top:15px;">PUBLIER</button>`;
 };
 
 window.execCreateEvent = async () => {
     const title = document.getElementById('ev-title').value;
     const date = document.getElementById('ev-date').value;
-    if (!title || !date) return window.showNotice("Erreur", "Titre et date requis.");
-
-    const { error } = await supabaseClient.from('events').insert([{
-        title, event_date: date,
-        event_time: document.getElementById('ev-time').value || null,
-        location: document.getElementById('ev-loc').value || null,
-        entity: document.getElementById('ev-entity').value,
+    if (!title || !date) return alert("Titre et date requis.");
+    await supabaseClient.from('events').insert([{
+        title, event_date: date, event_time: document.getElementById('ev-time').value || null,
+        location: document.getElementById('ev-loc').value || null, entity: document.getElementById('ev-entity').value,
         created_by: `${currentUser.first_name} ${currentUser.last_name}`
     }]);
-
-    if (!error) { 
-        window.showNotice("Succès", "Événement créé.");
-        closeCustomModal(); 
-        window.loadEvents(); 
-    } else { window.showNotice("Erreur 400", "Vérifiez les champs."); }
+    closeCustomModal(); window.loadEvents();
 };
 
-// --- SUPPRESSION CUSTOM ---
 window.askDeleteEvent = (id, title) => {
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
@@ -1100,8 +951,7 @@ window.askDeleteEvent = (id, title) => {
                 <button onclick="closeCustomModal()" class="btn-gold" style="flex:1; background:#f1f5f9; color:#1e293b; border:1px solid #cbd5e1;">ANNULER</button>
                 <button onclick="window.execDeleteEvent('${id}')" style="flex:1; background:#fee2e2; color:#ef4444; border:1px solid #fecaca; border-radius:8px; font-weight:bold; cursor:pointer;">SUPPRIMER</button>
             </div>
-        </div>
-    `;
+        </div>`;
     lucide.createIcons();
 };
 
@@ -1109,9 +959,7 @@ window.execDeleteEvent = async (id) => {
     await supabaseClient.from('event_resources').delete().eq('event_id', id);
     await supabaseClient.from('event_guests').delete().eq('event_id', id);
     await supabaseClient.from('events').delete().eq('id', id);
-    window.showNotice("Supprimé", "Événement retiré.");
-    closeCustomModal();
-    window.loadEvents();
+    closeCustomModal(); window.loadEvents();
 };
 
 function getColorByEntity(ent) {
