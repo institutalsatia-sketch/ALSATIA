@@ -80,80 +80,89 @@ window.showNotice = (title, message) => {
 // --- GESTION DU PROFIL UTILISATEUR ---
 
 window.openProfileModal = async () => {
-    // 1. Récupérer les données actuelles depuis Supabase
+    // 1. Récupération des données du profil
     const { data: profile, error } = await supabaseClient
         .from('profiles')
         .select('*')
         .eq('id', currentUser.id)
         .single();
 
-    // Si le profil n'existe pas encore, on utilise les infos de session ou vide
-    const p = profile || { 
-        first_name: currentUser.first_name || '', 
-        last_name: currentUser.last_name || '',
-        job_title: '', phone: '', email: currentUser.email || '' 
-    };
+    if (error) {
+        console.error("Erreur profil:", error);
+        return window.showNotice("Erreur", "Impossible de charger votre profil.");
+    }
 
     document.getElementById('custom-modal').style.display = 'flex';
     document.getElementById('modal-body').innerHTML = `
         <div style="display:flex; justify-content:space-between; border-bottom:2px solid var(--gold); padding-bottom:10px; margin-bottom:20px;">
-            <h3><i data-lucide="user-cog" style="width:20px; vertical-align:middle;"></i> Mon Profil Personnel</h3>
+            <h3><i data-lucide="user" style="width:20px; vertical-align:middle;"></i> Mon Profil Personnel</h3>
             <button onclick="closeCustomModal()" class="btn-gold">X</button>
+        </div>
+
+        <div style="background: #f8fafc; padding: 10px; border-radius: 8px; margin-bottom: 20px; font-size: 0.8rem; border: 1px solid #e2e8f0;">
+            <span style="color: #64748b;">Portail :</span> <strong>${profile.portal}</strong>
         </div>
 
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
             <div>
                 <label class="mini-label">PRÉNOM</label>
-                <input type="text" id="prof-first" class="luxe-input" value="${p.first_name}">
+                <input type="text" id="prof-first" class="luxe-input" value="${profile.first_name || ''}">
             </div>
             <div>
                 <label class="mini-label">NOM</label>
-                <input type="text" id="prof-last" class="luxe-input" value="${p.last_name}">
+                <input type="text" id="prof-last" class="luxe-input" value="${profile.last_name || ''}">
             </div>
         </div>
 
         <label class="mini-label" style="margin-top:15px;">FONCTION DANS L'ENTITÉ</label>
-        <input type="text" id="prof-job" class="luxe-input" placeholder="ex: Responsable Com, Bénévole..." value="${p.job_title || ''}">
+        <input type="text" id="prof-job" class="luxe-input" placeholder="ex: Responsable Communication" value="${profile.job_title || ''}">
 
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-top:15px;">
             <div>
                 <label class="mini-label">TÉLÉPHONE</label>
-                <input type="tel" id="prof-phone" class="luxe-input" placeholder="06..." value="${p.phone || ''}">
+                <input type="tel" id="prof-phone" class="luxe-input" placeholder="06 00 00 00 00" value="${profile.phone || ''}">
             </div>
             <div>
-                <label class="mini-label">MAIL (PRO/PERSO)</label>
-                <input type="email" id="prof-email" class="luxe-input" value="${p.email}">
+                <label class="mini-label">MAIL</label>
+                <input type="email" id="prof-email" class="luxe-input" placeholder="nom@exemple.fr" value="${profile.email || ''}">
             </div>
         </div>
 
-        <button onclick="window.saveProfile()" class="btn-gold" style="width:100%; margin-top:25px; background:var(--primary); color:white; border:none; padding:12px;">
-            ENREGISTRER MES INFORMATIONS
+        <button onclick="window.saveMyProfile()" class="btn-gold" style="width:100%; margin-top:25px; padding:12px; background:var(--primary); color:white; border:none;">
+            METTRE À JOUR MON PROFIL
         </button>
     `;
     lucide.createIcons();
 };
 
-window.saveProfile = async () => {
+// --- SAUVEGARDE DES MODIFICATIONS ---
+window.saveMyProfile = async () => {
     const updates = {
-        id: currentUser.id,
-        first_name: document.getElementById('prof-first').value,
-        last_name: document.getElementById('prof-last').value,
-        job_title: document.getElementById('prof-job').value,
-        phone: document.getElementById('prof-phone').value,
-        email: document.getElementById('prof-email').value,
-        updated_at: new Date()
+        first_name: document.getElementById('prof-first').value.trim(),
+        last_name: document.getElementById('prof-last').value.trim(),
+        job_title: document.getElementById('prof-job').value.trim(),
+        phone: document.getElementById('prof-phone').value.trim(),
+        email: document.getElementById('prof-email').value.trim()
     };
 
-    const { error } = await supabaseClient.from('profiles').upsert(updates);
+    if (!updates.first_name || !updates.last_name) {
+        return window.showNotice("Champs requis", "Le nom et le prénom sont obligatoires.");
+    }
+
+    const { error } = await supabaseClient
+        .from('profiles')
+        .update(updates)
+        .eq('id', currentUser.id);
 
     if (!error) {
-        window.showNotice("Profil à jour", "Vos informations ont été enregistrées.");
-        // Optionnel : mettre à jour l'objet currentUser en local
-        Object.assign(currentUser, updates);
+        window.showNotice("Succès", "Vos informations ont été enregistrées.");
+        // Mise à jour de l'affichage local (nom dans le header etc.)
+        currentUser.first_name = updates.first_name;
+        currentUser.last_name = updates.last_name;
         closeCustomModal();
     } else {
-        window.showNotice("Erreur", "Impossible de sauvegarder le profil.");
         console.error(error);
+        window.showNotice("Erreur", "Erreur lors de la sauvegarde.");
     }
 };
 
