@@ -30,15 +30,12 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initInterface() {
-    // 1. Gestion des Logos
     const logoContainer = document.getElementById('entity-logo-container');
     if(logoContainer) logoContainer.innerHTML = `<img src="${LOGOS[currentUser.portal] || 'logo_alsatia.png'}" class="entity-logo">`;
     
-    // 2. Affichage Nom et Portail
     document.getElementById('user-name-display').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
     document.getElementById('current-portal-display').innerText = currentUser.portal;
 
-    // 3. Insertion du bouton "Mon Profil" dans la navigation
     const nav = document.getElementById('main-nav');
     if (nav && !document.getElementById('nav-profile')) {
         const li = document.createElement('li');
@@ -46,10 +43,9 @@ function initInterface() {
         li.className = "nav-profile-item";
         li.innerHTML = `<i data-lucide="user-circle"></i> Mon Profil`;
         li.onclick = () => window.openProfileModal();
-        nav.appendChild(li); // Ajout à la fin du menu
+        nav.appendChild(li);
     }
 
-    // 4. Affichage conditionnel de l'onglet CRM pour l'Institut
     if (currentUser.portal === "Institut Alsatia") {
         if (nav && !document.getElementById('nav-donors')) {
             const li = document.createElement('li');
@@ -65,12 +61,9 @@ function initInterface() {
 window.switchTab = (id) => {
     document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.side-nav li').forEach(l => l.classList.remove('active'));
-    
     const targetPage = document.getElementById(`tab-${id}`);
     if(targetPage) targetPage.classList.add('active');
-    
     if(document.getElementById(`nav-${id}`)) document.getElementById(`nav-${id}`).classList.add('active');
-    
     if(id === 'donors') loadDonors();
     if(id === 'chat') loadChatMessages();
     if(id === 'events') loadEvents();
@@ -93,11 +86,10 @@ window.showNotice = (title, message) => {
 };
 
 // ==========================================
-// GESTION DU PROFIL UTILISATEUR
+// GESTION DU PROFIL UTILISATEUR & SÉCURITÉ
 // ==========================================
 
 window.openProfileModal = async () => {
-    // 1. Récupération des données fraîches du profil
     const { data: profile, error } = await supabaseClient
         .from('profiles')
         .select('*')
@@ -116,45 +108,61 @@ window.openProfileModal = async () => {
             <button onclick="closeCustomModal()" class="btn-gold" style="padding: 2px 8px; border:none; background:none; font-weight:bold; cursor:pointer;">X</button>
         </div>
 
-        <div style="background: linear-gradient(135deg, #1e293b, #0f172a); color: white; padding: 20px; border-radius: 12px; margin-bottom: 25px; border: 1px solid #d4af37; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-            <div style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 2px; color: #d4af37; margin-bottom: 5px;">Accès Portail</div>
-            <div style="font-size: 1.1rem; font-weight: 800; margin-bottom: 10px;">${profile.portal}</div>
-            <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
-                <span style="font-size: 0.75rem; opacity: 0.8;">ID: ${profile.id.substring(0,8)}...</span>
-                <span style="font-size: 0.75rem; background: rgba(212, 175, 55, 0.2); padding: 2px 8px; border-radius: 20px; border: 1px solid #d4af37;">Profil Actif</span>
-            </div>
-        </div>
-
+        <h4 style="font-size:0.75rem; color:#d4af37; letter-spacing:1px; margin-bottom:15px; text-transform:uppercase;">Informations Personnelles</h4>
+        
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px;">
             <div>
-                <label class="mini-label" style="display:block; font-size:0.65rem; color:#64748b; margin-bottom:5px;">PRÉNOM</label>
+                <label class="mini-label">PRÉNOM</label>
                 <input type="text" id="prof-first" class="luxe-input" value="${profile.first_name || ''}" style="width:100%; padding:10px; border-radius:6px; border:1px solid #ddd;">
             </div>
             <div>
-                <label class="mini-label" style="display:block; font-size:0.65rem; color:#64748b; margin-bottom:5px;">NOM</label>
+                <label class="mini-label">NOM</label>
                 <input type="text" id="prof-last" class="luxe-input" value="${profile.last_name || ''}" style="width:100%; padding:10px; border-radius:6px; border:1px solid #ddd;">
             </div>
         </div>
 
         <div style="margin-top:15px;">
-            <label class="mini-label" style="display:block; font-size:0.65rem; color:#64748b; margin-bottom:5px;">FONCTION DANS L'ENTITÉ</label>
-            <input type="text" id="prof-job" class="luxe-input" placeholder="ex: Responsable Communication" value="${profile.job_title || ''}" style="width:100%; padding:10px; border-radius:6px; border:1px solid #ddd;">
+            <label class="mini-label">FONCTION DANS L'ENTITÉ</label>
+            <input type="text" id="prof-job" class="luxe-input" value="${profile.job_title || ''}" style="width:100%; padding:10px; border-radius:6px; border:1px solid #ddd;">
         </div>
 
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-top:15px;">
             <div>
-                <label class="mini-label" style="display:block; font-size:0.65rem; color:#64748b; margin-bottom:5px;">TÉLÉPHONE</label>
-                <input type="tel" id="prof-phone" class="luxe-input" placeholder="06..." value="${profile.phone || ''}" style="width:100%; padding:10px; border-radius:6px; border:1px solid #ddd;">
+                <label class="mini-label">TÉLÉPHONE</label>
+                <input type="tel" id="prof-phone" class="luxe-input" value="${profile.phone || ''}" style="width:100%; padding:10px; border-radius:6px; border:1px solid #ddd;">
             </div>
             <div>
-                <label class="mini-label" style="display:block; font-size:0.65rem; color:#64748b; margin-bottom:5px;">MAIL PERSONNEL / PRO</label>
-                <input type="email" id="prof-email" class="luxe-input" placeholder="nom@exemple.com" value="${profile.email || ''}" style="width:100%; padding:10px; border-radius:6px; border:1px solid #ddd;">
+                <label class="mini-label">MAIL</label>
+                <input type="email" id="prof-email" class="luxe-input" value="${profile.email || ''}" style="width:100%; padding:10px; border-radius:6px; border:1px solid #ddd;">
             </div>
         </div>
 
-        <button onclick="window.saveMyProfile()" class="btn-gold" style="width:100%; margin-top:25px; padding:15px; background:#1e293b; color:#d4af37; font-weight:bold; border:1px solid #d4af37; border-radius:8px; cursor:pointer; transition:0.3s;">
-            METTRE À JOUR MES INFORMATIONS
+        <button onclick="window.saveMyProfile()" class="btn-gold" style="width:100%; margin-top:15px; padding:12px; background:#1e293b; color:#d4af37; font-weight:bold; border:1px solid #d4af37; border-radius:8px; cursor:pointer;">
+            METTRE À JOUR LE PROFIL
         </button>
+
+        <hr style="border:0; border-top:1px solid #eee; margin:25px 0;">
+
+        <h4 style="font-size:0.75rem; color:#d4af37; letter-spacing:1px; margin-bottom:15px; text-transform:uppercase;">Sécurité & Accès</h4>
+        
+        <div style="background:#f8fafc; padding:15px; border-radius:8px; border:1px solid #e2e8f0;">
+            <div style="margin-bottom:10px; font-size:0.8rem; color:#64748b;">
+                Portail actuel : <strong style="color:#1e293b;">${profile.portal}</strong>
+            </div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                <div>
+                    <label class="mini-label">NOUVEAU PIN</label>
+                    <input type="password" id="prof-pin" class="luxe-input" placeholder="****" maxlength="6" style="width:100%; padding:10px; border-radius:6px; border:1px solid #ddd;">
+                </div>
+                <div>
+                    <label class="mini-label">CONFIRMATION</label>
+                    <input type="password" id="prof-pin-confirm" class="luxe-input" placeholder="****" maxlength="6" style="width:100%; padding:10px; border-radius:6px; border:1px solid #ddd;">
+                </div>
+            </div>
+            <button onclick="window.updateSecurityPin()" class="btn-gold" style="width:100%; margin-top:15px; padding:10px; background:#fff; color:#1e293b; font-size:0.75rem; border:1px solid #ddd; border-radius:6px; cursor:pointer;">
+                MODIFIER MON CODE PIN
+            </button>
+        </div>
     `;
     lucide.createIcons();
 };
@@ -172,29 +180,44 @@ window.saveMyProfile = async () => {
         return window.showNotice("Champs requis", "Le nom et le prénom sont obligatoires.");
     }
 
-    const { error } = await supabaseClient
-        .from('profiles')
-        .update(updates)
-        .eq('id', currentUser.id);
+    const { error } = await supabaseClient.from('profiles').update(updates).eq('id', currentUser.id);
 
     if (!error) {
-        window.showNotice("Succès", "Vos informations ont été enregistrées.");
-        
-        // Mise à jour de l'affichage local
+        window.showNotice("Succès", "Informations enregistrées.");
         currentUser.first_name = updates.first_name;
         currentUser.last_name = updates.last_name;
         localStorage.setItem('alsatia_user', JSON.stringify(currentUser));
-        
-        // Rafraîchir l'interface (nom en haut à droite)
         document.getElementById('user-name-display').innerText = `${updates.first_name} ${updates.last_name}`;
-        
         closeCustomModal();
     } else {
-        console.error(error);
-        window.showNotice("Erreur", "Erreur lors de la sauvegarde.");
+        window.showNotice("Erreur", "Sauvegarde impossible.");
     }
 };
 
+window.updateSecurityPin = async () => {
+    const pin = document.getElementById('prof-pin').value;
+    const confirm = document.getElementById('prof-pin-confirm').value;
+
+    if (!pin || pin.length < 4) {
+        return window.showNotice("Sécurité", "Le PIN doit faire au moins 4 chiffres.");
+    }
+    if (pin !== confirm) {
+        return window.showNotice("Erreur", "Les codes PIN ne correspondent pas.");
+    }
+
+    const { error } = await supabaseClient
+        .from('profiles')
+        .update({ pin: pin })
+        .eq('id', currentUser.id);
+
+    if (!error) {
+        window.showNotice("Sécurité", "Code PIN modifié avec succès.");
+        document.getElementById('prof-pin').value = "";
+        document.getElementById('prof-pin-confirm').value = "";
+    } else {
+        window.showNotice("Erreur", "Échec de la modification du PIN.");
+    }
+};
 // ==========================================
 // MESSAGERIE & MENTIONS @
 // ==========================================
