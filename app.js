@@ -1119,7 +1119,7 @@ function renderSingleMessage(msg) {
     const date = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const portalIcon = LOGOS[msg.portal] || 'logo_alsatia.png';
     
-    // Initiales pour l'avatar
+    // Initiales pour l'avatar (SEULEMENT pour les autres)
     const initials = msg.author_full_name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
     
     // Couleur de l'avatar basée sur le portail
@@ -1191,23 +1191,18 @@ function renderSingleMessage(msg) {
                             </a>
                         </div>
                     ` : ''}
-                    
-                    <div class="msg-actions" style="position:absolute; top:-12px; ${isMe ? 'left:10px;' : 'right:10px;'} display:flex; gap:8px; background:white; padding:6px 12px; border-radius:20px; box-shadow:0 2px 8px rgba(0,0,0,0.12); opacity:0; transition:0.2s;">
-                        <span onclick="window.reactToMessage('${msg.id}', '👍')" style="cursor:pointer; font-size:1.15rem; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.4)'" onmouseout="this.style.transform='scale(1)'">👍</span>
-                        <span onclick="window.reactToMessage('${msg.id}', '❤️')" style="cursor:pointer; font-size:1.15rem; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.4)'" onmouseout="this.style.transform='scale(1)'">❤️</span>
-                        <span onclick="window.reactToMessage('${msg.id}', '😂')" style="cursor:pointer; font-size:1.15rem; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.4)'" onmouseout="this.style.transform='scale(1)'">😂</span>
-                        <span onclick="window.reactToMessage('${msg.id}', '🎉')" style="cursor:pointer; font-size:1.15rem; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.4)'" onmouseout="this.style.transform='scale(1)'">🎉</span>
-                        <span onclick="window.reactToMessage('${msg.id}', '🔥')" style="cursor:pointer; font-size:1.15rem; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.4)'" onmouseout="this.style.transform='scale(1)'">🔥</span>
-                        <span onclick="window.reactToMessage('${msg.id}', '👏')" style="cursor:pointer; font-size:1.15rem; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.4)'" onmouseout="this.style.transform='scale(1)'">👏</span>
-                    </div>
+                </div>
+                
+                <!-- Icônes de réaction SOUS le message -->
+                <div style="display:flex; gap:4px; margin-top:6px; ${isMe ? 'justify-content:flex-end;' : ''}">
+                    <span onclick="window.reactToMessage('${msg.id}', '👍')" style="cursor:pointer; font-size:1.3rem; padding:4px 8px; border-radius:12px; background:white; box-shadow:0 1px 3px rgba(0,0,0,0.1); transition:all 0.2s;" onmouseover="this.style.transform='scale(1.2)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)';">👍</span>
+                    <span onclick="window.reactToMessage('${msg.id}', '❤️')" style="cursor:pointer; font-size:1.3rem; padding:4px 8px; border-radius:12px; background:white; box-shadow:0 1px 3px rgba(0,0,0,0.1); transition:all 0.2s;" onmouseover="this.style.transform='scale(1.2)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)';">❤️</span>
+                    <span onclick="window.reactToMessage('${msg.id}', '😂')" style="cursor:pointer; font-size:1.3rem; padding:4px 8px; border-radius:12px; background:white; box-shadow:0 1px 3px rgba(0,0,0,0.1); transition:all 0.2s;" onmouseover="this.style.transform='scale(1.2)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)';">😂</span>
+                    <span onclick="window.reactToMessage('${msg.id}', '🎉')" style="cursor:pointer; font-size:1.3rem; padding:4px 8px; border-radius:12px; background:white; box-shadow:0 1px 3px rgba(0,0,0,0.1); transition:all 0.2s;" onmouseover="this.style.transform='scale(1.2)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)';">🎉</span>
+                    <span onclick="window.reactToMessage('${msg.id}', '🔥')" style="cursor:pointer; font-size:1.3rem; padding:4px 8px; border-radius:12px; background:white; box-shadow:0 1px 3px rgba(0,0,0,0.1); transition:all 0.2s;" onmouseover="this.style.transform='scale(1.2)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)';">🔥</span>
+                    <span onclick="window.replyToMessage('${msg.id}', '${msg.author_full_name}', \`${msg.content.replace(/`/g, '').substring(0, 50)}\`)" style="cursor:pointer; padding:6px 10px; border-radius:12px; background:white; box-shadow:0 1px 3px rgba(0,0,0,0.1); transition:all 0.2s; font-size:0.75rem; font-weight:600; color:var(--gold);" onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)';">↩️ Répondre</span>
                 </div>
             </div>
-            
-            ${isMe ? `
-                <div style="width:40px; height:40px; border-radius:50%; background:var(--gold); display:flex; align-items:center; justify-content:center; color:white; font-weight:700; font-size:0.85rem; flex-shrink:0; box-shadow: 0 2px 8px rgba(197,160,89,0.3);">
-                    ${initials}
-                </div>
-            ` : ''}
         </div>
     `;
 }
@@ -1341,6 +1336,32 @@ window.insertMention = (name) => {
     input.focus();
 };
 
+// Variable globale pour stocker le message auquel on répond
+let replyingTo = null;
+
+window.replyToMessage = (messageId, authorName, messagePreview) => {
+    replyingTo = { id: messageId, author: authorName, preview: messagePreview };
+    
+    // Afficher la barre de réponse
+    const replyBar = document.getElementById('reply-bar');
+    if (replyBar) {
+        replyBar.style.display = 'flex';
+        document.getElementById('reply-author').innerText = authorName;
+        document.getElementById('reply-preview').innerText = messagePreview;
+    }
+    
+    // Focus sur l'input
+    document.getElementById('chat-input').focus();
+};
+
+window.cancelReply = () => {
+    replyingTo = null;
+    const replyBar = document.getElementById('reply-bar');
+    if (replyBar) {
+        replyBar.style.display = 'none';
+    }
+};
+
 window.handleChatFile = (input) => {
     selectedChatFile = input.files[0];
     if (selectedChatFile) {
@@ -1370,13 +1391,20 @@ window.sendChatMessage = async () => {
         }
     }
 
+    // Construire le contenu avec la réponse si elle existe
+    let finalContent = content;
+    if (replyingTo) {
+        finalContent = `[Réponse à ${replyingTo.author}] ${content}`;
+    }
+
     const { data, error } = await supabaseClient.from('chat_global').insert([{
-        content,
+        content: finalContent,
         author_full_name: `${currentUser.first_name} ${currentUser.last_name}`,
         author_last_name: currentUser.last_name,
         portal: currentUser.portal,
         subject: currentChatSubject,
-        file_url: fileUrl
+        file_url: fileUrl,
+        reply_to: replyingTo ? replyingTo.id : null
     }]).select().single();
 
     // Affichage optimiste : ajouter le message immédiatement
@@ -1386,6 +1414,7 @@ window.sendChatMessage = async () => {
 
     input.value = '';
     window.clearChatFile();
+    window.cancelReply();
 };
 
 window.deleteMessage = (id) => {
