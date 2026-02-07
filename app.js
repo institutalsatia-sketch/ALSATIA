@@ -810,8 +810,23 @@ window.toggleEventStatus = async (id, currentStatus) => {
 };
 
 window.updateEventField = async (id, field, value) => {
-    await supabaseClient.from('events').update({ [field]: value }).eq('id', id);
-    loadEvents();
+    console.log(`Tentative de sauvegarde : ${field} = ${value} pour l'ID ${id}`);
+
+    const { error } = await supabaseClient
+        .from('events')
+        .update({ [field]: value })
+        .eq('id', id);
+
+    if (error) {
+        console.error("Erreur de sauvegarde:", error.message);
+        window.showNotice("Erreur", "Impossible d'enregistrer la modification.");
+    } else {
+        // Optionnel : un petit indicateur discret dans la console
+        console.log("Enregistrement réussi !");
+        
+        // On rafraîchit la liste en fond pour que le dashboard soit à jour
+        loadEvents(); 
+    }
 };
 
 window.copyToClipboard = (text) => {
