@@ -18,58 +18,34 @@ const LOGOS = {
 };
 
 /**
- * OVERRIDE GLOBAL ALSATIA 
- * Redirige les fonctions natives vers l'interface de luxe
+ * OVERRIDE GLOBAL ALSATIA - VERSION SÉCURISÉE
  */
 
-// 1. Remplace alert() par window.showNotice()
+// On sauvegarde la fonction native une seule fois pour pouvoir l'utiliser sans boucler
+const _nativeAlert = window.alert;
+
 window.alert = function(message) {
+    // Si showNotice est dispo, on l'utilise
     if (typeof window.showNotice === 'function') {
         window.showNotice("Information", message);
     } else {
-        console.log("Alerte Alsatia : " + message);
+        // Sinon, on utilise la version native sauvegardée pour éviter la boucle infinie
+        _nativeAlert(message);
     }
 };
 
-// 2. Remplace confirm() par showCustomModal()
+// On sauvegarde aussi le confirm natif
+const _nativeConfirm = window.confirm;
 window.confirm = function(message) {
-    // Note : Le confirm natif est bloquant, le nôtre ne peut pas l'être.
-    // Cette fonction sert de secours pour éviter la fenêtre grise.
-    // Pour les suppressions CRM, il est préférable d'utiliser alsatiaConfirm().
-    showCustomModal(`
-        <div class="confirm-box">
-            <h3 class="luxe-title">CONFIRMATION</h3>
-            <p>${message}</p>
-            <div class="confirm-actions">
-                <button onclick="closeCustomModal()" class="btn-gold" style="background:var(--border); color:var(--text-main);">ANNULER</button>
-                <button onclick="closeCustomModal()" class="btn-gold">CONTINUER</button>
-            </div>
-        </div>
-    `);
-    return false; // Empêche le comportement natif
+    // Le confirm natif bloque le script, le nôtre non. 
+    // On l'intercepte uniquement pour rediriger vers alsatiaConfirm quand c'est possible.
+    // Pour l'instant, on le laisse passer ou on le bloque selon tes besoins.
+    console.warn("Utilisation de confirm() détectée. Message :", message);
+    
+    // Si tu veux vraiment bannir la fenêtre grise, on retourne false, 
+    // mais il faut utiliser window.alsatiaConfirm dans ton code CRM.
+    return _nativeConfirm(message); 
 };
-
-/**
- * MOTEUR DE DIALOGUE DE LUXE (Pour remplacer proprement les suppressions)
- */
-window.alsatiaConfirm = (title, text, callback, isDanger = false) => {
-    showCustomModal(`
-        <div class="confirm-box">
-            <h3 class="luxe-title" style="${isDanger ? 'color:var(--danger)' : ''}">${title}</h3>
-            <p>${text}</p>
-            <div class="confirm-actions">
-                <button onclick="closeCustomModal()" class="btn-gold" style="background:var(--border); color:var(--text-main);">ANNULER</button>
-                <button id="modal-confirm-action" class="btn-gold" style="${isDanger ? 'background:var(--danger)' : ''}">CONFIRMER</button>
-            </div>
-        </div>
-    `);
-
-    document.getElementById('modal-confirm-action').onclick = () => {
-        callback();
-        closeCustomModal();
-    };
-};
-
 // ==========================================
 // FONCTIONS GLOBALES (SÉCURITÉ ET INTERFACE)
 // ==========================================
@@ -138,7 +114,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Services Messagerie (Ajoutés pour la nouvelle version)
     await loadUsersForMentions();
-    await loadSubjects();
     setupMentionLogic();
     subscribeToChat();
 });
