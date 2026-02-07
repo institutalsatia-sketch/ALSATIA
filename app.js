@@ -952,16 +952,16 @@ window.subscribeToChat = () => {
         .on('postgres_changes', 
             { event: 'DELETE', schema: 'public', table: 'chat_global' }, 
             payload => {
-                console.log('Message supprimé:', payload);
-                const msgEl = document.querySelector(`#msg-${payload.old.id}`);
-                if (msgEl) {
-                    const wrapper = msgEl.closest('.message-wrapper');
-                    if (wrapper) {
-                        wrapper.style.transition = 'all 0.3s ease';
-                        wrapper.style.opacity = '0';
-                        wrapper.style.transform = 'translateX(20px)';
-                        setTimeout(() => wrapper.remove(), 300);
-                    }
+                console.log('Message supprimé en temps réel:', payload.old.id);
+                // Trouver et supprimer le message avec animation
+                const msgWrapper = document.querySelector(`[data-msg-id="${payload.old.id}"]`);
+                if (msgWrapper) {
+                    msgWrapper.style.transition = 'all 0.3s ease';
+                    msgWrapper.style.opacity = '0';
+                    msgWrapper.style.transform = 'translateX(-20px)';
+                    setTimeout(() => {
+                        msgWrapper.remove();
+                    }, 300);
                 }
             }
         )
@@ -1108,12 +1108,34 @@ window.loadChatMessages = async () => {
         return;
     }
     
-    container.innerHTML = data.map(msg => renderSingleMessage(msg)).join('');
+    // Organiser les messages en threads (parents + réponses)
+    const parentMessages = data.filter(msg => !msg.reply_to);
+    const replyMessages = data.filter(msg => msg.reply_to);
+    
+    // Construire le HTML avec les threads
+    let html = '';
+    parentMessages.forEach(parent => {
+        html += renderSingleMessage(parent, false);
+        
+        // Ajouter les réponses de ce message
+        const replies = replyMessages.filter(r => r.reply_to === parent.id);
+        if (replies.length > 0) {
+            // Fermer la div du parent, ajouter les réponses dans le container replies-{id}
+            html = html.replace(
+                `<div id="replies-${parent.id}" class="replies-container"></div>`,
+                `<div id="replies-${parent.id}" class="replies-container">
+                    ${replies.map(r => renderSingleMessage(r, true)).join('')}
+                </div>`
+            );
+        }
+    });
+    
+    container.innerHTML = html;
     container.scrollTop = container.scrollHeight;
     lucide.createIcons();
 };
 
-function renderSingleMessage(msg) {
+function renderSingleMessage(msg, isReply = false) {
     const isMe = msg.author_full_name === `${currentUser.first_name} ${currentUser.last_name}`;
     const isMentioned = msg.content.includes(`@${currentUser.last_name}`);
     const date = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -1132,23 +1154,29 @@ function renderSingleMessage(msg) {
     const avatarColor = avatarColors[msg.portal] || '#64748b';
 
     return `
-        <div class="message-wrapper ${isMe ? 'my-wrapper' : ''}" style="display:flex; gap:12px; margin-bottom:20px; align-items:flex-start; ${isMe ? 'flex-direction:row-reverse;' : ''} animation: slideIn 0.3s ease-out; width:100%;">
-            ${!isMe ? `
+        <div class="message-wrapper ${isMe ? 'my-wrapper' : ''}" data-msg-id="${msg.id}" style="display:flex; gap:12px; margin-bottom:${isReply ? '8px' : '20px'}; ${isReply ? 'margin-left:52px;' : ''} align-items:flex-start; ${isMe ? 'flex-direction:row-reverse;' : ''} animation: slideIn 0.3s ease-out; width:${isReply ? 'calc(100% - 52px)' : '100%'};">
+            ${!isMe && !isReply ? `
                 <div style="width:40px; height:40px; border-radius:50%; background:${avatarColor}; display:flex; align-items:center; justify-content:center; color:white; font-weight:700; font-size:0.85rem; flex-shrink:0; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    ${initials}
+                </div>
+            ` : ''}
+            
+            ${isReply && !isMe ? `
+                <div style="width:30px; height:30px; border-radius:50%; background:${avatarColor}; display:flex; align-items:center; justify-content:center; color:white; font-weight:600; font-size:0.7rem; flex-shrink:0; box-shadow: 0 1px 4px rgba(0,0,0,0.1);">
                     ${initials}
                 </div>
             ` : ''}
             
             <div style="${isMe ? 'text-align:right;' : ''} flex:1; min-width:0;">
                 <div style="display:flex; align-items:center; gap:8px; margin-bottom:5px; ${isMe ? 'justify-content:flex-end;' : ''}">
-                    ${!isMe ? `<img src="${portalIcon}" style="width:16px; height:16px; object-fit:contain;">` : ''}
-                    <span style="font-weight:700; font-size:0.9rem; color:var(--text-main);">${msg.author_full_name}</span>
-                    <span style="font-size:0.75rem; color:var(--text-muted);">${date}</span>
+                    <img src="${portalIcon}" style="width:${isReply ? '16px' : '20px'}; height:${isReply ? '16px' : '20px'}; object-fit:contain;">
+                    <span style="font-weight:700; font-size:${isReply ? '0.8rem' : '0.9rem'}; color:var(--text-main);">${msg.author_full_name}</span>
+                    <span style="font-size:0.7rem; color:var(--text-muted);">${date}</span>
                     ${isMe ? `
                         <i data-lucide="trash-2" 
                            onclick="window.deleteMessage('${msg.id}')" 
-                           style="width:16px; 
-                                  height:16px; 
+                           style="width:14px; 
+                                  height:14px; 
                                   color:var(--danger); 
                                   cursor:pointer; 
                                   transition:all 0.2s;
@@ -1160,16 +1188,17 @@ function renderSingleMessage(msg) {
                 
                 <div class="message ${isMe ? 'my-msg' : ''} ${isMentioned ? 'mentioned-luxe' : ''}" id="msg-${msg.id}" 
                      style="position:relative; 
-                            padding:14px 18px; 
+                            padding:${isReply ? '10px 14px' : '14px 18px'}; 
                             border-radius:${isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px'}; 
                             background:${isMe ? 'linear-gradient(135deg, var(--primary) 0%, #1e293b 100%)' : isMentioned ? 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)' : 'white'}; 
                             color:${isMe ? 'white' : 'var(--text-main)'}; 
-                            box-shadow: 0 2px 12px rgba(0,0,0,${isMe ? '0.15' : '0.08'}); 
+                            box-shadow: 0 ${isReply ? '1px 6px' : '2px 12px'} rgba(0,0,0,${isMe ? '0.15' : '0.08'}); 
                             border:${isMentioned && !isMe ? '2px solid var(--gold)' : 'none'};
                             line-height:1.6;
                             word-wrap: break-word;
                             display:inline-block;
                             max-width:100%;
+                            font-size:${isReply ? '0.9rem' : '1rem'};
                             ${isMe ? 'margin-left:auto;' : ''}">
                     ${msg.content.replace(/@([\w\sàéèêîïôûù]+)/g, `<span class="mention-badge" style="background:${isMe ? 'rgba(197,160,89,0.3)' : 'rgba(197,160,89,0.15)'}; color:${isMe ? '#fbbf24' : 'var(--gold)'}; padding:2px 6px; border-radius:4px; font-weight:700;">@$1</span>`)}
                     
@@ -1193,15 +1222,13 @@ function renderSingleMessage(msg) {
                     ` : ''}
                 </div>
                 
-                <!-- Icônes de réaction SOUS le message -->
+                ${!isReply ? `
+                <!-- Bouton Répondre et conteneur pour les réponses -->
                 <div style="display:flex; gap:4px; margin-top:6px; ${isMe ? 'justify-content:flex-end;' : ''}">
-                    <span onclick="window.reactToMessage('${msg.id}', '👍')" style="cursor:pointer; font-size:1.3rem; padding:4px 8px; border-radius:12px; background:white; box-shadow:0 1px 3px rgba(0,0,0,0.1); transition:all 0.2s;" onmouseover="this.style.transform='scale(1.2)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)';">👍</span>
-                    <span onclick="window.reactToMessage('${msg.id}', '❤️')" style="cursor:pointer; font-size:1.3rem; padding:4px 8px; border-radius:12px; background:white; box-shadow:0 1px 3px rgba(0,0,0,0.1); transition:all 0.2s;" onmouseover="this.style.transform='scale(1.2)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)';">❤️</span>
-                    <span onclick="window.reactToMessage('${msg.id}', '😂')" style="cursor:pointer; font-size:1.3rem; padding:4px 8px; border-radius:12px; background:white; box-shadow:0 1px 3px rgba(0,0,0,0.1); transition:all 0.2s;" onmouseover="this.style.transform='scale(1.2)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)';">😂</span>
-                    <span onclick="window.reactToMessage('${msg.id}', '🎉')" style="cursor:pointer; font-size:1.3rem; padding:4px 8px; border-radius:12px; background:white; box-shadow:0 1px 3px rgba(0,0,0,0.1); transition:all 0.2s;" onmouseover="this.style.transform='scale(1.2)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)';">🎉</span>
-                    <span onclick="window.reactToMessage('${msg.id}', '🔥')" style="cursor:pointer; font-size:1.3rem; padding:4px 8px; border-radius:12px; background:white; box-shadow:0 1px 3px rgba(0,0,0,0.1); transition:all 0.2s;" onmouseover="this.style.transform='scale(1.2)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)';">🔥</span>
-                    <span onclick="window.replyToMessage('${msg.id}', '${msg.author_full_name}', \`${msg.content.replace(/`/g, '').substring(0, 50)}\`)" style="cursor:pointer; padding:6px 10px; border-radius:12px; background:white; box-shadow:0 1px 3px rgba(0,0,0,0.1); transition:all 0.2s; font-size:0.75rem; font-weight:600; color:var(--gold);" onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)';">↩️ Répondre</span>
+                    <span onclick="window.replyToMessage('${msg.id}', '${msg.author_full_name}', \`${msg.content.replace(/`/g, '').substring(0, 50)}\`)" style="cursor:pointer; padding:6px 12px; border-radius:12px; background:white; box-shadow:0 1px 3px rgba(0,0,0,0.1); transition:all 0.2s; font-size:0.75rem; font-weight:600; color:var(--gold);" onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)';">↩️ Répondre</span>
                 </div>
+                <div id="replies-${msg.id}" style="margin-top:12px;"></div>
+                ` : ''}
             </div>
         </div>
     `;
@@ -1217,7 +1244,33 @@ function appendSingleMessage(msg) {
         return;
     }
     
-    const messageHTML = renderSingleMessage(msg);
+    // Si c'est une réponse, l'ajouter sous le message parent
+    if (msg.reply_to) {
+        const repliesContainer = document.getElementById(`replies-${msg.reply_to}`);
+        if (repliesContainer) {
+            const messageHTML = renderSingleMessage(msg, true);
+            repliesContainer.insertAdjacentHTML('beforeend', messageHTML);
+            
+            // Animation d'apparition
+            const lastReply = repliesContainer.lastElementChild;
+            if (lastReply) {
+                lastReply.style.opacity = '0';
+                lastReply.style.transform = 'translateY(10px)';
+                setTimeout(() => {
+                    lastReply.style.transition = 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+                    lastReply.style.opacity = '1';
+                    lastReply.style.transform = 'translateY(0)';
+                }, 50);
+            }
+            
+            lucide.createIcons();
+            container.scrollTop = container.scrollHeight;
+            return;
+        }
+    }
+    
+    // Sinon, c'est un message principal, l'ajouter à la fin
+    const messageHTML = renderSingleMessage(msg, false);
     container.insertAdjacentHTML('beforeend', messageHTML);
     
     // Récupérer le message qu'on vient d'ajouter
@@ -1391,20 +1444,14 @@ window.sendChatMessage = async () => {
         }
     }
 
-    // Construire le contenu avec la réponse si elle existe
-    let finalContent = content;
-    if (replyingTo) {
-        finalContent = `[Réponse à ${replyingTo.author}] ${content}`;
-    }
-
     const { data, error } = await supabaseClient.from('chat_global').insert([{
-        content: finalContent,
+        content: content,  // Pas de modification du contenu
         author_full_name: `${currentUser.first_name} ${currentUser.last_name}`,
         author_last_name: currentUser.last_name,
         portal: currentUser.portal,
         subject: currentChatSubject,
         file_url: fileUrl,
-        reply_to: replyingTo ? replyingTo.id : null
+        reply_to: replyingTo ? replyingTo.id : null  // Sauvegarder l'ID du message parent
     }]).select().single();
 
     // Affichage optimiste : ajouter le message immédiatement
