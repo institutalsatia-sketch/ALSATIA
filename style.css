@@ -557,11 +557,6 @@ body {
    RESPONSIVE - PAGE D'ACCUEIL
    ========================================== */
 @media (max-width: 768px) {
-    #big-logo-container {
-        padding: 40px 20px !important;
-        margin-bottom: 20px !important;
-    }
-    
     #big-logo-display img {
         width: 180px !important;
         max-width: 70vw !important;
