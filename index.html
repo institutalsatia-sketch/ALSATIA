@@ -21,7 +21,7 @@
         </div>
         <ul id="main-nav">
             <li id="nav-home" class="active" onclick="switchTab('home')"><i data-lucide="home"></i> Accueil</li>
-            <li id="nav-donors" onclick="switchTab('donors')"><i data-lucide="users"></i> Base Donateurs</li>
+            <li id="nav-donors" onclick="switchTab('donors'); loadDonors();"><i data-lucide="users"></i> Base Donateurs</li>
             <li id="nav-chat" onclick="switchTab('chat')"><i data-lucide="message-square"></i> Discussion</li>
             <li id="nav-contacts" onclick="switchTab('contacts')"><i data-lucide="book-user"></i> Annuaire</li>
             <li id="nav-campaigns" onclick="switchTab('campaigns')"><i data-lucide="megaphone"></i> Campagnes</li>
@@ -62,7 +62,6 @@
                 <div class="chat-footer">
                     <div class="input-wrapper" style="position:relative;">
                         <div id="mention-suggestions" class="mention-suggestions-box"></div>
-                        
                         <input type="text" id="chat-input" placeholder="Message (@ pour mentionner)..." autocomplete="off">
                         <label for="chat-file" class="icon-btn"><i data-lucide="paperclip"></i></label>
                         <input type="file" id="chat-file" style="display:none;" onchange="handleFileUpload(this)">
@@ -81,14 +80,15 @@
         <section id="tab-donors" class="page-content">
             <div class="header-tab">
                 <h1>Fichier Donateurs</h1>
-                <div class="header-actions">
-                    <button onclick="exportAllDonors()" class="btn-gold-green"><i data-lucide="download"></i> Excel</button>
-                    <button onclick="showAddDonorModal()" class="btn-gold"><i data-lucide="user-plus"></i> Nouveau</button>
+                <div class="header-actions" style="display: flex; gap: 10px; align-items: center;">
+                    <input type="number" id="export-year" class="luxe-input" placeholder="Année" style="width: 100px; margin: 0;">
+                    <button onclick="window.exportAllDonors()" class="btn-gold-green"><i data-lucide="download"></i> Excel Global</button>
+                    <button onclick="window.showAddDonorModal()" class="btn-gold"><i data-lucide="user-plus"></i> Nouveau</button>
                 </div>
             </div>
-            <div class="search-bar-box" style="display: flex; gap: 10px;">
-                <input type="text" id="search-donor" placeholder="Rechercher..." onkeyup="filterDonors()" class="luxe-input" style="flex: 2;">
-                <select id="filter-entity" class="luxe-input" onchange="filterDonors()" style="flex: 1;">
+            <div class="search-bar-box" style="display: flex; gap: 10px; margin-bottom: 20px;">
+                <input type="text" id="search-donor" placeholder="Rechercher un nom, une ville, une entreprise..." onkeyup="window.filterDonors()" class="luxe-input" style="flex: 2;">
+                <select id="filter-entity" class="luxe-input" onchange="window.filterDonors()" style="flex: 1;">
                     <option value="ALL">Toutes les entités</option>
                     <option>Institut Alsatia</option>
                     <option>Academia Alsatia</option>
@@ -99,7 +99,7 @@
             <div class="table-container">
                 <table class="luxe-table">
                     <thead>
-                        <tr><th>Identité / Entreprise</th><th>Origine</th><th>Total</th><th style="text-align:right;">Actions</th></tr>
+                        <tr><th>Identité / Entreprise</th><th>Entité</th><th>Total Dons</th><th style="text-align:right;">Actions</th></tr>
                     </thead>
                     <tbody id="donors-list"></tbody>
                 </table>
