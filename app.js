@@ -620,29 +620,37 @@ window.exportDonorToExcel = (id) => {
 };
 
 /**
- * 8. SUPPRESSIONS
+ * 8. SUPPRESSIONS (INTERFACE LUXE)
  */
 window.askDeleteDonation = (donId) => {
-    if(confirm("Supprimer ce don définitivement ?")) {
-        supabaseClient.from('donations').delete().eq('id', donId).then(() => {
+    window.alsatiaConfirm(
+        "SUPPRIMER CE DON", 
+        "Voulez-vous supprimer ce don définitivement ?",
+        async () => {
+            await supabaseClient.from('donations').delete().eq('id', donId);
             window.showNotice("Supprimé", "Don effacé.");
             loadDonors();
             closeCustomModal();
-        });
-    }
+        },
+        true
+    );
 };
 
 window.askDeleteDonor = (id, name) => {
-    if(confirm(`ATTENTION : Supprimer ${name} et ses dons ?`)) {
-        Promise.all([
-            supabaseClient.from('donations').delete().eq('donor_id', id),
-            supabaseClient.from('donors').delete().eq('id', id)
-        ]).then(() => {
+    window.alsatiaConfirm(
+        "SUPPRESSION DÉFINITIVE", 
+        `ATTENTION : Voulez-vous vraiment supprimer <b>${name}</b> et l'intégralité de ses dons ?`,
+        async () => {
+            await Promise.all([
+                supabaseClient.from('donations').delete().eq('donor_id', id),
+                supabaseClient.from('donors').delete().eq('id', id)
+            ]);
             window.showNotice("Supprimé", "Contact effacé.");
             loadDonors();
             closeCustomModal();
-        });
-    }
+        },
+        true
+    );
 };
 
 function loadUsersForMentions() { console.log("Module CRM Alsatia v1.0 chargé."); }
