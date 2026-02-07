@@ -301,6 +301,8 @@ window.saveMyProfile = async () => {
 // CRM - GESTION INTÉGRALE DES DONATEURS
 // ==========================================
 
+let allDonorsData = [];
+
 // 1. CHARGEMENT, CALCULS ET FILTRAGE
 async function loadDonors() {
     const { data, error } = await supabaseClient
@@ -364,7 +366,6 @@ function renderDonors(data) {
 
 // 2. CRÉATION AVEC SÉLECTION D'ENTITÉ OBLIGATOIRE
 window.showAddDonorModal = () => {
-    // On récupère le portail de l'utilisateur pour pré-remplir l'entité
     const userPortal = currentUser.portal;
 
     showCustomModal(`
@@ -412,6 +413,7 @@ window.showAddDonorModal = () => {
         </div>
     `);
 };
+
 window.execCreateDonor = async () => {
     const last_name = document.getElementById('n-d-last').value;
     const entity = document.getElementById('n-d-entity').value;
@@ -510,7 +512,7 @@ window.openDonorFile = async (id) => {
 // 4. FONCTIONS DE MISE À JOUR (DONS ET REMERCIEMENTS)
 window.toggleThanked = async (donId, isChecked) => {
     await supabaseClient.from('donations').update({ thanked: isChecked }).eq('id', donId);
-    loadDonors(); // Rafraîchit pour arrêter le clignotement
+    loadDonors();
 };
 
 window.addDonationPrompt = (donorId) => {
@@ -519,21 +521,17 @@ window.addDonationPrompt = (donorId) => {
             <h3 class="luxe-title" style="margin:0;">NOUVEAU DON</h3>
             <button onclick="closeCustomModal()" style="border:none; background:none; cursor:pointer; font-size:1.5rem; color:#94a3b8;">&times;</button>
         </div>
-
         <input type="number" id="don-amt" class="luxe-input" placeholder="MONTANT (€) *">
         <input type="date" id="don-date" class="luxe-input" value="${new Date().toISOString().split('T')[0]}" style="margin-top:10px;">
-        
         <select id="don-method" class="luxe-input" style="margin-top:10px;">
             <option value="Virement">Virement</option>
             <option value="Chèque">Chèque</option>
             <option value="Espèces">Espèces</option>
             <option value="CB">CB</option>
         </select>
-
         <div style="margin-top:15px; font-size:0.8rem;">
             <input type="checkbox" id="don-thanked"> Remerciement déjà fait ?
         </div>
-
         <button onclick="window.execAddDonation('${donorId}')" class="btn-gold" style="width:100%; margin-top:20px;">VALIDER LE DON</button>
     `);
 };
@@ -574,6 +572,50 @@ window.updateDonorFields = async (id) => {
 };
 
 // 5. SUPPRESSIONS ET EXPORTS
+window.exportAllDonors = () => {
+    if (!allDonorsData || allDonorsData.length === 0) return window.showNotice("Erreur", "Aucune donnée.");
+    
+    const yearFilter = document.getElementById('export-year')?.value;
+
+    const donorsExport = allDonorsData.map(d => {
+        const { donations, ...info } = d;
+        return info;
+    });
+
+    const allDonations = [];
+    allDonorsData.forEach(d => {
+        if (d.donations) {
+            d.donations.forEach(don => {
+                const donYear = new Date(don.date).getFullYear().toString();
+                if (!yearFilter || donYear === yearFilter) {
+                    allDonations.push({
+                        DONATEUR: `${d.first_name} ${d.last_name}`,
+                        ENTITÉ: d.entity,
+                        MONTANT: don.amount,
+                        DATE: don.date,
+                        MODE: don.payment_mode,
+                        REMERCIÉ: don.thanked ? 'OUI' : 'NON'
+                    });
+                }
+            });
+        }
+    });
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(donorsExport), "Contacts");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(allDonations), "Dons_Filtres");
+    XLSX.writeFile(wb, `CRM_Alsatia_Export_${yearFilter || 'Complet'}.xlsx`);
+};
+
+window.exportDonorToExcel = (id) => {
+    const d = allDonorsData.find(x => x.id === id);
+    if (!d) return;
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([d]), "Fiche");
+    if(d.donations) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(d.donations), "Dons");
+    XLSX.writeFile(wb, `Fiche_${d.last_name}.xlsx`);
+};
+
 window.askDeleteDonation = (donationId) => {
     window.askConfirmation("SUPPRIMER DON ?", "Irréversible.", async () => {
         await supabaseClient.from('donations').delete().eq('id', donationId);
@@ -589,19 +631,6 @@ window.askDeleteDonor = (id, name) => {
     });
 };
 
-window.exportDonorToExcel = (id) => {
-    const d = allDonorsData.find(x => x.id === id);
-    if (!d) return;
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet([d]);
-    XLSX.utils.book_append_sheet(wb, ws, "Fiche");
-    if(d.donations) {
-        const wsDons = XLSX.utils.json_to_sheet(d.donations);
-        XLSX.utils.book_append_sheet(wb, wsDons, "Historique_Dons");
-    }
-    XLSX.writeFile(wb, `Fiche_${d.last_name}.xlsx`);
-};
-
 window.askConfirmation = (title, message, onConfirm) => {
     showCustomModal(`
         <div style="text-align:center;">
@@ -615,6 +644,11 @@ window.askConfirmation = (title, message, onConfirm) => {
     `);
     document.getElementById('btn-confirm').onclick = onConfirm;
 };
+
+// 6. INITIALISATION & ERREURS
+function loadUsersForMentions() {
+    console.log("Système de mentions prêt.");
+}
 
 // ==========================================
 // GESTION DES ÉVÉNEMENTS - SYSTÈME COMPLET & RÉSEAUX
