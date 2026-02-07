@@ -208,7 +208,7 @@ function initInterface() {
         'Cours Herrade de Landsberg': 'linear-gradient(135deg, #db2777 0%, #9f1239 100%)',
         'Collège Saints Louis et Zélie Martin': 'linear-gradient(135deg, #059669 0%, #065f46 100%)'
     };
-    
+
     const bigLogoContainer = document.getElementById('big-logo-container');
     if(bigLogoContainer) {
         bigLogoContainer.style.background = gradients[portal] || gradients['Institut Alsatia'];
@@ -218,9 +218,9 @@ function initInterface() {
     if(bigLogo) {
         bigLogo.innerHTML = `
             <img src="${logoSrc}" 
-                 style="width:250px; 
-                        max-width:80vw;
-                        filter:drop-shadow(0 20px 40px rgba(0,0,0,0.3)); 
+                 style="width:220px; 
+                        max-width:70vw;
+                        filter:drop-shadow(0 10px 25px rgba(255,255,255,0.1)); 
                         animation:fadeInScale 0.6s ease-out;">
         `;
     }
@@ -330,6 +330,24 @@ window.switchTab = (tabId) => {
         window.loadChatSubjects();
         window.loadChatMessages();
         window.subscribeToChat();
+        
+        // Marquer les messages comme lus (mettre à jour last_login)
+        localStorage.setItem('alsatia_last_login', new Date().toISOString());
+        
+        // Supprimer les badges de notification
+        const unreadBadge = document.getElementById('unread-badge-stat');
+        if(unreadBadge) unreadBadge.style.display = 'none';
+        
+        const unreadAlert = document.getElementById('unread-messages-alert');
+        if(unreadAlert) unreadAlert.style.display = 'none';
+        
+        const menuBadge = document.querySelector('.menu-badge');
+        if(menuBadge) menuBadge.remove();
+    }
+    
+    // Retourner à l'accueil : recharger les stats
+    if (tabId === 'home') {
+        loadHomeStats();
     }
 };
 
