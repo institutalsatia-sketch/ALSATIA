@@ -115,8 +115,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initInterface();
     
     // Services Messagerie (Ajoutés pour la nouvelle version)
-    await loadUsersForMentions();
-    subscribeToChat();
+    
 });
 
 function initInterface() {
