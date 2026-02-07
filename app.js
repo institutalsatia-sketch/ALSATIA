@@ -301,8 +301,6 @@ window.saveMyProfile = async () => {
 // CRM ALSATIA - VERSION ALPHA FINALE
 // ==========================================
 
-let allDonorsData = [];
-
 /**
  * 1. CHARGEMENT ET CALCULS
  * Récupère les donateurs et leurs dons liés
