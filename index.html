@@ -90,15 +90,32 @@
                         <i data-lucide="x" onclick="window.clearChatFile()" style="cursor:pointer; width:14px;"></i>
                     </div>
 
-                    <div class="chat-input-area">
+                    <!-- Barre de réponse (comme WhatsApp) -->
+                    <div id="reply-bar" style="display:none; background:#f8fafc; padding:12px 20px; border-left:4px solid var(--gold); margin:0 20px; border-radius:8px; display:none; align-items:center; justify-content:space-between;">
+                        <div style="flex:1;">
+                            <div style="font-size:0.75rem; font-weight:700; color:var(--gold); margin-bottom:2px;">Réponse à <span id="reply-author"></span></div>
+                            <div id="reply-preview" style="font-size:0.85rem; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></div>
+                        </div>
+                        <i data-lucide="x" onclick="window.cancelReply()" style="cursor:pointer; width:18px; height:18px; color:var(--text-muted);"></i>
+                    </div>
+
+                    <div class="chat-input-area" style="position:relative;">
                         <div id="mention-box" class="mention-suggestions"></div>
-                        <div class="input-wrapper">
-                            <label for="chat-file-input" class="attach-btn">
-                                <i data-lucide="paperclip"></i>
+                        <div class="input-wrapper" style="background:white; border:2px solid #e2e8f0; border-radius:16px; padding:12px 16px; display:flex; align-items:center; gap:12px; box-shadow:0 2px 8px rgba(0,0,0,0.05); transition:all 0.2s;">
+                            <label for="chat-file-input" class="attach-btn" style="cursor:pointer; padding:8px; border-radius:50%; transition:all 0.2s; display:flex; align-items:center; justify-content:center;">
+                                <i data-lucide="paperclip" style="width:20px; height:20px; color:var(--text-muted);"></i>
                                 <input type="file" id="chat-file-input" style="display:none;" onchange="window.handleChatFile(this)">
                             </label>
-                            <input type="text" id="chat-input" placeholder="Écrivez votre message... (@ pour mentionner)" onkeyup="window.handleChatKeyUp(event)">
-                            <button onclick="window.sendChatMessage()" class="send-btn"><i data-lucide="send"></i></button>
+                            <input type="text" 
+                                   id="chat-input" 
+                                   placeholder="Écrivez votre message... (@ pour mentionner)" 
+                                   onkeyup="window.handleChatKeyUp(event)"
+                                   style="flex:1; border:none; outline:none; font-size:0.95rem; background:transparent;">
+                            <button onclick="window.sendChatMessage()" 
+                                    class="send-btn" 
+                                    style="background:var(--gold); border:none; padding:10px 14px; border-radius:12px; cursor:pointer; transition:all 0.2s; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(197,160,89,0.3);">
+                                <i data-lucide="send" style="width:18px; height:18px; color:white;"></i>
+                            </button>
                         </div>
                     </div>
                 </div>
