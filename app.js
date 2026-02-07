@@ -8,7 +8,7 @@ const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 let currentUser = JSON.parse(localStorage.getItem('alsatia_user'));
 let allDonorsData = [];
 let allUsersForMentions = []; 
-let selectedChatFile = null; // CORRECTION: Renommé de selectedFile en selectedChatFile
+let selectedChatFile = null; // Pour la gestion des pièces jointes dans la messagerie
 
 const LOGOS = {
     "Institut Alsatia": "logo_alsatia.png",
@@ -85,8 +85,6 @@ function showCustomModal(html) {
     }
 }
 
-// CORRECTION: Suppression du bloc dupliqué (anciennes lignes 88-104)
-
 // ==========================================
 // INITIALISATION AU CHARGEMENT
 // ==========================================
@@ -98,19 +96,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     initInterface();
     
-    // CORRECTION: Ajout du chargement initial des données
+    // Chargement initial des données
     loadContacts();
     if(currentUser.portal === "Institut Alsatia") {
         loadDonors();
     }
     loadEvents();
     
-    // CORRECTION: Initialisation du chat au démarrage
+    // Initialisation du chat
     window.loadChatSubjects();
     window.loadChatMessages();
     window.subscribeToChat();
     
-    // CORRECTION: Initialiser les icônes Lucide
+    // Initialiser les icônes Lucide
     if(window.lucide) lucide.createIcons();
 });
 
@@ -155,7 +153,6 @@ window.switchTab = (tabId) => {
     document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.side-nav li').forEach(l => l.classList.remove('active'));
 
-    // CORRECTION: Ajout du préfixe "tab-" pour trouver le bon élément
     const targetPage = document.getElementById('tab-' + tabId);
     if (targetPage) targetPage.classList.add('active');
     
@@ -166,7 +163,6 @@ window.switchTab = (tabId) => {
     // 2. CHARGEMENT DES DONNÉES SPÉCIFIQUES
     if (tabId === 'donors') loadDonors();
     if (tabId === 'events') loadEvents();
-    if (tabId === 'contacts') loadContacts();
     
     // Activation de la Messagerie que nous venons de créer
     if (tabId === 'chat') {
@@ -193,541 +189,785 @@ async function loadContacts() {
         .order('last_name', { ascending: true });
 
     if (error) {
-        list.innerHTML = `<p style="grid-column: 1/-1; text-align: center; padding: 20px; color: #ef4444;">Erreur de chargement : ${error.message}</p>`;
+        list.innerHTML = `<p style="grid-column: 1/-1; text-align: center; color: #ef4444; padding: 20px;">Erreur lors du chargement des contacts.</p>`;
         return;
     }
 
-    if (!users || users.length === 0) {
-        list.innerHTML = `<p style="grid-column: 1/-1; text-align: center; padding: 20px; color: #64748b;">Aucun contact trouvé.</p>`;
-        return;
-    }
-
-    list.innerHTML = users.map(user => `
-        <tr>
-            <td style="font-weight:600;">${user.last_name.toUpperCase()}</td>
-            <td>${user.first_name}</td>
-            <td><span class="origin-tag">${user.role || 'Membre'}</span></td>
-            <td>${user.portal}</td>
-            <td style="text-align:right;">
-                <a href="mailto:${user.email}" style="color:var(--gold); text-decoration:none; font-weight:600; font-size:0.75rem;">CONTACTER</a>
-            </td>
-        </tr>
-    `).join('');
-}
-
-window.filterContacts = () => {
-    const search = document.getElementById('contact-search').value.toLowerCase();
-    const rows = document.querySelectorAll('#contacts-list tr');
-    
-    rows.forEach(row => {
-        const text = row.innerText.toLowerCase();
-        row.style.display = text.includes(search) ? '' : 'none';
-    });
-};
-
-// ==========================================
-// SECTION DONATEURS (Base CRM)
-// ==========================================
-async function loadDonors() {
-    const list = document.getElementById('donors-list');
-    if(!list) return;
-    
-    list.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:20px; color:#64748b;">Chargement de la base donateurs...</td></tr>`;
-    
-    const { data, error } = await supabaseClient
-        .from('donors')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-    if (error) {
-        list.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:20px; color:#ef4444;">Erreur : ${error.message}</td></tr>`;
-        return;
-    }
-
-    allDonorsData = data || [];
-    
-    if (allDonorsData.length === 0) {
-        list.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:20px; color:#64748b;">Aucun donateur enregistré.</td></tr>`;
-        return;
-    }
-
-    renderDonorsList(allDonorsData);
-    updateDonorsStats();
-}
-
-function renderDonorsList(donors) {
-    const list = document.getElementById('donors-list');
-    if(!list) return;
-    
-    list.innerHTML = donors.map(d => `
-        <tr>
-            <td>
-                <div style="font-weight:700; font-size:0.95rem;">${d.last_name.toUpperCase()} ${d.first_name}</div>
-                ${d.company ? `<div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">${d.company}</div>` : ''}
-                <div style="font-size:0.7rem; color:var(--text-muted); margin-top:4px;">📍 ${d.city || 'Non renseigné'}</div>
-            </td>
-            <td><span class="origin-tag">${d.entity}</span></td>
-            <td style="font-weight:700; color:var(--gold); font-size:1.1rem;">${d.total_donations || 0} €</td>
-            <td style="text-align:right;">
-                <button onclick="viewDonorDetail('${d.id}')" class="btn-gold" style="padding:8px 15px; font-size:0.7rem;">VOIR</button>
-            </td>
-        </tr>
-    `).join('');
-}
-
-window.filterDonors = () => {
-    const search = document.getElementById('search-donor').value.toLowerCase();
-    const entity = document.getElementById('filter-entity').value;
-    
-    let filtered = allDonorsData.filter(d => {
-        const matchSearch = d.first_name.toLowerCase().includes(search) || 
-                          d.last_name.toLowerCase().includes(search) ||
-                          (d.city && d.city.toLowerCase().includes(search)) ||
-                          (d.company && d.company.toLowerCase().includes(search));
-        
-        const matchEntity = entity === 'ALL' || d.entity === entity;
-        
-        return matchSearch && matchEntity;
-    });
-    
-    renderDonorsList(filtered);
-};
-
-function updateDonorsStats() {
-    const count = document.getElementById('stat-donors-count');
-    if(count) count.innerText = allDonorsData.length;
-}
-
-window.viewDonorDetail = async (donorId) => {
-    const { data: donor } = await supabaseClient.from('donors').select('*').eq('id', donorId).single();
-    if (!donor) return;
-
-    const { data: donations } = await supabaseClient.from('donations')
-        .select('*').eq('donor_id', donorId).order('date', { ascending: false });
-
-    showCustomModal(`
-        <h2 class="luxe-title">${donor.last_name.toUpperCase()} ${donor.first_name}</h2>
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:25px;">
-            <div><span class="mini-label">Email</span><br>${donor.email || 'Non renseigné'}</div>
-            <div><span class="mini-label">Téléphone</span><br>${donor.phone || 'Non renseigné'}</div>
-            <div><span class="mini-label">Ville</span><br>${donor.city || 'Non renseigné'}</div>
-            <div><span class="mini-label">Total Dons</span><br><span style="color:var(--gold); font-weight:800; font-size:1.2rem;">${donor.total_donations || 0} €</span></div>
-        </div>
-        
-        <h3 style="font-size:0.9rem; font-weight:800; color:var(--text-muted); margin-bottom:10px;">HISTORIQUE DES DONS</h3>
-        <div style="max-height:300px; overflow-y:auto;">
-            ${donations && donations.length > 0 ? donations.map(don => `
-                <div style="padding:12px; background:#f8fafc; border-radius:8px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
-                    <div>
-                        <div style="font-size:0.8rem; color:var(--text-muted);">${new Date(don.date).toLocaleDateString('fr-FR')}</div>
-                        <div style="font-size:0.75rem; margin-top:2px;">${don.payment_method || 'Non spécifié'}</div>
-                    </div>
-                    <div style="font-weight:800; color:var(--gold); font-size:1.1rem;">${don.amount} €</div>
+    // Rendu strict sans aucune simplification des styles inline
+    list.innerHTML = users.map(u => `
+        <div class="contact-card" style="background:white; padding:20px; border-radius:12px; border:1px solid #e2e8f0; display:flex; flex-direction:column; justify-content:space-between; min-height:180px; transition: transform 0.2s ease, box-shadow 0.2s ease;">
+            <div>
+                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                    <span style="font-size:0.65rem; font-weight:800; color:#d4af37; letter-spacing:1px; text-transform:uppercase; font-family: 'Montserrat', sans-serif;">${u.portal}</span>
+                    <i data-lucide="shield-check" style="width:14px; height:14px; color:#d4af37; opacity:0.5;"></i>
                 </div>
-            `).join('') : '<p style="text-align:center; color:#64748b; padding:20px;">Aucun don enregistré</p>'}
+                <h3 style="margin:8px 0 5px 0; font-size:1.1rem; color:#1e293b; font-family: 'Playfair Display', serif; font-weight: 700;">${u.first_name} ${u.last_name.toUpperCase()}</h3>
+                <p style="font-size:0.85rem; color:#64748b; font-weight: 500;">${u.job_title || 'Collaborateur Alsatia'}</p>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:20px; border-top:1px solid #f1f5f9; padding-top:15px;">
+                <a href="mailto:${u.email}" style="flex:1; text-align:center; text-decoration:none; color:#1e293b; background:#f8fafc; padding:10px; border-radius:8px; font-size:0.75rem; border:1px solid #e2e8f0; font-weight:700; transition: background 0.2s;">
+                    <i data-lucide="mail" style="width:12px; height:12px; vertical-align:middle; margin-right:5px;"></i>EMAIL
+                </a>
+                ${u.phone ? `
+                <a href="tel:${u.phone}" style="flex:1; text-align:center; text-decoration:none; color:#1e293b; background:#f8fafc; padding:10px; border-radius:8px; font-size:0.75rem; border:1px solid #e2e8f0; font-weight:700; transition: background 0.2s;">
+                    <i data-lucide="phone" style="width:12px; height:12px; vertical-align:middle; margin-right:5px;"></i>APPEL
+                </a>
+                ` : ''}
+            </div>
+        </div>
+    `).join('');
+    
+    lucide.createIcons();
+}
+
+// ==========================================
+// SECTION MON PROFIL (VERSION COMPLÈTE + EMAIL & PIN)
+// ==========================================
+window.openProfileModal = async () => {
+    // On force la récupération pour avoir les données les plus récentes
+    const { data: profile, error } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .eq('id', currentUser.id)
+        .single();
+
+    if (error || !profile) return window.showNotice("Erreur Profil", "Impossible de récupérer vos informations.", "error");
+
+    document.getElementById('custom-modal').style.display = 'flex';
+    document.getElementById('modal-body').innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid var(--gold); padding-bottom:15px; margin-bottom:25px;">
+            <h3 style="margin:0; color:var(--primary); font-family: 'Playfair Display', serif; letter-spacing:1px;">
+                <i data-lucide="user-cog" style="width:22px; height:22px; vertical-align:middle; margin-right:10px; color:var(--gold);"></i>GESTION DU COMPTE
+            </h3>
+            <button onclick="closeCustomModal()" style="border:none; background:none; font-size:1.5rem; cursor:pointer; color:#94a3b8;">&times;</button>
         </div>
         
-        <div style="display:flex; gap:10px; margin-top:25px;">
-            <button onclick="promptAddDonation('${donor.id}')" class="btn-gold" style="flex:1;">AJOUTER DON</button>
-            <button onclick="promptEditDonor('${donor.id}')" class="btn-gold" style="flex:1; background:var(--primary);">MODIFIER</button>
-            <button onclick="deleteDonor('${donor.id}')" class="btn-gold" style="background:var(--danger);">SUPPRIMER</button>
-        </div>
-    `);
-};
-
-window.showAddDonorModal = () => {
-    showCustomModal(`
-        <h2 class="luxe-title">NOUVEAU DONATEUR</h2>
-        <div style="display:grid; gap:15px;">
-            <div><span class="mini-label">Prénom</span><input type="text" id="donor-fname" class="luxe-input"></div>
-            <div><span class="mini-label">Nom</span><input type="text" id="donor-lname" class="luxe-input"></div>
-            <div><span class="mini-label">Email</span><input type="email" id="donor-email" class="luxe-input"></div>
-            <div><span class="mini-label">Téléphone</span><input type="tel" id="donor-phone" class="luxe-input"></div>
-            <div><span class="mini-label">Ville</span><input type="text" id="donor-city" class="luxe-input"></div>
-            <div><span class="mini-label">Entreprise (optionnel)</span><input type="text" id="donor-company" class="luxe-input"></div>
-            <div><span class="mini-label">Entité</span>
-                <select id="donor-entity" class="luxe-input">
-                    <option>Institut Alsatia</option>
-                    <option>Academia Alsatia</option>
-                    <option>Cours Herrade de Landsberg</option>
-                    <option>Collège Saints Louis et Zélie Martin</option>
-                </select>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div class="form-group">
+                <label class="mini-label">PRÉNOM</label>
+                <input type="text" id="prof-first" class="luxe-input" value="${profile.first_name || ''}">
             </div>
-            <button onclick="saveDonor()" class="btn-gold" style="margin-top:10px;">ENREGISTRER</button>
+            <div class="form-group">
+                <label class="mini-label">NOM</label>
+                <input type="text" id="prof-last" class="luxe-input" value="${profile.last_name || ''}">
+            </div>
         </div>
-    `);
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top:20px;">
+            <div class="form-group">
+                <label class="mini-label">ADRESSE EMAIL (IDENTIFIANT)</label>
+                <input type="email" id="prof-email" class="luxe-input" value="${profile.email || ''}">
+            </div>
+            <div class="form-group">
+                <label class="mini-label">NOUVEAU CODE PIN (4 CHIFFRES)</label>
+                <input type="password" id="prof-pin" class="luxe-input" maxlength="4" placeholder="••••" value="${profile.pin || ''}">
+            </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top:20px;">
+            <div class="form-group">
+                <label class="mini-label">FONCTION ACTUELLE</label>
+                <input type="text" id="prof-job" class="luxe-input" value="${profile.job_title || ''}">
+            </div>
+            <div class="form-group">
+                <label class="mini-label">TÉLÉPHONE DIRECT</label>
+                <input type="text" id="prof-phone" class="luxe-input" value="${profile.phone || ''}">
+            </div>
+        </div>
+
+        <div style="background: rgba(197, 160, 89, 0.05); padding: 15px; border-radius: 12px; margin-top: 25px; border: 1px dashed var(--gold); display:flex; gap:12px; align-items:center;">
+            <i data-lucide="shield-check" style="color:var(--gold); width:24px; height:24px; flex-shrink:0;"></i>
+            <p style="margin:0; font-size:0.75rem; color:var(--primary); line-height:1.4;">
+                Compte rattaché au portail <strong>${profile.portal}</strong>.<br>
+                <span style="opacity:0.7;">Toute modification de l'email ou du PIN sera effective dès la prochaine connexion.</span>
+            </p>
+        </div>
+
+        <button onclick="window.saveMyProfile()" class="btn-gold" style="width:100%; margin-top:30px; height:50px; font-weight:800; letter-spacing:1px;">
+            SAUVEGARDER LES MODIFICATIONS
+        </button>
+    `;
+    lucide.createIcons();
 };
 
-window.saveDonor = async () => {
-    const donor = {
-        first_name: document.getElementById('donor-fname').value.trim(),
-        last_name: document.getElementById('donor-lname').value.trim(),
-        email: document.getElementById('donor-email').value.trim(),
-        phone: document.getElementById('donor-phone').value.trim(),
-        city: document.getElementById('donor-city').value.trim(),
-        company: document.getElementById('donor-company').value.trim(),
-        entity: document.getElementById('donor-entity').value,
-        total_donations: 0
+window.saveMyProfile = async () => {
+    const emailVal = document.getElementById('prof-email').value.trim();
+    const pinVal = document.getElementById('prof-pin').value.trim();
+
+    const updates = {
+        first_name: document.getElementById('prof-first').value.trim(),
+        last_name: document.getElementById('prof-last').value.trim(),
+        email: emailVal,
+        pin: pinVal,
+        job_title: document.getElementById('prof-job').value.trim(),
+        phone: document.getElementById('prof-phone').value.trim()
     };
 
-    if(!donor.first_name || !donor.last_name) {
-        return alert("Le prénom et le nom sont obligatoires");
+    // VALIDATIONS SÉCURITÉ
+    if (!updates.first_name || !updates.last_name || !updates.email || !updates.pin) {
+        return window.showNotice("Champs obligatoires", "Prénom, Nom, Email et PIN sont requis.", "error");
     }
 
-    const { error } = await supabaseClient.from('donors').insert([donor]);
-    
-    if(error) {
-        alert("Erreur : " + error.message);
-    } else {
-        window.showNotice("Succès", "Donateur ajouté");
-        closeCustomModal();
-        loadDonors();
+    if (updates.pin.length !== 4 || isNaN(updates.pin)) {
+        return window.showNotice("Format PIN", "Le code PIN doit être composé de 4 chiffres.", "error");
     }
+
+    const { error } = await supabaseClient
+        .from('profiles')
+        .update(updates)
+        .eq('id', currentUser.id);
+
+    if (error) {
+        console.error("Update Error:", error);
+        return window.showNotice("Erreur SQL", "Impossible de sauvegarder : l'email est peut-être déjà utilisé.", "error");
+    }
+
+    // MISE À JOUR DE LA SESSION LOCALE
+    currentUser = { ...currentUser, ...updates };
+    localStorage.setItem('alsatia_user', JSON.stringify(currentUser));
+
+    // REFRESH INTERFACE & FEEDBACK
+    initInterface(); 
+    closeCustomModal();
+    window.showNotice("Profil mis à jour", "Vos informations de compte ont été synchronisées avec succès.");
 };
 
-window.promptAddDonation = (donorId) => {
+// ==========================================
+// CRM ALSATIA - VERSION INTÉGRALE DÉFINITIVE
+// ==========================================
+
+// Sécurité pour la variable globale
+if (typeof window.allDonorsData === 'undefined') {
+    window.allDonorsData = [];
+}
+
+/**
+ * 1. CHARGEMENT DES DONNÉES
+ */
+async function loadDonors() {
+    const { data, error } = await supabaseClient
+        .from('donors')
+        .select('*, donations(*)')
+        .order('last_name', { ascending: true });
+
+    if (error) {
+        console.error("Erreur de chargement CRM:", error);
+        return;
+    }
+    window.allDonorsData = data || [];
+    window.filterDonors();
+}
+
+/**
+ * 2. SYSTÈME DE FILTRAGE
+ */
+window.filterDonors = () => {
+    const searchVal = document.getElementById('search-donor')?.value.toLowerCase().trim() || "";
+    const entityVal = document.getElementById('filter-entity')?.value || "ALL";
+
+    const filtered = window.allDonorsData.filter(d => {
+        const matchesSearch = 
+            (d.last_name || "").toLowerCase().includes(searchVal) || 
+            (d.first_name || "").toLowerCase().includes(searchVal) ||
+            (d.company_name || "").toLowerCase().includes(searchVal) ||
+            (d.city || "").toLowerCase().includes(searchVal) ||
+            (d.email || "").toLowerCase().includes(searchVal);
+
+        const matchesEntity = (entityVal === "ALL" || d.entity === entityVal);
+        return matchesSearch && matchesEntity;
+    });
+    renderDonors(filtered);
+};
+
+/**
+ * 3. AFFICHAGE DE LA LISTE PRINCIPALE
+ */
+function renderDonors(data) {
+    const list = document.getElementById('donors-list');
+    if (!list) return;
+    
+    list.innerHTML = data.map(d => {
+        const dons = d.donations || [];
+        const total = dons.reduce((acc, cur) => acc + Number(cur.amount), 0);
+        const hasUnthanked = dons.some(don => don.thanked === false);
+        const blinkClass = hasUnthanked ? 'blink-warning' : '';
+
+        const displayName = d.company_name 
+            ? `<b>${d.company_name.toUpperCase()}</b> <span style="font-size:0.7rem; color:#64748b;">(${d.last_name})</span>` 
+            : `<b>${d.last_name.toUpperCase()}</b> ${d.first_name || ''}`;
+            
+        return `
+            <tr class="${blinkClass}">
+                <td>
+                    ${displayName}
+                    ${hasUnthanked ? '<br><span class="badge-error">REMERCIEMENT DÛ</span>' : ''}
+                </td>
+                <td><span class="origin-tag">${d.entity || '-'}</span></td>
+                <td style="font-weight:800; color:var(--primary); font-family:monospace; font-size:1rem;">
+                    ${total.toLocaleString('fr-FR')} €
+                </td>
+                <td style="text-align:right;">
+                    <button onclick="window.openDonorFile('${d.id}')" class="btn-gold" style="padding:6px 14px;">DOSSIER</button>
+                </td>
+            </tr>`;
+    }).join('');
+}
+
+/**
+ * 4. CRÉATION D'UNE FICHE
+ */
+window.showAddDonorModal = () => {
+    const userPortal = currentUser.portal;
     showCustomModal(`
-        <h2 class="luxe-title">ENREGISTRER UN DON</h2>
-        <div style="display:grid; gap:15px;">
-            <div><span class="mini-label">Montant (€)</span><input type="number" id="donation-amount" class="luxe-input" placeholder="150"></div>
-            <div><span class="mini-label">Date</span><input type="date" id="donation-date" class="luxe-input" value="${new Date().toISOString().split('T')[0]}"></div>
-            <div><span class="mini-label">Moyen de paiement</span>
-                <select id="donation-method" class="luxe-input">
-                    <option>Virement</option>
-                    <option>Chèque</option>
-                    <option>Espèces</option>
-                    <option>Carte bancaire</option>
-                </select>
+        <div class="modal-header-luxe">
+            <h3 class="luxe-title">NOUVEAU CONTACT CRM</h3>
+            <button onclick="closeCustomModal()" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-scroll-body">
+            <p class="mini-label">AFFECTATION ÉCOLE *</p>
+            <select id="n-d-entity" class="luxe-input" style="border:1px solid var(--gold); margin-bottom:15px;">
+                <option ${userPortal === 'Institut Alsatia' ? 'selected' : ''}>Institut Alsatia</option>
+                <option ${userPortal === 'Academia Alsatia' ? 'selected' : ''}>Academia Alsatia</option>
+                <option ${userPortal === 'Cours Herrade de Landsberg' ? 'selected' : ''}>Cours Herrade de Landsberg</option>
+                <option ${userPortal === 'Collège Saints Louis et Zélie Martin' ? 'selected' : ''}>Collège Saints Louis et Zélie Martin</option>
+            </select>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:15px;">
+                <div><p class="mini-label">NOM *</p><input type="text" id="n-d-last" class="luxe-input"></div>
+                <div><p class="mini-label">PRÉNOM</p><input type="text" id="n-d-first" class="luxe-input"></div>
             </div>
-            <button onclick="saveDonation('${donorId}')" class="btn-gold">ENREGISTRER LE DON</button>
+            <p class="mini-label">ENTREPRISE (Optionnel)</p>
+            <input type="text" id="n-d-company" class="luxe-input" style="margin-bottom:15px;">
+            <p class="mini-label">COORDONNÉES</p>
+            <input type="email" id="n-d-email" class="luxe-input" placeholder="Email" style="margin-bottom:8px;">
+            <input type="text" id="n-d-phone" class="luxe-input" placeholder="Téléphone" style="margin-bottom:15px;">
+            <div style="display:grid; grid-template-columns:1fr 2fr; gap:10px; margin-bottom:15px;">
+                <div><p class="mini-label">CP</p><input type="text" id="n-d-zip" class="luxe-input"></div>
+                <div><p class="mini-label">VILLE</p><input type="text" id="n-d-city" class="luxe-input"></div>
+            </div>
+            <p class="mini-label">NOTES / ORIGINE (ex: Gala 2025)</p>
+            <textarea id="n-d-notes" class="luxe-input" style="height:60px;"></textarea>
+            <button onclick="window.execCreateDonor()" class="btn-gold-fill" style="width:100%; margin-top:20px;">CRÉER LE CONTACT</button>
         </div>
     `);
 };
 
-window.saveDonation = async (donorId) => {
-    const amount = parseFloat(document.getElementById('donation-amount').value);
-    const date = document.getElementById('donation-date').value;
-    const method = document.getElementById('donation-method').value;
+window.execCreateDonor = async () => {
+    const last = document.getElementById('n-d-last').value.trim();
+    const ent = document.getElementById('n-d-entity').value;
+    if(!last || !ent) return window.showNotice("Erreur", "Le Nom et l'Entité sont obligatoires.");
 
-    if(!amount || amount <= 0) return alert("Montant invalide");
+    const { error } = await supabaseClient.from('donors').insert([{
+        last_name: last.toUpperCase(),
+        first_name: document.getElementById('n-d-first').value.trim(),
+        company_name: document.getElementById('n-d-company').value.trim(),
+        entity: ent,
+        email: document.getElementById('n-d-email').value,
+        phone: document.getElementById('n-d-phone').value,
+        zip_code: document.getElementById('n-d-zip').value,
+        city: document.getElementById('n-d-city').value,
+        notes: document.getElementById('n-d-notes').value,
+        last_modified_by: `${currentUser.first_name} ${currentUser.last_name}`
+    }]);
+
+    if(error) return window.showNotice("Erreur", error.message);
+    window.showNotice("Succès", "Donateur enregistré.");
+    closeCustomModal();
+    loadDonors();
+};
+
+/**
+ * 5. DOSSIER DONATEUR (INTERFACE COMPLÈTE)
+ */
+window.openDonorFile = async (id) => {
+    const donor = window.allDonorsData.find(d => d.id === id);
+    if (!donor) return;
+    const dons = donor.donations || [];
+    
+    document.getElementById('custom-modal').style.display = 'flex';
+    document.getElementById('modal-body').innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px;">
+            <div>
+                <p class="mini-label">ÉCOLE / ENTITÉ</p>
+                <select id="edit-entity" class="luxe-input" style="margin-top:5px; border:1px solid var(--gold);">
+                    <option ${donor.entity === 'Institut Alsatia' ? 'selected' : ''}>Institut Alsatia</option>
+                    <option ${donor.entity === 'Academia Alsatia' ? 'selected' : ''}>Academia Alsatia</option>
+                    <option ${donor.entity === 'Cours Herrade de Landsberg' ? 'selected' : ''}>Cours Herrade de Landsberg</option>
+                    <option ${donor.entity === 'Collège Saints Louis et Zélie Martin' ? 'selected' : ''}>Collège Saints Louis et Zélie Martin</option>
+                </select>
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button onclick="window.exportDonorToExcel('${donor.id}')" class="btn-gold" style="font-size:0.65rem; padding:5px 10px;">EXCEL</button>
+                <button onclick="window.askDeleteDonor('${donor.id}', '${donor.last_name.replace(/'/g, "\\'")}')" style="background:#fee2e2; color:#ef4444; border:none; padding:5px 10px; border-radius:6px; cursor:pointer; font-size:0.65rem;">SUPPRIMER</button>
+                <button onclick="closeCustomModal()" style="border:none; background:none; cursor:pointer; font-size:1.5rem;">&times;</button>
+            </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+            <div>
+                <p class="mini-label">COORDONNÉES</p>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;">
+                    <input type="text" id="edit-last" class="luxe-input" value="${donor.last_name || ''}" placeholder="NOM">
+                    <input type="text" id="edit-first" class="luxe-input" value="${donor.first_name || ''}" placeholder="PRÉNOM">
+                </div>
+                <input type="text" id="edit-company" class="luxe-input" value="${donor.company_name || ''}" placeholder="Entreprise" style="margin-bottom:8px;">
+                <input type="email" id="edit-email" class="luxe-input" value="${donor.email || ''}" placeholder="Email" style="margin-bottom:8px;">
+                <input type="text" id="edit-phone" class="luxe-input" value="${donor.phone || ''}" placeholder="Tél" style="margin-bottom:8px;">
+                <div style="display:grid; grid-template-columns:1fr 2fr; gap:8px;">
+                    <input type="text" id="edit-zip" class="luxe-input" value="${donor.zip_code || ''}" placeholder="CP">
+                    <input type="text" id="edit-city" class="luxe-input" value="${donor.city || ''}" placeholder="VILLE">
+                </div>
+            </div>
+            <div>
+                <p class="mini-label">SUIVI CRM</p>
+                <input type="text" id="edit-origin" class="luxe-input" value="${donor.origin || ''}" placeholder="Origine" style="margin-bottom:8px;">
+                <textarea id="edit-notes" class="luxe-input" style="height:110px; margin-bottom:10px;">${donor.notes || ''}</textarea>
+                <button onclick="window.updateDonorFields('${donor.id}')" class="btn-gold" style="width:100%; height:40px;">ENREGISTRER</button>
+            </div>
+        </div>
+
+        <div style="margin-top:20px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <p class="mini-label">HISTORIQUE DES DONS</p>
+                <button onclick="window.addDonationPrompt('${id}')" class="btn-gold" style="padding:4px 10px; font-size:0.65rem;">+ AJOUTER UN DON</button>
+            </div>
+            <div style="max-height:180px; overflow-y:auto; border:1px solid #eee; margin-top:10px; border-radius:8px;">
+                <table class="luxe-table">
+                    <thead><tr><th>DATE</th><th>MONTANT</th><th>REMERCIÉ ?</th><th style="text-align:right;">ACTION</th></tr></thead>
+                    <tbody>
+                        ${dons.length === 0 ? '<tr><td colspan="4" style="text-align:center; padding:15px; color:#999;">Aucun don enregistré</td></tr>' : ''}
+                        ${dons.map(don => `
+                            <tr style="${!don.thanked ? 'background:rgba(239, 68, 68, 0.05);' : ''}">
+                                <td>${new Date(don.date).toLocaleDateString()}</td>
+                                <td style="font-weight:700;">${don.amount}€</td>
+                                <td style="text-align:center;">
+                                    <input type="checkbox" ${don.thanked ? 'checked' : ''} onchange="window.toggleThanked('${don.id}', this.checked)">
+                                </td>
+                                <td style="text-align:right;">
+                                    <i data-lucide="trash-2" style="width:14px; color:#ef4444; cursor:pointer;" onclick="window.askDeleteDonation('${don.id}')"></i>
+                                </td>
+                            </tr>`).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>`;
+    lucide.createIcons();
+};
+
+/**
+ * 6. LOGIQUE DES DONS
+ */
+window.toggleThanked = async (donId, isChecked) => {
+    await supabaseClient.from('donations').update({ thanked: isChecked }).eq('id', donId);
+    loadDonors(); 
+};
+
+window.addDonationPrompt = (donorId) => {
+    showCustomModal(`
+        <h3 class="luxe-title">ENREGISTRER UN DON</h3>
+        <p class="mini-label">MONTANT (€)</p>
+        <input type="number" id="don-amt" class="luxe-input" placeholder="0.00">
+        <p class="mini-label" style="margin-top:10px;">DATE DU DON</p>
+        <input type="date" id="don-date" class="luxe-input" value="${new Date().toISOString().split('T')[0]}">
+        <p class="mini-label" style="margin-top:10px;">MODE DE PAIEMENT</p>
+        <select id="don-method" class="luxe-input">
+            <option>Virement</option><option>Chèque</option><option>Espèces</option><option>CB</option><option>Autre</option>
+        </select>
+        <button onclick="window.execAddDonation('${donorId}')" class="btn-gold-fill" style="width:100%; margin-top:20px;">VALIDER LE PAIEMENT</button>
+    `);
+};
+
+window.execAddDonation = async (donorId) => {
+    const amt = document.getElementById('don-amt').value;
+    const dat = document.getElementById('don-date').value;
+    if (!amt || amt <= 0) return window.showNotice("Erreur", "Montant invalide.");
 
     await supabaseClient.from('donations').insert([{
         donor_id: donorId,
-        amount: amount,
-        date: date,
-        payment_method: method
+        amount: parseFloat(amt),
+        date: dat,
+        payment_mode: document.getElementById('don-method').value,
+        thanked: false
     }]);
 
-    const { data: donor } = await supabaseClient.from('donors').select('total_donations').eq('id', donorId).single();
-    const newTotal = (donor.total_donations || 0) + amount;
-    
-    await supabaseClient.from('donors').update({ total_donations: newTotal }).eq('id', donorId);
-
-    window.showNotice("Succès", `Don de ${amount}€ enregistré`);
+    window.showNotice("Bravo !", "Don enregistré.");
+    if(typeof loadDashboardData === 'function') loadDashboardData(); 
     closeCustomModal();
     loadDonors();
 };
 
-window.promptEditDonor = async (donorId) => {
-    const { data: donor } = await supabaseClient.from('donors').select('*').eq('id', donorId).single();
-    if(!donor) return;
-
-    showCustomModal(`
-        <h2 class="luxe-title">MODIFIER DONATEUR</h2>
-        <div style="display:grid; gap:15px;">
-            <div><span class="mini-label">Prénom</span><input type="text" id="edit-fname" class="luxe-input" value="${donor.first_name}"></div>
-            <div><span class="mini-label">Nom</span><input type="text" id="edit-lname" class="luxe-input" value="${donor.last_name}"></div>
-            <div><span class="mini-label">Email</span><input type="email" id="edit-email" class="luxe-input" value="${donor.email || ''}"></div>
-            <div><span class="mini-label">Téléphone</span><input type="tel" id="edit-phone" class="luxe-input" value="${donor.phone || ''}"></div>
-            <div><span class="mini-label">Ville</span><input type="text" id="edit-city" class="luxe-input" value="${donor.city || ''}"></div>
-            <div><span class="mini-label">Entreprise</span><input type="text" id="edit-company" class="luxe-input" value="${donor.company || ''}"></div>
-            <button onclick="updateDonor('${donorId}')" class="btn-gold">SAUVEGARDER</button>
-        </div>
-    `);
-};
-
-window.updateDonor = async (donorId) => {
-    const updates = {
-        first_name: document.getElementById('edit-fname').value.trim(),
-        last_name: document.getElementById('edit-lname').value.trim(),
-        email: document.getElementById('edit-email').value.trim(),
-        phone: document.getElementById('edit-phone').value.trim(),
-        city: document.getElementById('edit-city').value.trim(),
-        company: document.getElementById('edit-company').value.trim()
+window.updateDonorFields = async (id) => {
+    const payload = {
+        entity: document.getElementById('edit-entity').value,
+        last_name: document.getElementById('edit-last').value.toUpperCase(),
+        first_name: document.getElementById('edit-first').value,
+        company_name: document.getElementById('edit-company').value,
+        email: document.getElementById('edit-email').value,
+        phone: document.getElementById('edit-phone').value,
+        zip_code: document.getElementById('edit-zip').value,
+        city: document.getElementById('edit-city').value,
+        origin: document.getElementById('edit-origin').value,
+        notes: document.getElementById('edit-notes').value,
+        last_modified_by: `${currentUser.first_name} ${currentUser.last_name}`
     };
-
-    await supabaseClient.from('donors').update(updates).eq('id', donorId);
-    window.showNotice("Succès", "Donateur mis à jour");
-    closeCustomModal();
+    const { error } = await supabaseClient.from('donors').update(payload).eq('id', id);
+    if(error) return window.showNotice("Erreur", error.message);
+    window.showNotice("Succès", "Fiche mise à jour.");
     loadDonors();
 };
 
-window.deleteDonor = (donorId) => {
-    window.alsatiaConfirm("SUPPRIMER DONATEUR", "Voulez-vous vraiment supprimer ce donateur et tout son historique ?", async () => {
-        await supabaseClient.from('donations').delete().eq('donor_id', donorId);
-        await supabaseClient.from('donors').delete().eq('id', donorId);
-        window.showNotice("Supprimé", "Donateur effacé");
-        closeCustomModal();
-        loadDonors();
-    }, true);
-};
-
-window.exportToExcel = async () => {
-    if (!allDonorsData || allDonorsData.length === 0) {
-        return alert("Aucune donnée à exporter");
-    }
-
-    const formatted = allDonorsData.map(d => ({
-        'Prénom': d.first_name,
-        'Nom': d.last_name,
-        'Email': d.email || '',
-        'Téléphone': d.phone || '',
-        'Ville': d.city || '',
-        'Entreprise': d.company || '',
-        'Entité': d.entity,
-        'Total Dons': d.total_donations || 0
-    }));
-
-    const ws = XLSX.utils.json_to_sheet(formatted);
+/**
+ * 7. EXPORTS EXCEL
+ */
+window.exportAllDonors = () => {
+    if (!window.allDonorsData.length) return window.showNotice("Erreur", "Aucune donnée.");
+    const yearFilter = document.getElementById('export-year')?.value;
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Donateurs");
-    XLSX.writeFile(wb, `Donateurs_Alsatia_${new Date().toISOString().split('T')[0]}.xlsx`);
+    
+    const contactsSheet = XLSX.utils.json_to_sheet(window.allDonorsData.map(({donations, ...d}) => d));
+    XLSX.utils.book_append_sheet(wb, contactsSheet, "Répertoire");
+    
+    const dons = [];
+    window.allDonorsData.forEach(d => {
+        (d.donations || []).forEach(don => {
+            const donYear = new Date(don.date).getFullYear().toString();
+            if (!yearFilter || donYear === yearFilter) {
+                dons.push({
+                    NOM: d.last_name, PRÉNOM: d.first_name, ÉCOLE: d.entity,
+                    MONTANT: don.amount, DATE: don.date, MODE: don.payment_mode,
+                    REMERCIÉ: don.thanked ? 'OUI' : 'NON'
+                });
+            }
+        });
+    });
+    
+    const donsSheet = XLSX.utils.json_to_sheet(dons);
+    XLSX.utils.book_append_sheet(wb, donsSheet, "Journal des Dons");
+    XLSX.writeFile(wb, `ALSATIA_CRM_Export_${yearFilter || 'GLOBAL'}.xlsx`);
 };
 
+window.exportDonorToExcel = (id) => {
+    const d = window.allDonorsData.find(x => x.id === id);
+    const wb = XLSX.utils.book_new();
+    const info = [{ NOM: d.last_name, PRÉNOM: d.first_name, ÉCOLE: d.entity, EMAIL: d.email, TÉL: d.phone }];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(info), "Identité");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(d.donations || []), "Historique Dons");
+    XLSX.writeFile(wb, `Fiche_${d.last_name}.xlsx`);
+};
+
+/**
+ * 8. SUPPRESSIONS (INTERFACE LUXE)
+ */
+window.askDeleteDonation = (donId) => {
+    window.alsatiaConfirm(
+        "SUPPRIMER CE DON", 
+        "Voulez-vous supprimer ce don définitivement ?",
+        async () => {
+            await supabaseClient.from('donations').delete().eq('id', donId);
+            window.showNotice("Supprimé", "Don effacé.");
+            loadDonors();
+            closeCustomModal();
+        },
+        true
+    );
+};
+
+window.askDeleteDonor = (id, name) => {
+    window.alsatiaConfirm(
+        "SUPPRESSION DÉFINITIVE", 
+        `ATTENTION : Voulez-vous vraiment supprimer <b>${name}</b> et l'intégralité de ses dons ?`,
+        async () => {
+            await Promise.all([
+                supabaseClient.from('donations').delete().eq('donor_id', id),
+                supabaseClient.from('donors').delete().eq('id', id)
+            ]);
+            window.showNotice("Supprimé", "Contact effacé.");
+            loadDonors();
+            closeCustomModal();
+        },
+        true
+    );
+};
+
+function loadUsersForMentions() { console.log("Module CRM Alsatia v1.0 chargé."); }
+
 // ==========================================
-// SECTION ÉVÉNEMENTS
+// GESTION DES ÉVÉNEMENTS - SYSTÈME COMPLET & RÉSEAUX
 // ==========================================
+
+// 1. DASHBOARD : LISTE GLOBALE AVEC INDICATEUR DE STATUT
 async function loadEvents() {
-    const container = document.getElementById('events-container');
-    if(!container) return;
-    
-    container.innerHTML = `<p style="grid-column:1/-1; text-align:center; padding:40px; color:#64748b;">Chargement des événements...</p>`;
-    
     const { data, error } = await supabaseClient
         .from('events')
         .select('*')
-        .order('date', { ascending: true });
+        .order('event_date', { ascending: true });
 
-    if (error) {
-        container.innerHTML = `<p style="grid-column:1/-1; text-align:center; padding:40px; color:#ef4444;">Erreur : ${error.message}</p>`;
+    const container = document.getElementById('events-container');
+    if (!container || error) return;
+
+    if (data.length === 0) {
+        container.innerHTML = `<p style="text-align:center; padding:40px; opacity:0.6;">Aucun événement planifié.</p>`;
         return;
     }
 
-    if (!data || data.length === 0) {
-        container.innerHTML = `<p style="grid-column:1/-1; text-align:center; padding:40px; color:#64748b;">Aucun événement planifié</p>`;
-        updateEventsStats(0);
-        return;
-    }
-
-    container.innerHTML = data.map(evt => {
-        const dateObj = new Date(evt.date);
-        const isPast = dateObj < new Date();
-        
+    container.innerHTML = data.map(ev => {
+        // Un événement est prêt si marqué "Complet" OU si les 3 champs clés sont remplis
+        const isReady = ev.status === 'Complet' || (ev.event_time && ev.location && ev.description && ev.description.length > 10);
         return `
-            <div class="event-card ${isPast ? 'blink-warning' : ''}" onclick="viewEventDetail('${evt.id}')">
-                <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:15px;">
-                    <h3 style="font-size:1.1rem; font-weight:800; color:var(--primary);">${evt.title}</h3>
-                    ${isPast ? '<span style="background:var(--danger); color:white; padding:4px 10px; border-radius:20px; font-size:0.65rem; font-weight:800;">PASSÉ</span>' : ''}
+            <div class="event-card" onclick="window.openEventDetails('${ev.id}')" 
+                 style="background:white; border-radius:12px; border:1px solid #e2e8f0; border-left: 6px solid ${isReady ? '#22c55e' : '#f59e0b'}; cursor:pointer; padding:15px; transition:all 0.3s ease;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                    <span class="mini-label" style="color:var(--gold);">${ev.entity}</span>
+                    <span style="font-size:0.6rem; font-weight:800; color:${isReady ? '#166534' : '#9a3412'}; background:${isReady ? '#f0fdf4' : '#fff7ed'}; padding:2px 6px; border-radius:4px;">
+                        ${isReady ? '✅ PRÊT' : '⏳ EN COURS'}
+                    </span>
                 </div>
-                <div style="display:flex; gap:8px; align-items:center; color:var(--text-muted); font-size:0.85rem; margin-bottom:10px;">
-                    <i data-lucide="calendar" style="width:14px;"></i>
-                    <span>${dateObj.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
-                </div>
-                <div style="display:flex; gap:8px; align-items:center; color:var(--text-muted); font-size:0.85rem; margin-bottom:15px;">
-                    <i data-lucide="map-pin" style="width:14px;"></i>
-                    <span>${evt.location || 'Lieu non défini'}</span>
-                </div>
-                <p style="color:var(--text-muted); font-size:0.9rem; line-height:1.5;">${evt.description ? evt.description.substring(0, 100) + '...' : 'Aucune description'}</p>
-                <div style="margin-top:15px; padding-top:15px; border-top:1px solid var(--border);">
-                    <span class="origin-tag">${evt.entity}</span>
+                <h3 style="margin:5px 0; font-family:'Playfair Display'; font-size:1.1rem; color:#1e293b;">${ev.title}</h3>
+                <div style="font-size:0.8rem; color:#64748b;">
+                    <i data-lucide="calendar" style="width:12px; vertical-align:middle;"></i> ${new Date(ev.event_date).toLocaleDateString()}
                 </div>
             </div>
         `;
     }).join('');
-    
-    updateEventsStats(data.length);
-    if(window.lucide) lucide.createIcons();
+    lucide.createIcons();
 }
 
-function updateEventsStats(count) {
-    const statEl = document.getElementById('stat-events-count');
-    if(statEl) statEl.innerText = count;
-}
-
-window.viewEventDetail = async (eventId) => {
-    const { data: evt } = await supabaseClient.from('events').select('*').eq('id', eventId).single();
-    if(!evt) return;
-
-    showCustomModal(`
-        <h2 class="luxe-title">${evt.title}</h2>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:25px;">
-            <div><span class="mini-label">Date</span><br>${new Date(evt.date).toLocaleDateString('fr-FR')}</div>
-            <div><span class="mini-label">Heure</span><br>${evt.time || 'Non définie'}</div>
-            <div><span class="mini-label">Lieu</span><br>${evt.location || 'Non défini'}</div>
-            <div><span class="mini-label">Entité</span><br><span class="origin-tag">${evt.entity}</span></div>
-        </div>
-        
-        <div style="margin-bottom:25px;">
-            <span class="mini-label">Description</span>
-            <p style="margin-top:8px; line-height:1.6; color:var(--text-muted);">${evt.description || 'Aucune description'}</p>
-        </div>
-
-        <div style="display:flex; gap:10px;">
-            <button onclick="promptEditEvent('${evt.id}')" class="btn-gold" style="flex:1;">MODIFIER</button>
-            <button onclick="deleteEvent('${evt.id}')" class="btn-gold" style="background:var(--danger);">SUPPRIMER</button>
-        </div>
-    `);
-};
-
+// 2. CRÉATION (ÉTAPE 1)
 window.showAddEventModal = () => {
+    const userPortal = currentUser.portal;
     showCustomModal(`
-        <h2 class="luxe-title">NOUVEL ÉVÉNEMENT</h2>
-        <div style="display:grid; gap:15px;">
-            <div><span class="mini-label">Titre</span><input type="text" id="event-title" class="luxe-input" placeholder="Gala de fin d'année"></div>
-            <div><span class="mini-label">Date</span><input type="date" id="event-date" class="luxe-input"></div>
-            <div><span class="mini-label">Heure</span><input type="time" id="event-time" class="luxe-input"></div>
-            <div><span class="mini-label">Lieu</span><input type="text" id="event-location" class="luxe-input" placeholder="Salle des fêtes"></div>
-            <div><span class="mini-label">Entité</span>
-                <select id="event-entity" class="luxe-input">
-                    <option>Institut Alsatia</option>
-                    <option>Academia Alsatia</option>
-                    <option>Cours Herrade de Landsberg</option>
-                    <option>Collège Saints Louis et Zélie Martin</option>
-                </select>
-            </div>
-            <div><span class="mini-label">Description</span><textarea id="event-desc" class="luxe-input" rows="4" placeholder="Détails de l'événement..."></textarea></div>
-            <button onclick="saveEvent()" class="btn-gold">CRÉER L'ÉVÉNEMENT</button>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h3 class="luxe-title" style="margin:0;">PLANIFIER UN ÉVÉNEMENT</h3>
+            <button onclick="closeCustomModal()" style="border:none; background:none; cursor:pointer; font-size:1.5rem; color:#94a3b8;">&times;</button>
         </div>
+        <p class="mini-label">TITRE DE L'ÉVÉNEMENT *</p>
+        <input type="text" id="ev-title" class="luxe-input" placeholder="Ex: Gala de Charité...">
+        <p class="mini-label" style="margin-top:15px;">ENTITÉ CONCERNÉE *</p>
+        <select id="ev-entity" class="luxe-input" style="width:100%;">
+            <option ${userPortal === 'Institut Alsatia' ? 'selected' : ''}>Institut Alsatia</option>
+            <option ${userPortal === 'Academia Alsatia' ? 'selected' : ''}>Academia Alsatia</option>
+            <option ${userPortal === 'Cours Herrade de Landsberg' ? 'selected' : ''}>Cours Herrade de Landsberg</option>
+            <option ${userPortal === 'Collège Saints Louis et Zélie Martin' ? 'selected' : ''}>Collège Saints Louis et Zélie Martin</option>
+        </select>
+        <p class="mini-label" style="margin-top:15px;">DATE PRÉVUE *</p>
+        <input type="date" id="ev-date" class="luxe-input">
+        <button onclick="window.execCreateEvent()" class="btn-gold" style="width:100%; margin-top:25px; height:45px; font-weight:bold;">CRÉER ET ATTENDRE LES INFOS</button>
     `);
 };
 
-window.saveEvent = async () => {
-    const event = {
-        title: document.getElementById('event-title').value.trim(),
-        date: document.getElementById('event-date').value,
-        time: document.getElementById('event-time').value,
-        location: document.getElementById('event-location').value.trim(),
-        entity: document.getElementById('event-entity').value,
-        description: document.getElementById('event-desc').value.trim()
-    };
+window.execCreateEvent = async () => {
+    const title = document.getElementById('ev-title').value.trim();
+    const event_date = document.getElementById('ev-date').value;
+    const entity = document.getElementById('ev-entity').value;
+    if(!title || !event_date) return window.showNotice("Champs requis", "Titre et Date obligatoires.");
 
-    if(!event.title || !event.date) {
-        return alert("Le titre et la date sont obligatoires");
-    }
+    const { error } = await supabaseClient.from('events').insert([{
+        title, event_date, entity,
+        status: 'En cours',
+        created_by: `${currentUser.first_name} ${currentUser.last_name}`
+    }]);
 
-    const { error } = await supabaseClient.from('events').insert([event]);
-    
-    if(error) {
-        alert("Erreur : " + error.message);
-    } else {
-        window.showNotice("Succès", "Événement créé");
-        closeCustomModal();
-        loadEvents();
-    }
-};
-
-window.promptEditEvent = async (eventId) => {
-    const { data: evt } = await supabaseClient.from('events').select('*').eq('id', eventId).single();
-    if(!evt) return;
-
-    showCustomModal(`
-        <h2 class="luxe-title">MODIFIER ÉVÉNEMENT</h2>
-        <div style="display:grid; gap:15px;">
-            <div><span class="mini-label">Titre</span><input type="text" id="edit-event-title" class="luxe-input" value="${evt.title}"></div>
-            <div><span class="mini-label">Date</span><input type="date" id="edit-event-date" class="luxe-input" value="${evt.date}"></div>
-            <div><span class="mini-label">Heure</span><input type="time" id="edit-event-time" class="luxe-input" value="${evt.time || ''}"></div>
-            <div><span class="mini-label">Lieu</span><input type="text" id="edit-event-location" class="luxe-input" value="${evt.location || ''}"></div>
-            <div><span class="mini-label">Description</span><textarea id="edit-event-desc" class="luxe-input" rows="4">${evt.description || ''}</textarea></div>
-            <button onclick="updateEvent('${eventId}')" class="btn-gold">SAUVEGARDER</button>
-        </div>
-    `);
-};
-
-window.updateEvent = async (eventId) => {
-    const updates = {
-        title: document.getElementById('edit-event-title').value.trim(),
-        date: document.getElementById('edit-event-date').value,
-        time: document.getElementById('edit-event-time').value,
-        location: document.getElementById('edit-event-location').value.trim(),
-        description: document.getElementById('edit-event-desc').value.trim()
-    };
-
-    await supabaseClient.from('events').update(updates).eq('id', eventId);
-    window.showNotice("Succès", "Événement mis à jour");
+    if(error) return window.showNotice("Erreur", error.message);
     closeCustomModal();
     loadEvents();
 };
 
-window.deleteEvent = (eventId) => {
-    window.alsatiaConfirm("SUPPRIMER ÉVÉNEMENT", "Voulez-vous vraiment supprimer cet événement ?", async () => {
-        await supabaseClient.from('events').delete().eq('id', eventId);
-        window.showNotice("Supprimé", "Événement effacé");
-        closeCustomModal();
-        loadEvents();
-    }, true);
+// 3. DOSSIER LOGISTIQUE & ACTIONS RÉSEAUX (ÉTAPE 2 & 3)
+window.openEventDetails = async (id) => {
+    const { data: ev } = await supabaseClient.from('events').select('*').eq('id', id).single();
+    if(!ev) return;
+
+    const isReady = ev.status === 'Complet' || (ev.event_time && ev.location && ev.description);
+
+    showCustomModal(`
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h2 class="luxe-title" style="margin:0;">${ev.title}</h2>
+            <button onclick="closeCustomModal()" style="border:none; background:none; cursor:pointer; font-size:1.5rem;">&times;</button>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1.2fr 1fr; gap:25px;">
+            <div>
+                <p class="mini-label" style="color:var(--primary); font-weight:800; border-bottom:1px solid #eee; padding-bottom:5px;">1. LOGISTIQUE & MÉDIAS</p>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:15px;">
+                    <input type="time" class="luxe-input" value="${ev.event_time || ''}" onchange="window.updateEventField('${ev.id}', 'event_time', this.value)">
+                    <input type="text" class="luxe-input" placeholder="Lieu..." value="${ev.location || ''}" onblur="window.updateEventField('${ev.id}', 'location', this.value)">
+                </div>
+                <textarea class="luxe-input" style="height:100px; margin-top:10px;" placeholder="Texte réseaux..." onblur="window.updateEventField('${ev.id}', 'description', this.value)">${ev.description || ''}</textarea>
+                
+                <div style="margin-top:20px; padding:15px; background:#f8fafc; border-radius:12px; border:1px dashed #cbd5e1;">
+                    <p class="mini-label">PHOTOS DE L'ÉVÉNEMENT (events_media)</p>
+                    <div id="event-gallery" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin:15px 0; max-height:200px; overflow-y:auto;"></div>
+                    <input type="file" id="ev-upload-multi" style="display:none;" multiple onchange="window.uploadMultipleMedia('${ev.id}', this.files)">
+                    <button onclick="document.getElementById('ev-upload-multi').click()" class="btn-gold" style="width:100%; font-size:0.75rem;">+ AJOUTER FICHIERS</button>
+                </div>
+            </div>
+
+            <div style="background:#f8fafc; padding:20px; border-radius:12px; border:1px solid #e2e8f0; align-self: start;">
+                <p class="mini-label" style="color:var(--primary); font-weight:800;">2. ACTIONS RÉSEAUX</p>
+                
+                ${!isReady ? `
+                    <div id="alert-incomplete" style="background:#fff7ed; border:1px solid #ffedd5; padding:12px; border-radius:8px; margin:15px 0; position:relative; display:flex; gap:10px; align-items:center;">
+                        <i data-lucide="alert-circle" style="color:#f59e0b; width:20px;"></i>
+                        <p style="font-size:0.7rem; color:#9a3412; margin:0; padding-right:20px;"><b>Dossier incomplet.</b><br>Vérifiez l'heure, le lieu et le texte.</p>
+                        <button onclick="document.getElementById('alert-incomplete').style.display='none'" style="position:absolute; top:5px; right:5px; background:none; border:none; cursor:pointer; color:#9a3412; font-size:1.2rem;">&times;</button>
+                    </div>
+                ` : `<p style="font-size:0.75rem; color:#166534; margin:15px 0;">✨ Dossier complet.</p>`}
+
+                <button onclick="window.copyToClipboard('${(ev.description || "").replace(/'/g, "\\'")}')" class="btn-gold" style="width:100%; background:#22c55e; border:none; margin-bottom:10px; height:45px; font-weight:bold;">COPIER LE TEXTE</button>
+                <button onclick="window.downloadAllMedia('${ev.id}')" class="btn-gold" style="width:100%; background:#1e293b; border:none; margin-bottom:10px; height:45px; font-weight:bold;">TOUT TÉLÉCHARGER</button>
+                
+                <button onclick="window.toggleEventStatus('${ev.id}', '${ev.status}')" class="btn-gold" style="width:100%; background:white; color:${ev.status === 'Complet' ? '#ef4444' : '#22c55e'}; border:1px solid ${ev.status === 'Complet' ? '#ef4444' : '#22c55e'}; height:40px; font-size:0.7rem;">
+                    <i data-lucide="${ev.status === 'Complet' ? 'rotate-ccw' : 'check-circle'}" style="width:14px; margin-right:8px; vertical-align:middle;"></i>
+                    ${ev.status === 'Complet' ? 'REPASSER EN COURS' : 'MARQUER COMME TERMINÉ'}
+                </button>
+            </div>
+        </div>
+        <div style="margin-top:20px; text-align:right;">
+             <button onclick="window.askDeleteEvent('${ev.id}', '${ev.title.replace(/'/g, "\\'")}')" style="color:#ef4444; background:none; border:none; font-size:0.65rem; cursor:pointer;">SUPPRIMER L'ÉVÉNEMENT</button>
+        </div>
+    `);
+    lucide.createIcons();
+    window.refreshGallery(id);
 };
 
-// ==========================================
-// SECTION MESSAGERIE (CHAT)
-// ==========================================
-let currentChatSubject = 'Général';
+// 4. STORAGE (UPLOAD / LISTE / DELETE)
+window.uploadMultipleMedia = async (eventId, files) => {
+    if(!files.length) return;
+    for(let file of files) {
+        const path = `events_media/${eventId}/${Date.now()}_${file.name}`;
+        await supabaseClient.storage.from('documents').upload(path, file);
+    }
+    window.refreshGallery(eventId);
+};
 
-/**
- * 1. GESTION DES SUJETS DE DISCUSSION
- */
-window.loadChatSubjects = async () => {
-    const { data: subjects } = await supabaseClient.from('chat_subjects').select('*').order('created_at', { ascending: true });
-    const list = document.getElementById('chat-subjects-list');
-    if (!list) return;
-
-    const baseSubjects = [
-        { id: 'general', name: 'Général', entity: '' }
-    ];
-
-    const allSubjects = [...baseSubjects, ...(subjects || [])];
-    
-    list.innerHTML = allSubjects.map(sub => {
-        const isActive = sub.name === currentChatSubject;
-        const canDelete = sub.id !== 'general' && currentUser.portal === 'Institut Alsatia';
-        
+window.refreshGallery = async (eventId) => {
+    const { data } = await supabaseClient.storage.from('documents').list(`events_media/${eventId}`);
+    const gallery = document.getElementById('event-gallery');
+    if(!gallery) return;
+    if(!data || data.length === 0) {
+        gallery.innerHTML = `<p style="font-size:0.6rem; color:#94a3b8; grid-column:span 3; text-align:center;">Aucun média.</p>`;
+        return;
+    }
+    gallery.innerHTML = data.map(file => {
+        const { data: { publicUrl } } = supabaseClient.storage.from('documents').getPublicUrl(`events_media/${eventId}/${file.name}`);
+        const isImg = file.name.match(/\.(jpg|jpeg|png|gif|webp)$/i);
         return `
-            <div class="chat-subject-item ${isActive ? 'active-chat-tab' : ''}" 
-                 onclick="window.switchChatSubject('${sub.name}')"
-                 style="padding:15px 20px; cursor:pointer; transition:0.3s; display:flex; justify-content:space-between; align-items:center;">
-                <div>
-                    <div style="font-weight:700; font-size:0.85rem; color:${isActive ? 'var(--gold)' : 'white'};"># ${sub.name}</div>
-                    ${sub.entity ? `<div style="font-size:0.65rem; opacity:0.7; margin-top:2px;">${sub.entity}</div>` : ''}
-                </div>
-                ${canDelete ? `<i data-lucide="trash-2" onclick="event.stopPropagation(); window.deleteSubject('${sub.id}', '${sub.name}')" style="width:14px; color:var(--danger); opacity:0; transition:0.2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0"></i>` : ''}
+            <div style="position:relative; aspect-ratio:1; border-radius:8px; overflow:hidden; border:1px solid #e2e8f0; background:#f8fafc;">
+                ${isImg ? `<img src="${publicUrl}" style="width:100%; height:100%; object-fit:cover;">` : `<div style="display:flex; align-items:center; justify-content:center; height:100%; font-size:0.5rem; text-align:center;">DOC</div>`}
+                <button onclick="window.deleteMedia('${eventId}', '${file.name}')" style="position:absolute; top:2px; right:2px; background:#ef4444; color:white; border:none; border-radius:50%; width:18px; height:18px; cursor:pointer; font-size:10px;">&times;</button>
             </div>
         `;
     }).join('');
-    
-    if(window.lucide) lucide.createIcons();
 };
 
+window.deleteMedia = async (eventId, fileName) => {
+    if(confirm("Supprimer ce fichier ?")) {
+        await supabaseClient.storage.from('documents').remove([`events_media/${eventId}/${fileName}`]);
+        window.refreshGallery(eventId);
+    }
+};
+
+window.downloadAllMedia = async (eventId) => {
+    const { data } = await supabaseClient.storage.from('documents').list(`events_media/${eventId}`);
+    if(data) data.forEach(f => {
+        const { data: { publicUrl } } = supabaseClient.storage.from('documents').getPublicUrl(`events_media/${eventId}/${f.name}`);
+        window.open(publicUrl, '_blank');
+    });
+};
+
+// 5. MISES À JOUR & ACTIONS
+window.toggleEventStatus = async (id, currentStatus) => {
+    const newStatus = currentStatus === 'Complet' ? 'En cours' : 'Complet';
+    await supabaseClient.from('events').update({ status: newStatus }).eq('id', id);
+    window.showNotice("Statut", `Événement marqué comme : ${newStatus}`);
+    closeCustomModal();
+    loadEvents();
+};
+
+window.updateEventField = async (id, field, value) => {
+    console.log(`Tentative de sauvegarde : ${field} = ${value} pour l'ID ${id}`);
+
+    const { error } = await supabaseClient
+        .from('events')
+        .update({ [field]: value })
+        .eq('id', id);
+
+    if (error) {
+        console.error("Erreur de sauvegarde:", error.message);
+        window.showNotice("Erreur", "Impossible d'enregistrer la modification.");
+    } else {
+        // Optionnel : un petit indicateur discret dans la console
+        console.log("Enregistrement réussi !");
+        
+        // On rafraîchit la liste en fond pour que le dashboard soit à jour
+        loadEvents(); 
+    }
+};
+
+window.copyToClipboard = (text) => {
+    if(!text) return window.showNotice("Vide", "Aucun texte à copier.");
+    navigator.clipboard.writeText(text).then(() => window.showNotice("Copié !", "Texte prêt pour les réseaux."));
+};
+
+window.askDeleteEvent = (id, title) => {
+    if(confirm(`Supprimer "${title}" ?`)) {
+        supabaseClient.from('events').delete().eq('id', id).then(() => { closeCustomModal(); loadEvents(); });
+    }
+};
+
+// ==========================================
+// MOTEUR DE DISCUSSION ALSATIA V2 - COMPLET
+// ==========================================
+
+let currentChatSubject = 'Général';
+let selectedChatFile = null;
+
 /**
- * 2. ABONNEMENT TEMPS RÉEL
+ * 1. INITIALISATION & TEMPS RÉEL
  */
 window.subscribeToChat = () => {
-    supabaseClient
-        .channel('chat_global_channel')
-        .on('postgres_changes', 
-            { event: 'INSERT', schema: 'public', table: 'chat_global' },
-            payload => {
+    // On ferme l'ancien canal s'il existe pour éviter les doublons
+    if (window.chatChannel) window.chatChannel.unsubscribe();
+
+    window.chatChannel = supabaseClient
+        .channel('chat-realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_global' }, payload => {
+            if (payload.eventType === 'INSERT') {
                 if (payload.new.subject === currentChatSubject) {
                     appendSingleMessage(payload.new);
                 }
+            } else if (payload.eventType === 'UPDATE' || payload.eventType === 'DELETE') {
+                // Rafraîchissement complet pour les réactions et suppressions
+                window.loadChatMessages();
             }
-        )
-        .on('postgres_changes', 
-            { event: 'DELETE', schema: 'public', table: 'chat_global' },
-            payload => {
-                const msgEl = document.getElementById(`msg-${payload.old.id}`);
-                if (msgEl) msgEl.closest('.message-wrapper').remove();
-            }
-        )
+        })
         .subscribe();
+};
+
+/**
+ * 2. GESTION DES SUJETS (DROITS & FILTRAGE)
+ */
+window.loadChatSubjects = async () => {
+    const { data: subjects, error } = await supabaseClient.from('chat_subjects').select('*').order('name');
+    if (error) return;
+
+    const container = document.getElementById('chat-subjects-list');
+    if (!container) return;
+
+    const filtered = subjects.filter(s => {
+        if (currentUser.portal === 'Institut Alsatia') return true;
+        return !s.entity || s.entity === currentUser.portal;
+    });
+
+    container.innerHTML = filtered.map(s => `
+        <div class="suggest-item ${currentChatSubject === s.name ? 'active-chat-tab' : ''}" 
+             style="display:flex; justify-content:space-between; align-items:center; border-radius:8px; margin-bottom:2px; padding:10px; cursor:pointer;"
+             onclick="window.switchChatSubject('${s.name.replace(/'/g, "\\'")}')">
+            <span># ${s.name}</span>
+            ${(currentUser.portal === 'Institut Alsatia' || s.entity === currentUser.portal) ? 
+                `<i data-lucide="trash-2" style="width:12px; color:var(--danger); opacity:0.5;" onclick="event.stopPropagation(); window.deleteSubject('${s.id}', '${s.name}')"></i>` : ''}
+        </div>
+    `).join('');
+    lucide.createIcons();
 };
 
 window.switchChatSubject = (subjectName) => {
