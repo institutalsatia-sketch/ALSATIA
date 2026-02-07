@@ -17,6 +17,59 @@ const LOGOS = {
     "Academia Alsatia": "academia.png"
 };
 
+/**
+ * OVERRIDE GLOBAL ALSATIA 
+ * Redirige les fonctions natives vers l'interface de luxe
+ */
+
+// 1. Remplace alert() par window.showNotice()
+window.alert = function(message) {
+    if (typeof window.showNotice === 'function') {
+        window.showNotice("Information", message);
+    } else {
+        console.log("Alerte Alsatia : " + message);
+    }
+};
+
+// 2. Remplace confirm() par showCustomModal()
+window.confirm = function(message) {
+    // Note : Le confirm natif est bloquant, le nôtre ne peut pas l'être.
+    // Cette fonction sert de secours pour éviter la fenêtre grise.
+    // Pour les suppressions CRM, il est préférable d'utiliser alsatiaConfirm().
+    showCustomModal(`
+        <div class="confirm-box">
+            <h3 class="luxe-title">CONFIRMATION</h3>
+            <p>${message}</p>
+            <div class="confirm-actions">
+                <button onclick="closeCustomModal()" class="btn-gold" style="background:var(--border); color:var(--text-main);">ANNULER</button>
+                <button onclick="closeCustomModal()" class="btn-gold">CONTINUER</button>
+            </div>
+        </div>
+    `);
+    return false; // Empêche le comportement natif
+};
+
+/**
+ * MOTEUR DE DIALOGUE DE LUXE (Pour remplacer proprement les suppressions)
+ */
+window.alsatiaConfirm = (title, text, callback, isDanger = false) => {
+    showCustomModal(`
+        <div class="confirm-box">
+            <h3 class="luxe-title" style="${isDanger ? 'color:var(--danger)' : ''}">${title}</h3>
+            <p>${text}</p>
+            <div class="confirm-actions">
+                <button onclick="closeCustomModal()" class="btn-gold" style="background:var(--border); color:var(--text-main);">ANNULER</button>
+                <button id="modal-confirm-action" class="btn-gold" style="${isDanger ? 'background:var(--danger)' : ''}">CONFIRMER</button>
+            </div>
+        </div>
+    `);
+
+    document.getElementById('modal-confirm-action').onclick = () => {
+        callback();
+        closeCustomModal();
+    };
+};
+
 // ==========================================
 // FONCTIONS GLOBALES (SÉCURITÉ ET INTERFACE)
 // ==========================================
