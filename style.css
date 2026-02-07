@@ -14,6 +14,18 @@
     --border: #e2e8f0;
 }
 
+/* Animation pour le logo de la page d'accueil */
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
 * { 
     box-sizing: border-box; 
     -webkit-font-smoothing: antialiased;
@@ -538,4 +550,43 @@ body {
     background: var(--gold-light);
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(197, 160, 89, 0.3);
+}
+
+
+/* ==========================================
+   RESPONSIVE - PAGE D'ACCUEIL
+   ========================================== */
+@media (max-width: 768px) {
+    #big-logo-container {
+        padding: 40px 20px !important;
+        margin-bottom: 20px !important;
+    }
+    
+    #big-logo-display img {
+        width: 180px !important;
+        max-width: 70vw !important;
+    }
+    
+    h1 {
+        font-size: 1.8rem !important;
+    }
+    
+    #welcome-portal-label {
+        font-size: 0.9rem !important;
+    }
+    
+    .stats-mini-grid {
+        flex-direction: column !important;
+        align-items: center !important;
+    }
+    
+    .stat-bubble {
+        width: 100% !important;
+        max-width: 280px !important;
+    }
+    
+    #unread-messages-alert {
+        margin: 15px 20px !important;
+        max-width: calc(100% - 40px) !important;
+    }
 }
