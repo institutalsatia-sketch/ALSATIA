@@ -957,15 +957,44 @@ window.loadChatSubjects = async () => {
         return !s.entity || s.entity === currentUser.portal;
     });
 
-    container.innerHTML = filtered.map(s => `
-        <div class="suggest-item ${currentChatSubject === s.name ? 'active-chat-tab' : ''}" 
-             style="display:flex; justify-content:space-between; align-items:center; border-radius:8px; margin-bottom:2px; padding:10px; cursor:pointer;"
-             onclick="window.switchChatSubject('${s.name.replace(/'/g, "\\'")}')">
-            <span># ${s.name}</span>
+    container.innerHTML = filtered.map(s => {
+        const isActive = currentChatSubject === s.name;
+        return `
+        <div class="chat-subject-item ${isActive ? 'active-chat-tab' : ''}" 
+             style="display:flex; 
+                    justify-content:space-between; 
+                    align-items:center; 
+                    border-radius:12px; 
+                    margin-bottom:6px; 
+                    padding:14px 16px; 
+                    cursor:pointer; 
+                    background:${isActive ? 'rgba(197, 160, 89, 0.15)' : 'transparent'};
+                    border-left: 3px solid ${isActive ? 'var(--gold)' : 'transparent'};
+                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                    position:relative;"
+             onclick="window.switchChatSubject('${s.name.replace(/'/g, "\\'")}')"
+             onmouseover="if (!this.classList.contains('active-chat-tab')) { this.style.background='rgba(255,255,255,0.05)'; this.style.borderLeftColor='rgba(197,160,89,0.3)'; }"
+             onmouseout="if (!this.classList.contains('active-chat-tab')) { this.style.background='transparent'; this.style.borderLeftColor='transparent'; }">
+            <div style="display:flex; align-items:center; gap:10px; flex:1;">
+                <div style="width:8px; height:8px; border-radius:50%; background:${isActive ? 'var(--gold)' : '#64748b'}; box-shadow:${isActive ? '0 0 8px var(--gold)' : 'none'}; transition:all 0.3s;"></div>
+                <div style="flex:1;">
+                    <div style="font-weight:${isActive ? '800' : '600'}; font-size:0.9rem; color:${isActive ? 'var(--gold)' : 'white'}; transition:all 0.3s;"># ${s.name}</div>
+                    ${s.entity ? `<div style="font-size:0.7rem; opacity:0.6; margin-top:2px; color:white;">${s.entity}</div>` : ''}
+                </div>
+            </div>
             ${(currentUser.portal === 'Institut Alsatia' || s.entity === currentUser.portal) ? 
-                `<i data-lucide="trash-2" style="width:12px; color:var(--danger); opacity:0.5;" onclick="event.stopPropagation(); window.deleteSubject('${s.id}', '${s.name}')"></i>` : ''}
+                `<i data-lucide="trash-2" 
+                    style="width:14px; 
+                           color:var(--danger); 
+                           opacity:0; 
+                           transition:all 0.2s; 
+                           cursor:pointer;" 
+                    onclick="event.stopPropagation(); window.deleteSubject('${s.id}', '${s.name}')"
+                    onmouseover="this.style.opacity='1'; this.style.transform='scale(1.2)';"
+                    onmouseout="this.style.opacity='0.5'; this.style.transform='scale(1);"></i>` : ''}
         </div>
-    `).join('');
+    `;
+    }).join('');
     lucide.createIcons();
 };
 
@@ -1010,12 +1039,47 @@ window.execCreateSubject = async () => {
  * 3. LOGIQUE DES MESSAGES
  */
 window.loadChatMessages = async () => {
+    const container = document.getElementById('chat-messages-container');
+    if (!container) return;
+    
+    // Indicateur de chargement élégant
+    container.innerHTML = `
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; gap:15px;">
+            <div style="width:40px; height:40px; border:3px solid rgba(197,160,89,0.2); border-top-color:var(--gold); border-radius:50%; animation:spin 1s linear infinite;"></div>
+            <p style="color:var(--text-muted); font-size:0.9rem;">Chargement des messages...</p>
+        </div>
+        <style>
+            @keyframes spin {
+                to { transform: rotate(360deg); }
+            }
+        </style>
+    `;
+    
     const { data, error } = await supabaseClient.from('chat_global')
         .select('*').eq('subject', currentChatSubject).order('created_at', { ascending: true });
     
-    if (error) return;
-    const container = document.getElementById('chat-messages-container');
-    if (!container) return;
+    if (error) {
+        container.innerHTML = `
+            <div style="text-align:center; padding:40px; color:var(--text-muted);">
+                <i data-lucide="alert-circle" style="width:48px; height:48px; margin-bottom:15px; opacity:0.5;"></i>
+                <p>Erreur lors du chargement des messages</p>
+            </div>
+        `;
+        return;
+    }
+    
+    if (!data || data.length === 0) {
+        container.innerHTML = `
+            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; gap:15px; opacity:0.6;">
+                <i data-lucide="message-circle" style="width:64px; height:64px; color:var(--gold);"></i>
+                <p style="color:var(--text-muted); font-size:1rem; font-weight:600;">Aucun message pour le moment</p>
+                <p style="color:var(--text-muted); font-size:0.85rem;">Soyez le premier à écrire dans ce canal !</p>
+            </div>
+        `;
+        lucide.createIcons();
+        return;
+    }
+    
     container.innerHTML = data.map(msg => renderSingleMessage(msg)).join('');
     container.scrollTop = container.scrollHeight;
     lucide.createIcons();
@@ -1026,23 +1090,83 @@ function renderSingleMessage(msg) {
     const isMentioned = msg.content.includes(`@${currentUser.last_name}`);
     const date = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const portalIcon = LOGOS[msg.portal] || 'logo_alsatia.png';
+    
+    // Initiales pour l'avatar
+    const initials = msg.author_full_name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+    
+    // Couleur de l'avatar basée sur le portail
+    const avatarColors = {
+        'Institut Alsatia': '#c5a059',
+        'Academia Alsatia': '#6366f1',
+        'Cours Herrade de Landsberg': '#ec4899',
+        'Collège Saints Louis et Zélie Martin': '#10b981'
+    };
+    const avatarColor = avatarColors[msg.portal] || '#64748b';
 
     return `
-        <div class="message-wrapper ${isMe ? 'my-wrapper' : ''}">
-            <div class="msg-header" style="display:flex; align-items:center; gap:5px; font-size:0.7rem; color:var(--text-muted); margin-bottom:2px;">
-                <img src="${portalIcon}" style="width:14px; height:14px; object-fit:contain;">
-                <span style="font-weight:700;">${msg.author_full_name}</span> • <span>${date}</span>
-            </div>
-            <div class="message ${isMe ? 'my-msg' : ''} ${isMentioned ? 'mentioned-luxe' : ''}" id="msg-${msg.id}" style="position:relative;">
-                ${msg.content.replace(/@([\w\sàéèêîïôûù]+)/g, '<span class="mention-badge">@$1</span>')}
-                ${msg.file_url ? `<div style="margin-top:8px; border-top:1px solid rgba(255,255,255,0.2); padding-top:5px;"><a href="${msg.file_url}" target="_blank" style="color:var(--gold); font-size:0.8rem; text-decoration:none;">📎 Document joint</a></div>` : ''}
+        <div class="message-wrapper ${isMe ? 'my-wrapper' : ''}" style="display:flex; gap:12px; margin-bottom:20px; align-items:flex-start; ${isMe ? 'flex-direction:row-reverse;' : ''} animation: slideIn 0.3s ease-out;">
+            ${!isMe ? `
+                <div style="width:40px; height:40px; border-radius:50%; background:${avatarColor}; display:flex; align-items:center; justify-content:center; color:white; font-weight:700; font-size:0.85rem; flex-shrink:0; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    ${initials}
+                </div>
+            ` : ''}
+            
+            <div style="max-width:70%; ${isMe ? 'text-align:right;' : ''}">
+                ${!isMe ? `
+                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:5px;">
+                        <img src="${portalIcon}" style="width:16px; height:16px; object-fit:contain;">
+                        <span style="font-weight:700; font-size:0.85rem; color:var(--text-main);">${msg.author_full_name}</span>
+                        <span style="font-size:0.75rem; color:var(--text-muted);">${date}</span>
+                    </div>
+                ` : `
+                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:5px; justify-content:flex-end;">
+                        <span style="font-size:0.75rem; color:var(--text-muted);">${date}</span>
+                    </div>
+                `}
                 
-                <div class="msg-actions">
-                    <span onclick="window.reactToMessage('${msg.id}', '👍')">👍</span>
-                    <span onclick="window.reactToMessage('${msg.id}', '❤️')">❤️</span>
-                    ${isMe ? `<i data-lucide="trash-2" onclick="window.deleteMessage('${msg.id}')" style="width:12px; color:var(--danger); margin-left:8px;"></i>` : ''}
+                <div class="message ${isMe ? 'my-msg' : ''} ${isMentioned ? 'mentioned-luxe' : ''}" id="msg-${msg.id}" 
+                     style="position:relative; padding:14px 18px; border-radius:${isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px'}; 
+                            background:${isMe ? 'linear-gradient(135deg, var(--primary) 0%, #1e293b 100%)' : isMentioned ? 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)' : 'white'}; 
+                            color:${isMe ? 'white' : 'var(--text-main)'}; 
+                            box-shadow: 0 2px 12px rgba(0,0,0,${isMe ? '0.15' : '0.08'}); 
+                            border:${isMentioned && !isMe ? '2px solid var(--gold)' : 'none'};
+                            line-height:1.6;
+                            word-wrap: break-word;">
+                    ${msg.content.replace(/@([\w\sàéèêîïôûù]+)/g, `<span class="mention-badge" style="background:${isMe ? 'rgba(197,160,89,0.3)' : 'rgba(197,160,89,0.15)'}; color:${isMe ? '#fbbf24' : 'var(--gold)'}; padding:2px 6px; border-radius:4px; font-weight:700;">@$1</span>`)}
+                    
+                    ${msg.file_url ? `
+                        <div style="margin-top:12px; padding-top:12px; border-top:1px solid ${isMe ? 'rgba(255,255,255,0.2)' : 'var(--border)'};">
+                            <a href="${msg.file_url}" target="_blank" 
+                               style="color:${isMe ? '#fbbf24' : 'var(--gold)'}; 
+                                      text-decoration:none; 
+                                      font-size:0.85rem; 
+                                      font-weight:600; 
+                                      display:inline-flex; 
+                                      align-items:center; 
+                                      gap:6px;
+                                      transition: transform 0.2s;"
+                               onmouseover="this.style.transform='translateX(3px)'" 
+                               onmouseout="this.style.transform='translateX(0)'">
+                                <i data-lucide="paperclip" style="width:14px; height:14px;"></i>
+                                Document joint
+                            </a>
+                        </div>
+                    ` : ''}
+                    
+                    <div class="msg-actions" style="position:absolute; top:-12px; ${isMe ? 'left:10px;' : 'right:10px;'} display:flex; gap:6px; background:white; padding:4px 10px; border-radius:20px; box-shadow:0 2px 8px rgba(0,0,0,0.1); opacity:0; transition:0.2s;">
+                        <span onclick="window.reactToMessage('${msg.id}', '👍')" style="cursor:pointer; font-size:1.1rem; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.3)'" onmouseout="this.style.transform='scale(1)'">👍</span>
+                        <span onclick="window.reactToMessage('${msg.id}', '❤️')" style="cursor:pointer; font-size:1.1rem; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.3)'" onmouseout="this.style.transform='scale(1)'">❤️</span>
+                        <span onclick="window.reactToMessage('${msg.id}', '🎉')" style="cursor:pointer; font-size:1.1rem; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.3)'" onmouseout="this.style.transform='scale(1)'">🎉</span>
+                        ${isMe ? `<i data-lucide="trash-2" onclick="window.deleteMessage('${msg.id}')" style="width:14px; color:var(--danger); cursor:pointer; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'"></i>` : ''}
+                    </div>
                 </div>
             </div>
+            
+            ${isMe ? `
+                <div style="width:40px; height:40px; border-radius:50%; background:var(--gold); display:flex; align-items:center; justify-content:center; color:white; font-weight:700; font-size:0.85rem; flex-shrink:0; box-shadow: 0 2px 8px rgba(197,160,89,0.3);">
+                    ${initials}
+                </div>
+            ` : ''}
         </div>
     `;
 }
@@ -1050,9 +1174,34 @@ function renderSingleMessage(msg) {
 function appendSingleMessage(msg) {
     const container = document.getElementById('chat-messages-container');
     if (!container) return;
-    container.insertAdjacentHTML('beforeend', renderSingleMessage(msg));
+    
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = renderSingleMessage(msg);
+    tempDiv.firstChild.style.opacity = '0';
+    tempDiv.firstChild.style.transform = 'translateY(20px)';
+    
+    container.appendChild(tempDiv.firstChild);
     container.scrollTop = container.scrollHeight;
+    
+    // Animation d'apparition fluide
+    setTimeout(() => {
+        const lastMsg = container.lastElementChild;
+        if (lastMsg) {
+            lastMsg.style.transition = 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+            lastMsg.style.opacity = '1';
+            lastMsg.style.transform = 'translateY(0)';
+        }
+    }, 50);
+    
     lucide.createIcons();
+    
+    // Notification sonore discrète pour les nouveaux messages (sauf les siens)
+    if (msg.author_full_name !== `${currentUser.first_name} ${currentUser.last_name}`) {
+        // Son de notification léger (optionnel)
+        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYHGGS67emnURALT6Lf77BdGAU9kc/ywXIiBS9/y/DdjD4IFme57+ijUhAKTKHd67FeGgU8ktHtw3cmBi6AzvLaiTQGF2K48eylUxAKTJ/d7bdgGgU/k9HuwXMjBCx/zPHejj4HFme64OunVRILSZ3c67RfGQc/k9HuwHIkBC1+y/HejT0GFmi74OynUhAJTKHe67RgGQc/ktLux3QlBSx+zPLgkD0GFWe74eynVBELSZ7d7LNgGQc+ktPvxHMkBCt9y/Hej0AGF2i74O2oVBILSJ7e7LNhGwc+k9TwxnQlBSx8y/PhkUEGFWa64e2oVRIKSZ/e7LVgGQc+ktPvw3QlBCt8y/Ddjj0GF2m74O2nVBEKS57d7LRfGQc/k9Pvw3QmBSt8yO/ejT0HGWm84O6nVBEKS5/d7LReGAc/k9TwxHMkBCt7yO/djT4IHGq94O2oVREJS57e7LNgGAc+ktTwxHMlBCp7x+/ejj8JH2y84O+rVhIJSp7e7LNgGQc9ktTvw3QkBCp7x+/fi0AIH2284e+sWRQLSZ7f7rZjHAk9k9XwxHQlBCl6xu/ejD8JIm+74u+uWhYMSJ3f77RiGwk9lNbvw3YmBSh6xe7cizsIJHG64+6vWhYMSJ3g8LVjGgk8lNbvwnQmBSh5xe7djDsHJHG65O6wWxYLR53h8LRjGgk8lNfvwnUmBSd5xO3djDwHI3G65e6vWxYLSJ7h8bZkGwk7k9fvwXQlBSd4xO3di0AII3K65e6uWxYLSJ/h8bVjGgk7k9fvwHMlBSd4xOzdjj4II3G65e2vWhYKSJ/i8rZjGgk7kszvwHMjBSd3w+3ciz0JJHGz5u2vWRQJR5/j8rVhGQk5ktXwv3IlBCZ3wuzci0AIJHK05+2vWxUJRp7j8rViGQk5kdXwvnEkBCZ2wuvciz8JI3Kz5+2vWxUJRZ3j87RhGQk5kdTvv3IlBCZ2wuvcij4IJHOy5+yuWhQIRZ3j8rNfGAc4kdXvvnIkAyV1werciz4JJHO05+uuWhQIRZvj8rNfFwc4kNPvvXEkAyV0weraij4IJHSx5uuuWRQHRZrj8bJdFgY3j9Puu3AjAyR0wOralD0HJXS06euqWBQHQ5nk8bJcFQY3jtLtuG8iAyNzv+nYkD4HJXa16+qrVxMGQpjk8LJbFAU1jdDts28hAiJyvunXkD8HJ3az6+mpVxMFQZbj8LBaFAU0ks/ts28gAiByvenWjz8HKHW06+ioVRMFQJXi8K9ZEwQzj87ss24fASBwvujWkUAHKXe36+inVBIEP5Th8K5aEgQyjczssmwfAR9tvujVkUEHKne56+imUxEEPpPh8K5YEgQxjMvssWwdAR5svObUkEIHK3e76+imURIDP5Lg765YEQP=');
+        audio.volume = 0.15;
+        audio.play().catch(() => {});
+    }
 }
 
 /**
