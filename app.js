@@ -1132,14 +1132,14 @@ function renderSingleMessage(msg) {
     const avatarColor = avatarColors[msg.portal] || '#64748b';
 
     return `
-        <div class="message-wrapper ${isMe ? 'my-wrapper' : ''}" style="display:flex; gap:12px; margin-bottom:20px; align-items:flex-start; ${isMe ? 'flex-direction:row-reverse;' : ''} animation: slideIn 0.3s ease-out;">
+        <div class="message-wrapper ${isMe ? 'my-wrapper' : ''}" style="display:flex; gap:12px; margin-bottom:20px; align-items:flex-start; ${isMe ? 'flex-direction:row-reverse;' : ''} animation: slideIn 0.3s ease-out; width:100%;">
             ${!isMe ? `
                 <div style="width:40px; height:40px; border-radius:50%; background:${avatarColor}; display:flex; align-items:center; justify-content:center; color:white; font-weight:700; font-size:0.85rem; flex-shrink:0; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                     ${initials}
                 </div>
             ` : ''}
             
-            <div style="max-width:70%; ${isMe ? 'text-align:right;' : ''}">
+            <div style="${isMe ? 'text-align:right;' : ''} flex:1; min-width:0;">
                 ${!isMe ? `
                     <div style="display:flex; align-items:center; gap:8px; margin-bottom:5px;">
                         <img src="${portalIcon}" style="width:16px; height:16px; object-fit:contain;">
@@ -1153,13 +1153,18 @@ function renderSingleMessage(msg) {
                 `}
                 
                 <div class="message ${isMe ? 'my-msg' : ''} ${isMentioned ? 'mentioned-luxe' : ''}" id="msg-${msg.id}" 
-                     style="position:relative; padding:14px 18px; border-radius:${isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px'}; 
+                     style="position:relative; 
+                            padding:14px 18px; 
+                            border-radius:${isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px'}; 
                             background:${isMe ? 'linear-gradient(135deg, var(--primary) 0%, #1e293b 100%)' : isMentioned ? 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)' : 'white'}; 
                             color:${isMe ? 'white' : 'var(--text-main)'}; 
                             box-shadow: 0 2px 12px rgba(0,0,0,${isMe ? '0.15' : '0.08'}); 
                             border:${isMentioned && !isMe ? '2px solid var(--gold)' : 'none'};
                             line-height:1.6;
-                            word-wrap: break-word;">
+                            word-wrap: break-word;
+                            display:inline-block;
+                            max-width:100%;
+                            ${isMe ? 'margin-left:auto;' : ''}">
                     ${msg.content.replace(/@([\w\sàéèêîïôûù]+)/g, `<span class="mention-badge" style="background:${isMe ? 'rgba(197,160,89,0.3)' : 'rgba(197,160,89,0.15)'}; color:${isMe ? '#fbbf24' : 'var(--gold)'}; padding:2px 6px; border-radius:4px; font-weight:700;">@$1</span>`)}
                     
                     ${msg.file_url ? `
@@ -1185,7 +1190,7 @@ function renderSingleMessage(msg) {
                         <span onclick="window.reactToMessage('${msg.id}', '👍')" style="cursor:pointer; font-size:1.1rem; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.3)'" onmouseout="this.style.transform='scale(1)'">👍</span>
                         <span onclick="window.reactToMessage('${msg.id}', '❤️')" style="cursor:pointer; font-size:1.1rem; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.3)'" onmouseout="this.style.transform='scale(1)'">❤️</span>
                         <span onclick="window.reactToMessage('${msg.id}', '🎉')" style="cursor:pointer; font-size:1.1rem; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.3)'" onmouseout="this.style.transform='scale(1)'">🎉</span>
-                        ${isMe ? `<i data-lucide="trash-2" onclick="window.deleteMessage('${msg.id}')" style="width:14px; color:var(--danger); cursor:pointer; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'"></i>` : ''}
+                        ${isMe ? `<i data-lucide="trash-2" onclick="window.deleteMessage('${msg.id}')" style="width:14px; height:14px; color:var(--danger); cursor:pointer; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'"></i>` : ''}
                     </div>
                 </div>
             </div>
@@ -1250,14 +1255,21 @@ window.handleChatKeyUp = async (e) => {
         const query = input.value.split('@').pop().toLowerCase();
         box.style.display = 'block';
         
+        console.log('@ détecté, requête:', query);
+        
         // Charger tous les utilisateurs depuis la base de données
         if (!allUsersForMentions || allUsersForMentions.length === 0) {
-            const { data: users } = await supabaseClient.from('profiles').select('first_name, last_name, portal');
-            if (users) {
+            console.log('Chargement des utilisateurs...');
+            const { data: users, error } = await supabaseClient.from('profiles').select('first_name, last_name, portal');
+            if (users && !error) {
                 allUsersForMentions = users.map(u => ({
                     name: `${u.first_name} ${u.last_name}`,
                     portal: u.portal
                 }));
+                console.log('Utilisateurs chargés:', allUsersForMentions.length);
+            } else {
+                console.error('Erreur chargement utilisateurs:', error);
+                allUsersForMentions = [];
             }
         }
         
@@ -1273,7 +1285,11 @@ window.handleChatKeyUp = async (e) => {
         const userSuggestions = allUsersForMentions.map(u => u.name);
         const allSuggestions = [...entities, ...userSuggestions];
         
+        console.log('Total suggestions:', allSuggestions.length);
+        
         const filtered = allSuggestions.filter(s => s.toLowerCase().includes(query));
+        
+        console.log('Suggestions filtrées:', filtered.length);
         
         if (filtered.length === 0) {
             box.innerHTML = '<div style="padding:10px; color:var(--text-muted); font-size:0.85rem; text-align:center;">Aucune suggestion</div>';
