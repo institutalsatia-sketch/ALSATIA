@@ -925,18 +925,19 @@ let selectedChatFile = null;
  * 1. INITIALISATION & TEMPS RÉEL
  */
 window.subscribeToChat = () => {
-    supabaseClient
+    // On ferme l'ancien canal s'il existe pour éviter les doublons
+    if (window.chatChannel) window.chatChannel.unsubscribe();
+
+    window.chatChannel = supabaseClient
         .channel('chat-realtime')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_global' }, payload => {
             if (payload.eventType === 'INSERT') {
                 if (payload.new.subject === currentChatSubject) {
                     appendSingleMessage(payload.new);
-                } else {
-                    // Si on est sur un autre canal, on pourrait notifier ici
-                    console.log("Nouveau message dans : " + payload.new.subject);
                 }
             } else if (payload.eventType === 'UPDATE' || payload.eventType === 'DELETE') {
-                window.loadChatMessages(); // Rafraîchissement automatique pour réactions/suppressions
+                // Rafraîchissement complet pour les réactions et suppressions
+                window.loadChatMessages();
             }
         })
         .subscribe();
@@ -952,7 +953,6 @@ window.loadChatSubjects = async () => {
     const container = document.getElementById('chat-subjects-list');
     if (!container) return;
 
-    // Filtrage par entité : Institut voit tout, les autres voient Général + leur entité
     const filtered = subjects.filter(s => {
         if (currentUser.portal === 'Institut Alsatia') return true;
         return !s.entity || s.entity === currentUser.portal;
@@ -972,7 +972,8 @@ window.loadChatSubjects = async () => {
 
 window.switchChatSubject = (subjectName) => {
     currentChatSubject = subjectName;
-    document.getElementById('chat-current-title').innerText = `# ${subjectName}`;
+    const titleEl = document.getElementById('chat-current-title');
+    if(titleEl) titleEl.innerText = `# ${subjectName}`;
     window.loadChatSubjects(); 
     window.loadChatMessages();
 };
@@ -1015,6 +1016,7 @@ window.loadChatMessages = async () => {
     
     if (error) return;
     const container = document.getElementById('chat-messages-container');
+    if (!container) return;
     container.innerHTML = data.map(msg => renderSingleMessage(msg)).join('');
     container.scrollTop = container.scrollHeight;
     lucide.createIcons();
@@ -1033,7 +1035,7 @@ function renderSingleMessage(msg) {
                 <span style="font-weight:700;">${msg.author_full_name}</span> • <span>${date}</span>
             </div>
             <div class="message ${isMe ? 'my-msg' : ''} ${isMentioned ? 'mentioned-luxe' : ''}" id="msg-${msg.id}" style="position:relative;">
-                ${msg.content.replace(/@(\w+)/g, '<span class="mention-badge">@$1</span>')}
+                ${msg.content.replace(/@([\w\sàéèêîïôûù]+)/g, '<span class="mention-badge">@$1</span>')}
                 ${msg.file_url ? `<div style="margin-top:8px; border-top:1px solid rgba(255,255,255,0.2); padding-top:5px;"><a href="${msg.file_url}" target="_blank" style="color:var(--gold); font-size:0.8rem; text-decoration:none;">📎 Document joint</a></div>` : ''}
                 
                 <div class="msg-actions">
@@ -1048,6 +1050,7 @@ function renderSingleMessage(msg) {
 
 function appendSingleMessage(msg) {
     const container = document.getElementById('chat-messages-container');
+    if (!container) return;
     container.insertAdjacentHTML('beforeend', renderSingleMessage(msg));
     container.scrollTop = container.scrollHeight;
     lucide.createIcons();
@@ -1063,12 +1066,20 @@ window.handleChatKeyUp = (e) => {
     if (input.value.includes('@')) {
         const query = input.value.split('@').pop().toLowerCase();
         box.style.display = 'block';
-        // Liste simulée des entités et utilisateurs
-        const suggestions = ['Molin', 'Zeller', 'Academia', 'Herrade', 'Institut', 'Martin'];
+        
+        // Liste des entités et noms en ENTIER
+        const suggestions = [
+            'Institut Alsatia', 
+            'Academia Alsatia', 
+            'Cours Herrade de Landsberg', 
+            'Collège Saints Louis et Zélie Martin',
+            'Molin', 'Zeller'
+        ];
+        
         const filtered = suggestions.filter(s => s.toLowerCase().includes(query));
         
         box.innerHTML = filtered.map(s => `
-            <div class="suggest-item" onclick="window.insertMention('${s}')" style="padding:10px; cursor:pointer;">@${s}</div>
+            <div class="suggest-item" onclick="window.insertMention('${s}')" style="padding:10px; cursor:pointer; border-bottom:1px solid #eee;">@${s}</div>
         `).join('');
     } else {
         box.style.display = 'none';
@@ -1145,10 +1156,9 @@ window.deleteSubject = (id, name) => {
 };
 
 window.reactToMessage = async (messageId, emoji) => {
-    // 1. On récupère le message actuel
     const { data: msg } = await supabaseClient.from('chat_global').select('content').eq('id', messageId).single();
-    
-    // 2. On ajoute l'emoji à la fin du texte (façon simple et efficace)
+    if (!msg) return;
+
     const newContent = msg.content + " " + emoji;
     
     const { error } = await supabaseClient
@@ -1157,5 +1167,4 @@ window.reactToMessage = async (messageId, emoji) => {
         .eq('id', messageId);
 
     if (error) console.error("Erreur réaction:", error);
-    // Le Realtime s'occupe de rafraîchir l'affichage pour tout le monde
 };
