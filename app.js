@@ -925,21 +925,47 @@ let currentChatSubject = 'Général';
  */
 window.subscribeToChat = () => {
     // On ferme l'ancien canal s'il existe pour éviter les doublons
-    if (window.chatChannel) window.chatChannel.unsubscribe();
+    if (window.chatChannel) {
+        window.chatChannel.unsubscribe();
+    }
 
     window.chatChannel = supabaseClient
-        .channel('chat-realtime')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_global' }, payload => {
-            if (payload.eventType === 'INSERT') {
-                if (payload.new.subject === currentChatSubject) {
+        .channel('chat-realtime-' + Date.now())
+        .on('postgres_changes', 
+            { event: 'INSERT', schema: 'public', table: 'chat_global' }, 
+            payload => {
+                console.log('Nouveau message reçu:', payload);
+                if (payload.new && payload.new.subject === currentChatSubject) {
                     appendSingleMessage(payload.new);
                 }
-            } else if (payload.eventType === 'UPDATE' || payload.eventType === 'DELETE') {
-                // Rafraîchissement complet pour les réactions et suppressions
+            }
+        )
+        .on('postgres_changes', 
+            { event: 'UPDATE', schema: 'public', table: 'chat_global' }, 
+            payload => {
+                console.log('Message modifié:', payload);
                 window.loadChatMessages();
             }
-        })
-        .subscribe();
+        )
+        .on('postgres_changes', 
+            { event: 'DELETE', schema: 'public', table: 'chat_global' }, 
+            payload => {
+                console.log('Message supprimé:', payload);
+                const msgEl = document.querySelector(`#msg-${payload.old.id}`);
+                if (msgEl) {
+                    const wrapper = msgEl.closest('.message-wrapper');
+                    if (wrapper) {
+                        wrapper.style.transition = 'all 0.3s ease';
+                        wrapper.style.opacity = '0';
+                        wrapper.style.transform = 'translateX(20px)';
+                        setTimeout(() => wrapper.remove(), 300);
+                    }
+                }
+            }
+        )
+        .subscribe((status) => {
+            console.log('Chat subscription status:', status);
+        });
 };
 
 /**
@@ -1175,6 +1201,12 @@ function appendSingleMessage(msg) {
     const container = document.getElementById('chat-messages-container');
     if (!container) return;
     
+    // Vérifier si le message existe déjà (éviter les doublons)
+    if (document.getElementById(`msg-${msg.id}`)) {
+        console.log('Message déjà affiché, ignoré:', msg.id);
+        return;
+    }
+    
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = renderSingleMessage(msg);
     tempDiv.firstChild.style.opacity = '0';
@@ -1207,7 +1239,7 @@ function appendSingleMessage(msg) {
 /**
  * 4. MENTIONS & ENVOI
  */
-window.handleChatKeyUp = (e) => {
+window.handleChatKeyUp = async (e) => {
     const input = e.target;
     const box = document.getElementById('mention-box');
 
@@ -1215,20 +1247,57 @@ window.handleChatKeyUp = (e) => {
         const query = input.value.split('@').pop().toLowerCase();
         box.style.display = 'block';
         
-        // Liste des entités et noms en ENTIER
-        const suggestions = [
+        // Charger tous les utilisateurs depuis la base de données
+        if (!allUsersForMentions || allUsersForMentions.length === 0) {
+            const { data: users } = await supabaseClient.from('profiles').select('first_name, last_name, portal');
+            if (users) {
+                allUsersForMentions = users.map(u => ({
+                    name: `${u.first_name} ${u.last_name}`,
+                    portal: u.portal
+                }));
+            }
+        }
+        
+        // Liste des entités
+        const entities = [
             'Institut Alsatia', 
             'Academia Alsatia', 
             'Cours Herrade de Landsberg', 
-            'Collège Saints Louis et Zélie Martin',
-            'Molin', 'Zeller'
+            'Collège Saints Louis et Zélie Martin'
         ];
         
-        const filtered = suggestions.filter(s => s.toLowerCase().includes(query));
+        // Combiner utilisateurs et entités
+        const userSuggestions = allUsersForMentions.map(u => u.name);
+        const allSuggestions = [...entities, ...userSuggestions];
         
-        box.innerHTML = filtered.map(s => `
-            <div class="suggest-item" onclick="window.insertMention('${s}')" style="padding:10px; cursor:pointer; border-bottom:1px solid #eee;">@${s}</div>
-        `).join('');
+        const filtered = allSuggestions.filter(s => s.toLowerCase().includes(query));
+        
+        if (filtered.length === 0) {
+            box.innerHTML = '<div style="padding:10px; color:var(--text-muted); font-size:0.85rem; text-align:center;">Aucune suggestion</div>';
+        } else {
+            box.innerHTML = filtered.slice(0, 8).map(s => {
+                const isEntity = entities.includes(s);
+                return `
+                    <div class="suggest-item" 
+                         onclick="window.insertMention('${s.replace(/'/g, "\\'")}')" 
+                         style="padding:12px 15px; 
+                                cursor:pointer; 
+                                border-bottom:1px solid #f1f5f9; 
+                                transition:all 0.2s;
+                                display:flex;
+                                align-items:center;
+                                gap:10px;"
+                         onmouseover="this.style.background='#fdfaf3'; this.style.borderLeftColor='var(--gold)';"
+                         onmouseout="this.style.background='white'; this.style.borderLeftColor='transparent';">
+                        <div style="width:6px; height:6px; border-radius:50%; background:${isEntity ? 'var(--gold)' : '#64748b'};"></div>
+                        <div style="flex:1;">
+                            <div style="font-weight:600; color:var(--text-main);">@${s}</div>
+                            ${isEntity ? '<div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">Entité</div>' : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
     } else {
         box.style.display = 'none';
     }
@@ -1274,14 +1343,19 @@ window.sendChatMessage = async () => {
         }
     }
 
-    await supabaseClient.from('chat_global').insert([{
+    const { data, error } = await supabaseClient.from('chat_global').insert([{
         content,
         author_full_name: `${currentUser.first_name} ${currentUser.last_name}`,
         author_last_name: currentUser.last_name,
         portal: currentUser.portal,
         subject: currentChatSubject,
         file_url: fileUrl
-    }]);
+    }]).select().single();
+
+    // Affichage optimiste : ajouter le message immédiatement
+    if (!error && data) {
+        appendSingleMessage(data);
+    }
 
     input.value = '';
     window.clearChatFile();
