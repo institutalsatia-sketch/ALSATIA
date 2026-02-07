@@ -201,8 +201,29 @@ function initInterface() {
     const portalDisplay = document.getElementById('current-portal-display');
     if(portalDisplay) portalDisplay.innerText = portal;
 
+    // Couleurs de dégradé selon l'entité
+    const gradients = {
+        'Institut Alsatia': 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+        'Academia Alsatia': 'linear-gradient(135deg, #4338ca 0%, #312e81 100%)',
+        'Cours Herrade de Landsberg': 'linear-gradient(135deg, #db2777 0%, #9f1239 100%)',
+        'Collège Saints Louis et Zélie Martin': 'linear-gradient(135deg, #059669 0%, #065f46 100%)'
+    };
+    
+    const bigLogoContainer = document.getElementById('big-logo-container');
+    if(bigLogoContainer) {
+        bigLogoContainer.style.background = gradients[portal] || gradients['Institut Alsatia'];
+    }
+
     const bigLogo = document.getElementById('big-logo-display');
-    if(bigLogo) bigLogo.innerHTML = `<img src="${logoSrc}" style="width:250px; filter:drop-shadow(0 20px 30px rgba(0,0,0,0.15));">`;
+    if(bigLogo) {
+        bigLogo.innerHTML = `
+            <img src="${logoSrc}" 
+                 style="width:250px; 
+                        max-width:80vw;
+                        filter:drop-shadow(0 20px 40px rgba(0,0,0,0.3)); 
+                        animation:fadeInScale 0.6s ease-out;">
+        `;
+    }
     
     const welcomeName = document.getElementById('welcome-full-name');
     if(welcomeName) welcomeName.innerText = `${currentUser.first_name} ${currentUser.last_name}`;
@@ -215,7 +236,72 @@ function initInterface() {
         navDonors.style.display = (portal === "Institut Alsatia") ? "flex" : "none";
     }
 
+    // Charger les statistiques
+    loadHomeStats();
+
     if(window.lucide) lucide.createIcons();
+}
+
+// Fonction pour charger les statistiques de la page d'accueil
+async function loadHomeStats() {
+    // Compter les donateurs
+    const { data: donors } = await supabaseClient.from('donors').select('id', { count: 'exact' });
+    const donorsCount = donors ? donors.length : 0;
+    const donorsEl = document.getElementById('stat-donors-count');
+    if(donorsEl) donorsEl.innerText = donorsCount;
+
+    // Compter les événements
+    const { data: events } = await supabaseClient.from('events').select('id', { count: 'exact' });
+    const eventsCount = events ? events.length : 0;
+    const eventsEl = document.getElementById('stat-events-count');
+    if(eventsEl) eventsEl.innerText = eventsCount;
+
+    // Compter les messages totaux et non lus
+    const { data: allMessages } = await supabaseClient.from('chat_global').select('*');
+    const messagesCount = allMessages ? allMessages.length : 0;
+    const messagesEl = document.getElementById('stat-messages-count');
+    if(messagesEl) messagesEl.innerText = messagesCount;
+
+    // Calculer les messages non lus (messages créés après la dernière connexion)
+    const lastLogin = localStorage.getItem('alsatia_last_login');
+    const lastLoginDate = lastLogin ? new Date(lastLogin) : new Date(0);
+    
+    const unreadMessages = allMessages ? allMessages.filter(msg => {
+        const msgDate = new Date(msg.created_at);
+        return msgDate > lastLoginDate && msg.author_full_name !== `${currentUser.first_name} ${currentUser.last_name}`;
+    }) : [];
+
+    const unreadCount = unreadMessages.length;
+
+    // Afficher le badge si messages non lus
+    if(unreadCount > 0) {
+        const unreadBadge = document.getElementById('unread-badge-stat');
+        if(unreadBadge) {
+            unreadBadge.innerText = unreadCount;
+            unreadBadge.style.display = 'block';
+        }
+
+        const unreadAlert = document.getElementById('unread-messages-alert');
+        if(unreadAlert) {
+            unreadAlert.style.display = 'block';
+            const unreadText = document.getElementById('unread-count-text');
+            if(unreadText) {
+                unreadText.innerText = `${unreadCount} message${unreadCount > 1 ? 's' : ''} non lu${unreadCount > 1 ? 's' : ''}`;
+            }
+        }
+
+        // Badge sur l'onglet Discussion dans le menu
+        const chatTab = document.querySelector('[onclick*="chat"]');
+        if(chatTab && !chatTab.querySelector('.menu-badge')) {
+            chatTab.style.position = 'relative';
+            chatTab.insertAdjacentHTML('beforeend', `
+                <span class="menu-badge" style="position:absolute; top:8px; right:8px; background:#ef4444; color:white; font-size:0.7rem; padding:2px 6px; border-radius:10px; font-weight:700; min-width:18px; text-align:center;">${unreadCount}</span>
+            `);
+        }
+    }
+
+    // Sauvegarder la date de connexion actuelle
+    localStorage.setItem('alsatia_last_login', new Date().toISOString());
 }
 
 // ==========================================
