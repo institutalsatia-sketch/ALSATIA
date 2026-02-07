@@ -617,10 +617,10 @@ window.askConfirmation = (title, message, onConfirm) => {
 };
 
 // ==========================================
-// GESTION DES ÉVÉNEMENTS - SYSTÈME COMPLET
+// GESTION DES ÉVÉNEMENTS - SYSTÈME COMPLET & RÉSEAUX
 // ==========================================
 
-// 1. DASHBOARD : LISTE GLOBALE
+// 1. DASHBOARD : LISTE GLOBALE AVEC INDICATEUR DE STATUT
 async function loadEvents() {
     const { data, error } = await supabaseClient
         .from('events')
@@ -636,7 +636,8 @@ async function loadEvents() {
     }
 
     container.innerHTML = data.map(ev => {
-        const isReady = ev.event_time && ev.location && ev.description && ev.description.length > 10;
+        // Un événement est prêt si marqué "Complet" OU si les 3 champs clés sont remplis
+        const isReady = ev.status === 'Complet' || (ev.event_time && ev.location && ev.description && ev.description.length > 10);
         return `
             <div class="event-card" onclick="window.openEventDetails('${ev.id}')" 
                  style="background:white; border-radius:12px; border:1px solid #e2e8f0; border-left: 6px solid ${isReady ? '#22c55e' : '#f59e0b'}; cursor:pointer; padding:15px; transition:all 0.3s ease;">
@@ -687,6 +688,7 @@ window.execCreateEvent = async () => {
 
     const { error } = await supabaseClient.from('events').insert([{
         title, event_date, entity,
+        status: 'En cours',
         created_by: `${currentUser.first_name} ${currentUser.last_name}`
     }]);
 
@@ -695,12 +697,12 @@ window.execCreateEvent = async () => {
     loadEvents();
 };
 
-// 3. DOSSIER LOGISTIQUE & GALERIE (ÉTAPE 2 & 3)
+// 3. DOSSIER LOGISTIQUE & ACTIONS RÉSEAUX (ÉTAPE 2 & 3)
 window.openEventDetails = async (id) => {
     const { data: ev } = await supabaseClient.from('events').select('*').eq('id', id).single();
     if(!ev) return;
 
-    const isReady = ev.event_time && ev.location && ev.description && ev.description.length > 5;
+    const isReady = ev.status === 'Complet' || (ev.event_time && ev.location && ev.description);
 
     showCustomModal(`
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
@@ -718,7 +720,7 @@ window.openEventDetails = async (id) => {
                 <textarea class="luxe-input" style="height:100px; margin-top:10px;" placeholder="Texte réseaux..." onblur="window.updateEventField('${ev.id}', 'description', this.value)">${ev.description || ''}</textarea>
                 
                 <div style="margin-top:20px; padding:15px; background:#f8fafc; border-radius:12px; border:1px dashed #cbd5e1;">
-                    <p class="mini-label">DOCUMENTS & PHOTOS</p>
+                    <p class="mini-label">PHOTOS DE L'ÉVÉNEMENT (events_media)</p>
                     <div id="event-gallery" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin:15px 0; max-height:200px; overflow-y:auto;"></div>
                     <input type="file" id="ev-upload-multi" style="display:none;" multiple onchange="window.uploadMultipleMedia('${ev.id}', this.files)">
                     <button onclick="document.getElementById('ev-upload-multi').click()" class="btn-gold" style="width:100%; font-size:0.75rem;">+ AJOUTER FICHIERS</button>
@@ -727,15 +729,29 @@ window.openEventDetails = async (id) => {
 
             <div style="background:#f8fafc; padding:20px; border-radius:12px; border:1px solid #e2e8f0; align-self: start;">
                 <p class="mini-label" style="color:var(--primary); font-weight:800;">2. ACTIONS RÉSEAUX</p>
-                ${!isReady ? `<p style="font-size:0.7rem; color:#9a3412; background:#fff7ed; padding:10px; border-radius:8px; margin:10px 0;">⚠️ Dossier incomplet.</p>` : ''}
-                <button onclick="window.copyToClipboard('${(ev.description || "").replace(/'/g, "\\'")}')" class="btn-gold" style="width:100%; background:#22c55e; border:none; margin-bottom:10px; height:45px;">COPIER LE TEXTE</button>
-                <button onclick="window.downloadAllMedia('${ev.id}')" class="btn-gold" style="width:100%; background:#1e293b; border:none; height:45px;">TOUT TÉLÉCHARGER</button>
+                
+                ${!isReady ? `
+                    <div id="alert-incomplete" style="background:#fff7ed; border:1px solid #ffedd5; padding:12px; border-radius:8px; margin:15px 0; position:relative; display:flex; gap:10px; align-items:center;">
+                        <i data-lucide="alert-circle" style="color:#f59e0b; width:20px;"></i>
+                        <p style="font-size:0.7rem; color:#9a3412; margin:0; padding-right:20px;"><b>Dossier incomplet.</b><br>Vérifiez l'heure, le lieu et le texte.</p>
+                        <button onclick="document.getElementById('alert-incomplete').style.display='none'" style="position:absolute; top:5px; right:5px; background:none; border:none; cursor:pointer; color:#9a3412; font-size:1.2rem;">&times;</button>
+                    </div>
+                ` : `<p style="font-size:0.75rem; color:#166534; margin:15px 0;">✨ Dossier complet.</p>`}
+
+                <button onclick="window.copyToClipboard('${(ev.description || "").replace(/'/g, "\\'")}')" class="btn-gold" style="width:100%; background:#22c55e; border:none; margin-bottom:10px; height:45px; font-weight:bold;">COPIER LE TEXTE</button>
+                <button onclick="window.downloadAllMedia('${ev.id}')" class="btn-gold" style="width:100%; background:#1e293b; border:none; margin-bottom:10px; height:45px; font-weight:bold;">TOUT TÉLÉCHARGER</button>
+                
+                <button onclick="window.toggleEventStatus('${ev.id}', '${ev.status}')" class="btn-gold" style="width:100%; background:white; color:${ev.status === 'Complet' ? '#ef4444' : '#22c55e'}; border:1px solid ${ev.status === 'Complet' ? '#ef4444' : '#22c55e'}; height:40px; font-size:0.7rem;">
+                    <i data-lucide="${ev.status === 'Complet' ? 'rotate-ccw' : 'check-circle'}" style="width:14px; margin-right:8px; vertical-align:middle;"></i>
+                    ${ev.status === 'Complet' ? 'REPASSER EN COURS' : 'MARQUER COMME TERMINÉ'}
+                </button>
             </div>
         </div>
         <div style="margin-top:20px; text-align:right;">
              <button onclick="window.askDeleteEvent('${ev.id}', '${ev.title.replace(/'/g, "\\'")}')" style="color:#ef4444; background:none; border:none; font-size:0.65rem; cursor:pointer;">SUPPRIMER L'ÉVÉNEMENT</button>
         </div>
     `);
+    lucide.createIcons();
     window.refreshGallery(id);
 };
 
@@ -746,7 +762,6 @@ window.uploadMultipleMedia = async (eventId, files) => {
         const path = `events_media/${eventId}/${Date.now()}_${file.name}`;
         await supabaseClient.storage.from('documents').upload(path, file);
     }
-    window.showNotice("Succès", "Fichiers envoyés.");
     window.refreshGallery(eventId);
 };
 
@@ -762,8 +777,8 @@ window.refreshGallery = async (eventId) => {
         const { data: { publicUrl } } = supabaseClient.storage.from('documents').getPublicUrl(`events_media/${eventId}/${file.name}`);
         const isImg = file.name.match(/\.(jpg|jpeg|png|gif|webp)$/i);
         return `
-            <div style="position:relative; aspect-ratio:1; border-radius:8px; overflow:hidden; border:1px solid #e2e8f0;">
-                ${isImg ? `<img src="${publicUrl}" style="width:100%; height:100%; object-fit:cover;">` : `<div style="display:flex; align-items:center; justify-content:center; height:100%; font-size:0.5rem;">DOC</div>`}
+            <div style="position:relative; aspect-ratio:1; border-radius:8px; overflow:hidden; border:1px solid #e2e8f0; background:#f8fafc;">
+                ${isImg ? `<img src="${publicUrl}" style="width:100%; height:100%; object-fit:cover;">` : `<div style="display:flex; align-items:center; justify-content:center; height:100%; font-size:0.5rem; text-align:center;">DOC</div>`}
                 <button onclick="window.deleteMedia('${eventId}', '${file.name}')" style="position:absolute; top:2px; right:2px; background:#ef4444; color:white; border:none; border-radius:50%; width:18px; height:18px; cursor:pointer; font-size:10px;">&times;</button>
             </div>
         `;
@@ -785,14 +800,23 @@ window.downloadAllMedia = async (eventId) => {
     });
 };
 
-// 5. MISES À JOUR
+// 5. MISES À JOUR & ACTIONS
+window.toggleEventStatus = async (id, currentStatus) => {
+    const newStatus = currentStatus === 'Complet' ? 'En cours' : 'Complet';
+    await supabaseClient.from('events').update({ status: newStatus }).eq('id', id);
+    window.showNotice("Statut", `Événement marqué comme : ${newStatus}`);
+    closeCustomModal();
+    loadEvents();
+};
+
 window.updateEventField = async (id, field, value) => {
     await supabaseClient.from('events').update({ [field]: value }).eq('id', id);
     loadEvents();
 };
 
 window.copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text).then(() => window.showNotice("Copié !", "Texte prêt."));
+    if(!text) return window.showNotice("Vide", "Aucun texte à copier.");
+    navigator.clipboard.writeText(text).then(() => window.showNotice("Copié !", "Texte prêt pour les réseaux."));
 };
 
 window.askDeleteEvent = (id, title) => {
