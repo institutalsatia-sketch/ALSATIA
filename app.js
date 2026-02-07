@@ -201,26 +201,13 @@ function initInterface() {
     const portalDisplay = document.getElementById('current-portal-display');
     if(portalDisplay) portalDisplay.innerText = portal;
 
-    // Couleurs de dégradé selon l'entité
-    const gradients = {
-        'Institut Alsatia': 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
-        'Academia Alsatia': 'linear-gradient(135deg, #4338ca 0%, #312e81 100%)',
-        'Cours Herrade de Landsberg': 'linear-gradient(135deg, #db2777 0%, #9f1239 100%)',
-        'Collège Saints Louis et Zélie Martin': 'linear-gradient(135deg, #059669 0%, #065f46 100%)'
-    };
-
-    const bigLogoContainer = document.getElementById('big-logo-container');
-    if(bigLogoContainer) {
-        bigLogoContainer.style.background = gradients[portal] || gradients['Institut Alsatia'];
-    }
-
     const bigLogo = document.getElementById('big-logo-display');
     if(bigLogo) {
         bigLogo.innerHTML = `
             <img src="${logoSrc}" 
                  style="width:220px; 
                         max-width:70vw;
-                        filter:drop-shadow(0 10px 25px rgba(255,255,255,0.1)); 
+                        filter:drop-shadow(0 10px 25px rgba(0,0,0,0.15)); 
                         animation:fadeInScale 0.6s ease-out;">
         `;
     }
@@ -244,12 +231,6 @@ function initInterface() {
 
 // Fonction pour charger les statistiques de la page d'accueil
 async function loadHomeStats() {
-    // Compter les donateurs
-    const { data: donors } = await supabaseClient.from('donors').select('id', { count: 'exact' });
-    const donorsCount = donors ? donors.length : 0;
-    const donorsEl = document.getElementById('stat-donors-count');
-    if(donorsEl) donorsEl.innerText = donorsCount;
-
     // Compter les événements
     const { data: events } = await supabaseClient.from('events').select('id', { count: 'exact' });
     const eventsCount = events ? events.length : 0;
