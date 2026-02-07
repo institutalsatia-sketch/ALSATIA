@@ -17,35 +17,7 @@ const LOGOS = {
     "Academia Alsatia": "academia.png"
 };
 
-/**
- * OVERRIDE GLOBAL ALSATIA - VERSION SÉCURISÉE
- */
 
-// On sauvegarde la fonction native une seule fois pour pouvoir l'utiliser sans boucler
-const _nativeAlert = window.alert;
-
-window.alert = function(message) {
-    // Si showNotice est dispo, on l'utilise
-    if (typeof window.showNotice === 'function') {
-        window.showNotice("Information", message);
-    } else {
-        // Sinon, on utilise la version native sauvegardée pour éviter la boucle infinie
-        _nativeAlert(message);
-    }
-};
-
-// On sauvegarde aussi le confirm natif
-const _nativeConfirm = window.confirm;
-window.confirm = function(message) {
-    // Le confirm natif bloque le script, le nôtre non. 
-    // On l'intercepte uniquement pour rediriger vers alsatiaConfirm quand c'est possible.
-    // Pour l'instant, on le laisse passer ou on le bloque selon tes besoins.
-    console.warn("Utilisation de confirm() détectée. Message :", message);
-    
-    // Si tu veux vraiment bannir la fenêtre grise, on retourne false, 
-    // mais il faut utiliser window.alsatiaConfirm dans ton code CRM.
-    return _nativeConfirm(message); 
-};
 // ==========================================
 // FONCTIONS GLOBALES (SÉCURITÉ ET INTERFACE)
 // ==========================================
