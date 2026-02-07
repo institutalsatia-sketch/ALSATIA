@@ -17,6 +17,36 @@ const LOGOS = {
     "Academia Alsatia": "academia.png"
 };
 
+// ==========================================
+// MOTEUR DE DIALOGUE DE LUXE (INDISPENSABLE)
+// ==========================================
+window.alsatiaConfirm = (title, text, callback, isDanger = false) => {
+    // Vérifie si la fonction showCustomModal existe pour éviter un autre crash
+    if (typeof showCustomModal !== 'function') {
+        console.error("Erreur : showCustomModal n'est pas définie dans votre script principal.");
+        return;
+    }
+
+    showCustomModal(`
+        <div class="confirm-box" style="text-align:center; padding:10px;">
+            <h3 class="luxe-title" style="${isDanger ? 'color:var(--danger)' : ''}; margin-bottom:15px;">${title}</h3>
+            <p style="margin-bottom:25px; color:var(--text-main); font-size:0.95rem;">${text}</p>
+            <div class="confirm-actions" style="display:flex; gap:12px; justify-content:center;">
+                <button onclick="closeCustomModal()" class="btn-gold" style="background:var(--border); color:var(--text-main); border:none; padding:10px 20px; border-radius:12px; cursor:pointer;">ANNULER</button>
+                <button id="modal-confirm-action" class="btn-gold" style="${isDanger ? 'background:var(--danger)' : ''}; border:none; padding:10px 20px; border-radius:12px; cursor:pointer; color:white;">CONFIRMER</button>
+            </div>
+        </div>
+    `);
+
+    // On lie l'action au bouton de confirmation
+    const confirmBtn = document.getElementById('modal-confirm-action');
+    if (confirmBtn) {
+        confirmBtn.onclick = () => {
+            callback();
+            closeCustomModal();
+        };
+    }
+};
 
 // ==========================================
 // FONCTIONS GLOBALES (SÉCURITÉ ET INTERFACE)
