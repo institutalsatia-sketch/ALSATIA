@@ -22,91 +22,99 @@
         <ul id="main-nav">
             <li id="nav-home" class="active" onclick="switchTab('home')"><i data-lucide="home"></i> Accueil</li>
             <li id="nav-donors" onclick="switchTab('donors')"><i data-lucide="users"></i> Base Donateurs</li>
+            <li id="nav-contacts" onclick="switchTab('contacts')"><i data-lucide="contact"></i> Contacts</li>
             <li id="nav-chat" onclick="switchTab('chat')"><i data-lucide="message-square"></i> Discussion</li>
-            <li id="nav-contacts" onclick="switchTab('contacts')"><i data-lucide="book-user"></i> Annuaire</li>
-            <li id="nav-campaigns" onclick="switchTab('campaigns')"><i data-lucide="megaphone"></i> Campagnes</li>
             <li id="nav-events" onclick="switchTab('events')"><i data-lucide="calendar"></i> Événements</li>
-            <li id="nav-profile" onclick="openProfileModal()"><i data-lucide="user-circle"></i> Mon Profil</li>
         </ul>
-        <div class="user-bottom">
-            <div class="user-info">
-                <i data-lucide="user"></i>
-                <span id="user-name-display">Utilisateur</span>
-            </div>
-            <button onclick="window.logout()" class="btn-logout"><i data-lucide="log-out"></i> Quitter</button>
+        <div class="nav-footer" onclick="logout()">
+            <i data-lucide="log-out"></i> Déconnexion
         </div>
     </nav>
 
     <main class="main-content">
         <section id="tab-home" class="page-content active">
-            <div class="welcome-container">
-                <div id="big-logo-display" class="fade-in-logo"></div>
-                <h1 class="welcome-title">
-                    Bienvenue, <br>
-                    <span id="welcome-full-name"></span>
-                </h1>
-                <div id="welcome-portal-label" class="welcome-portal-badge"></div>
+            <div class="welcome-card">
+                <div id="big-logo-display" style="margin-bottom:20px;"></div>
+                <h1 style="font-size: 2.5rem; font-weight: 800; letter-spacing: -1px;">Bienvenue, <span id="welcome-full-name">...</span></h1>
+                <p id="welcome-portal-label" style="opacity: 0.7; font-size: 1.1rem;"></p>
+                <div class="stats-mini-grid" style="margin-top:40px; display:flex; gap:20px; justify-content:center;">
+                    <div class="stat-bubble">
+                        <span class="stat-val" id="stat-donors-count">--</span>
+                        <span class="stat-lab">Donateurs</span>
+                    </div>
+                    <div class="stat-bubble">
+                        <span class="stat-val" id="stat-events-count">--</span>
+                        <span class="stat-lab">Événements</span>
+                    </div>
+                </div>
             </div>
         </section>
 
-        <div id="chat" class="page-content">
-            <div class="header-tab">
-                <h1>ESPACE COLLABORATIF</h1>
-                <div id="unread-global-badge" class="badge-error" style="display:none;">NOUVEAU</div>
-            </div>
-
-            <div style="display: grid; grid-template-columns: 280px 1fr; gap: 20px; height: calc(100vh - 250px);">
-                <div class="table-container" style="display: flex; flex-direction: column; padding: 15px; background: white;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                        <p class="mini-label">Sujets thématiques</p>
-                        <button onclick="window.promptCreateSubject()" class="btn-gold" style="padding: 4px 8px; font-size: 0.6rem;">+</button>
-                    </div>
-                    <div id="chat-subjects-list" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 5px;"></div>
-                </div>
-
-                <div class="chat-container">
-                    <div id="chat-header" style="padding: 15px 25px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: white;">
-                        <h3 id="chat-current-title" class="luxe-title" style="margin:0; font-size:1.1rem;"># Général</h3>
-                        <div id="subject-actions"></div>
-                    </div>
-                    
-                    <div id="chat-messages-container" class="chat-box"></div>
-
-                    <div class="input-wrapper" style="position:relative;">
-                        <div id="mention-box" class="mention-suggestions-box"></div>
-                        
-                        <label for="chat-file-input" style="cursor:pointer; color:var(--gold); padding: 10px;">
-                            <i data-lucide="paperclip"></i>
-                            <input type="file" id="chat-file-input" style="display:none" onchange="window.handleChatFile(this)">
-                        </label>
-                        
-                        <input type="text" id="chat-input" class="luxe-input" placeholder="Tapez votre message ou @ pour mentionner..." onkeyup="window.handleChatKeyUp(event)">
-                        
-                        <button onclick="window.sendChatMessage()" class="btn-gold">ENVOYER</button>
-                    </div>
-                    <div id="file-preview-bar" style="display:none; padding: 5px 20px; font-size: 0.7rem; color: var(--gold); background: #fff; border-top:1px solid #eee;">
-                        📎 <span id="file-name-preview"></span> <button onclick="window.clearChatFile()" style="border:none; background:none; color:red; cursor:pointer; font-weight:bold;">&times;</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <section id="tab-contacts" class="page-content">
-            <div class="header-tab"><h1>Annuaire Alsatia</h1></div>
-            <div id="contacts-list" class="grid-cards-container"></div>
+            <div class="header-tab">
+                <h1>Annuaire des Contacts</h1>
+                <div class="search-box">
+                    <i data-lucide="search"></i>
+                    <input type="text" id="contact-search" placeholder="Rechercher un contact..." onkeyup="filterContacts()">
+                </div>
+            </div>
+            <div class="table-container">
+                <table class="luxe-table">
+                    <thead>
+                        <tr><th>Nom</th><th>Prénom</th><th>Fonction</th><th>Entité</th><th style="text-align:right;">Action</th></tr>
+                    </thead>
+                    <tbody id="contacts-list"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="tab-chat" class="page-content luxe-chat-section">
+            <div class="chat-layout">
+                <div class="chat-sidebar">
+                    <div style="padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.05); display:flex; justify-content:space-between; align-items:center;">
+                        <h2 style="font-size:0.9rem; font-weight:800; color:var(--gold);">CANAUX</h2>
+                        <i data-lucide="plus-circle" class="btn-icon" onclick="window.promptCreateSubject()"></i>
+                    </div>
+                    <div id="chat-subjects-list" class="chat-channels"></div>
+                </div>
+
+                <div class="chat-main">
+                    <div class="chat-header">
+                        <span id="chat-current-title" style="font-weight:800; font-size:1.2rem;"># Général</span>
+                    </div>
+
+                    <div id="chat-messages-container" class="chat-messages"></div>
+
+                    <div id="file-preview-bar" class="file-preview-bar" style="display:none;">
+                        <span id="file-name-preview"></span>
+                        <i data-lucide="x" onclick="window.clearChatFile()" style="cursor:pointer; width:14px;"></i>
+                    </div>
+
+                    <div class="chat-input-area">
+                        <div id="mention-box" class="mention-suggestions"></div>
+                        <div class="input-wrapper">
+                            <label for="chat-file-input" class="attach-btn">
+                                <i data-lucide="paperclip"></i>
+                                <input type="file" id="chat-file-input" style="display:none;" onchange="window.handleChatFile(this)">
+                            </label>
+                            <input type="text" id="chat-input" placeholder="Écrivez votre message... (@ pour mentionner)" onkeyup="window.handleChatKeyUp(event)">
+                            <button onclick="window.sendChatMessage()" class="send-btn"><i data-lucide="send"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </section>
 
         <section id="tab-donors" class="page-content">
             <div class="header-tab">
-                <h1>Fichier Donateurs</h1>
-                <div class="header-actions" style="display: flex; gap: 10px; align-items: center;">
-                    <input type="number" id="export-year" class="luxe-input" placeholder="Année" style="width: 100px; margin: 0;">
-                    <button onclick="window.exportAllDonors()" class="btn-gold-green"><i data-lucide="download"></i> Excel Global</button>
-                    <button onclick="window.showAddDonorModal()" class="btn-gold"><i data-lucide="user-plus"></i> Nouveau</button>
+                <h1>Base Donateurs</h1>
+                <div style="display:flex; gap:10px;">
+                    <button onclick="window.exportToExcel()" class="btn-outline"><i data-lucide="download"></i> Excel</button>
+                    <button onclick="showAddDonorModal()" class="btn-gold"><i data-lucide="user-plus"></i> Nouveau</button>
                 </div>
             </div>
-            <div class="search-bar-box" style="display: flex; gap: 10px; margin-bottom: 20px;">
-                <input type="text" id="search-donor" placeholder="Rechercher un nom, une ville, une entreprise..." onkeyup="window.filterDonors()" class="luxe-input" style="flex: 2;">
+            <div class="filters-bar" style="display: flex; gap: 15px; margin-bottom: 20px;">
+                <input type="text" id="search-donor" class="luxe-input" placeholder="Nom, ville, entreprise..." onkeyup="window.filterDonors()" style="flex: 2;">
                 <select id="filter-entity" class="luxe-input" onchange="window.filterDonors()" style="flex: 1;">
                     <option value="ALL">Toutes les entités</option>
                     <option>Institut Alsatia</option>
