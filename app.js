@@ -1140,17 +1140,23 @@ function renderSingleMessage(msg) {
             ` : ''}
             
             <div style="${isMe ? 'text-align:right;' : ''} flex:1; min-width:0;">
-                ${!isMe ? `
-                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:5px;">
-                        <img src="${portalIcon}" style="width:16px; height:16px; object-fit:contain;">
-                        <span style="font-weight:700; font-size:0.85rem; color:var(--text-main);">${msg.author_full_name}</span>
-                        <span style="font-size:0.75rem; color:var(--text-muted);">${date}</span>
-                    </div>
-                ` : `
-                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:5px; justify-content:flex-end;">
-                        <span style="font-size:0.75rem; color:var(--text-muted);">${date}</span>
-                    </div>
-                `}
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:5px; ${isMe ? 'justify-content:flex-end;' : ''}">
+                    ${!isMe ? `<img src="${portalIcon}" style="width:16px; height:16px; object-fit:contain;">` : ''}
+                    <span style="font-weight:700; font-size:0.9rem; color:var(--text-main);">${msg.author_full_name}</span>
+                    <span style="font-size:0.75rem; color:var(--text-muted);">${date}</span>
+                    ${isMe ? `
+                        <i data-lucide="trash-2" 
+                           onclick="window.deleteMessage('${msg.id}')" 
+                           style="width:16px; 
+                                  height:16px; 
+                                  color:var(--danger); 
+                                  cursor:pointer; 
+                                  transition:all 0.2s;
+                                  opacity:0.7;" 
+                           onmouseover="this.style.opacity='1'; this.style.transform='scale(1.2)';" 
+                           onmouseout="this.style.opacity='0.7'; this.style.transform='scale(1)';"></i>
+                    ` : ''}
+                </div>
                 
                 <div class="message ${isMe ? 'my-msg' : ''} ${isMentioned ? 'mentioned-luxe' : ''}" id="msg-${msg.id}" 
                      style="position:relative; 
@@ -1186,11 +1192,13 @@ function renderSingleMessage(msg) {
                         </div>
                     ` : ''}
                     
-                    <div class="msg-actions" style="position:absolute; top:-12px; ${isMe ? 'left:10px;' : 'right:10px;'} display:flex; gap:6px; background:white; padding:4px 10px; border-radius:20px; box-shadow:0 2px 8px rgba(0,0,0,0.1); opacity:0; transition:0.2s;">
-                        <span onclick="window.reactToMessage('${msg.id}', '👍')" style="cursor:pointer; font-size:1.1rem; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.3)'" onmouseout="this.style.transform='scale(1)'">👍</span>
-                        <span onclick="window.reactToMessage('${msg.id}', '❤️')" style="cursor:pointer; font-size:1.1rem; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.3)'" onmouseout="this.style.transform='scale(1)'">❤️</span>
-                        <span onclick="window.reactToMessage('${msg.id}', '🎉')" style="cursor:pointer; font-size:1.1rem; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.3)'" onmouseout="this.style.transform='scale(1)'">🎉</span>
-                        ${isMe ? `<i data-lucide="trash-2" onclick="window.deleteMessage('${msg.id}')" style="width:14px; height:14px; color:var(--danger); cursor:pointer; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.2)'" onmouseout="this.style.transform='scale(1)'"></i>` : ''}
+                    <div class="msg-actions" style="position:absolute; top:-12px; ${isMe ? 'left:10px;' : 'right:10px;'} display:flex; gap:8px; background:white; padding:6px 12px; border-radius:20px; box-shadow:0 2px 8px rgba(0,0,0,0.12); opacity:0; transition:0.2s;">
+                        <span onclick="window.reactToMessage('${msg.id}', '👍')" style="cursor:pointer; font-size:1.15rem; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.4)'" onmouseout="this.style.transform='scale(1)'">👍</span>
+                        <span onclick="window.reactToMessage('${msg.id}', '❤️')" style="cursor:pointer; font-size:1.15rem; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.4)'" onmouseout="this.style.transform='scale(1)'">❤️</span>
+                        <span onclick="window.reactToMessage('${msg.id}', '😂')" style="cursor:pointer; font-size:1.15rem; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.4)'" onmouseout="this.style.transform='scale(1)'">😂</span>
+                        <span onclick="window.reactToMessage('${msg.id}', '🎉')" style="cursor:pointer; font-size:1.15rem; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.4)'" onmouseout="this.style.transform='scale(1)'">🎉</span>
+                        <span onclick="window.reactToMessage('${msg.id}', '🔥')" style="cursor:pointer; font-size:1.15rem; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.4)'" onmouseout="this.style.transform='scale(1)'">🔥</span>
+                        <span onclick="window.reactToMessage('${msg.id}', '👏')" style="cursor:pointer; font-size:1.15rem; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.4)'" onmouseout="this.style.transform='scale(1)'">👏</span>
                     </div>
                 </div>
             </div>
