@@ -908,3 +908,233 @@ window.askDeleteEvent = (id, title) => {
         supabaseClient.from('events').delete().eq('id', id).then(() => { closeCustomModal(); loadEvents(); });
     }
 };
+
+// ==========================================
+// MOTEUR DE DISCUSSION ALSATIA V2 - COMPLET
+// ==========================================
+
+let currentChatSubject = 'Général';
+let selectedChatFile = null;
+
+/**
+ * 1. INITIALISATION & TEMPS RÉEL
+ */
+window.subscribeToChat = () => {
+    supabaseClient
+        .channel('chat-realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_global' }, payload => {
+            if (payload.eventType === 'INSERT') {
+                if (payload.new.subject === currentChatSubject) {
+                    appendSingleMessage(payload.new);
+                } else {
+                    // Si on est sur un autre canal, on pourrait notifier ici
+                    console.log("Nouveau message dans : " + payload.new.subject);
+                }
+            } else if (payload.eventType === 'UPDATE' || payload.eventType === 'DELETE') {
+                window.loadChatMessages(); // Rafraîchissement automatique pour réactions/suppressions
+            }
+        })
+        .subscribe();
+};
+
+/**
+ * 2. GESTION DES SUJETS (DROITS & FILTRAGE)
+ */
+window.loadChatSubjects = async () => {
+    const { data: subjects, error } = await supabaseClient.from('chat_subjects').select('*').order('name');
+    if (error) return;
+
+    const container = document.getElementById('chat-subjects-list');
+    if (!container) return;
+
+    // Filtrage par entité : Institut voit tout, les autres voient Général + leur entité
+    const filtered = subjects.filter(s => {
+        if (currentUser.portal === 'Institut Alsatia') return true;
+        return !s.entity || s.entity === currentUser.portal;
+    });
+
+    container.innerHTML = filtered.map(s => `
+        <div class="suggest-item ${currentChatSubject === s.name ? 'active-chat-tab' : ''}" 
+             style="display:flex; justify-content:space-between; align-items:center; border-radius:8px; margin-bottom:2px; padding:10px; cursor:pointer;"
+             onclick="window.switchChatSubject('${s.name.replace(/'/g, "\\'")}')">
+            <span># ${s.name}</span>
+            ${(currentUser.portal === 'Institut Alsatia' || s.entity === currentUser.portal) ? 
+                `<i data-lucide="trash-2" style="width:12px; color:var(--danger); opacity:0.5;" onclick="event.stopPropagation(); window.deleteSubject('${s.id}', '${s.name}')"></i>` : ''}
+        </div>
+    `).join('');
+    lucide.createIcons();
+};
+
+window.switchChatSubject = (subjectName) => {
+    currentChatSubject = subjectName;
+    document.getElementById('chat-current-title').innerText = `# ${subjectName}`;
+    window.loadChatSubjects(); 
+    window.loadChatMessages();
+};
+
+window.promptCreateSubject = () => {
+    const isInstitut = currentUser.portal === 'Institut Alsatia';
+    showCustomModal(`
+        <h3 class="luxe-title">NOUVEAU CANAL</h3>
+        <p class="mini-label">NOM DU SUJET</p>
+        <input type="text" id="new-sub-name" class="luxe-input" placeholder="ex: Travaux Été">
+        <p class="mini-label" style="margin-top:15px;">AFFECTATION ÉCOLE</p>
+        <select id="new-sub-entity" class="luxe-input">
+            <option value="">Visible par tous (Général)</option>
+            <option value="Institut Alsatia" ${!isInstitut ? 'disabled' : ''}>Institut Alsatia Uniquement</option>
+            <option value="Academia Alsatia">Academia Alsatia</option>
+            <option value="Cours Herrade de Landsberg">Cours Herrade de Landsberg</option>
+            <option value="Collège Saints Louis et Zélie Martin">Collège Saints Louis et Zélie Martin</option>
+        </select>
+        <button onclick="window.execCreateSubject()" class="btn-gold" style="width:100%; margin-top:20px;">CRÉER LE SUJET</button>
+    `);
+};
+
+window.execCreateSubject = async () => {
+    const name = document.getElementById('new-sub-name').value.trim();
+    const entity = document.getElementById('new-sub-entity').value;
+    if(!name) return;
+
+    await supabaseClient.from('chat_subjects').insert([{ name, entity }]);
+    window.showNotice("Succès", "Canal de discussion créé.");
+    closeCustomModal();
+    window.loadChatSubjects();
+};
+
+/**
+ * 3. LOGIQUE DES MESSAGES
+ */
+window.loadChatMessages = async () => {
+    const { data, error } = await supabaseClient.from('chat_global')
+        .select('*').eq('subject', currentChatSubject).order('created_at', { ascending: true });
+    
+    if (error) return;
+    const container = document.getElementById('chat-messages-container');
+    container.innerHTML = data.map(msg => renderSingleMessage(msg)).join('');
+    container.scrollTop = container.scrollHeight;
+    lucide.createIcons();
+};
+
+function renderSingleMessage(msg) {
+    const isMe = msg.author_full_name === `${currentUser.first_name} ${currentUser.last_name}`;
+    const isMentioned = msg.content.includes(`@${currentUser.last_name}`);
+    const date = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const portalIcon = LOGOS[msg.portal] || 'logo_alsatia.png';
+
+    return `
+        <div class="message-wrapper ${isMe ? 'my-wrapper' : ''}">
+            <div class="msg-header" style="display:flex; align-items:center; gap:5px; font-size:0.7rem; color:var(--text-muted); margin-bottom:2px;">
+                <img src="${portalIcon}" style="width:14px; height:14px; object-fit:contain;">
+                <span style="font-weight:700;">${msg.author_full_name}</span> • <span>${date}</span>
+            </div>
+            <div class="message ${isMe ? 'my-msg' : ''} ${isMentioned ? 'mentioned-luxe' : ''}" id="msg-${msg.id}" style="position:relative;">
+                ${msg.content.replace(/@(\w+)/g, '<span class="mention-badge">@$1</span>')}
+                ${msg.file_url ? `<div style="margin-top:8px; border-top:1px solid rgba(255,255,255,0.2); padding-top:5px;"><a href="${msg.file_url}" target="_blank" style="color:var(--gold); font-size:0.8rem; text-decoration:none;">📎 Document joint</a></div>` : ''}
+                
+                <div class="msg-actions">
+                    <span onclick="window.reactToMessage('${msg.id}', '👍')">👍</span>
+                    <span onclick="window.reactToMessage('${msg.id}', '❤️')">❤️</span>
+                    ${isMe ? `<i data-lucide="trash-2" onclick="window.deleteMessage('${msg.id}')" style="width:12px; color:var(--danger); margin-left:8px;"></i>` : ''}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function appendSingleMessage(msg) {
+    const container = document.getElementById('chat-messages-container');
+    container.insertAdjacentHTML('beforeend', renderSingleMessage(msg));
+    container.scrollTop = container.scrollHeight;
+    lucide.createIcons();
+}
+
+/**
+ * 4. MENTIONS & ENVOI
+ */
+window.handleChatKeyUp = (e) => {
+    const input = e.target;
+    const box = document.getElementById('mention-box');
+
+    if (input.value.includes('@')) {
+        const query = input.value.split('@').pop().toLowerCase();
+        box.style.display = 'block';
+        // Liste simulée des entités et utilisateurs
+        const suggestions = ['Molin', 'Zeller', 'Academia', 'Herrade', 'Institut', 'Martin'];
+        const filtered = suggestions.filter(s => s.toLowerCase().includes(query));
+        
+        box.innerHTML = filtered.map(s => `
+            <div class="suggest-item" onclick="window.insertMention('${s}')" style="padding:10px; cursor:pointer;">@${s}</div>
+        `).join('');
+    } else {
+        box.style.display = 'none';
+    }
+    
+    if (e.key === 'Enter') window.sendChatMessage();
+};
+
+window.insertMention = (name) => {
+    const input = document.getElementById('chat-input');
+    const parts = input.value.split('@');
+    parts.pop();
+    input.value = parts.join('@') + '@' + name + ' ';
+    document.getElementById('mention-box').style.display = 'none';
+    input.focus();
+};
+
+window.handleChatFile = (input) => {
+    selectedChatFile = input.files[0];
+    if (selectedChatFile) {
+        document.getElementById('file-preview-bar').style.display = 'block';
+        document.getElementById('file-name-preview').innerText = selectedChatFile.name;
+    }
+};
+
+window.clearChatFile = () => {
+    selectedChatFile = null;
+    document.getElementById('chat-file-input').value = "";
+    document.getElementById('file-preview-bar').style.display = 'none';
+};
+
+window.sendChatMessage = async () => {
+    const input = document.getElementById('chat-input');
+    const content = input.value.trim();
+    if(!content && !selectedChatFile) return;
+
+    let fileUrl = null;
+    if (selectedChatFile) {
+        const filePath = `chat/${Date.now()}_${selectedChatFile.name}`;
+        const { error: uploadError } = await supabaseClient.storage.from('chat-attachments').upload(filePath, selectedChatFile);
+        if (!uploadError) {
+            const { data } = supabaseClient.storage.from('chat-attachments').getPublicUrl(filePath);
+            fileUrl = data.publicUrl;
+        }
+    }
+
+    await supabaseClient.from('chat_global').insert([{
+        content,
+        author_full_name: `${currentUser.first_name} ${currentUser.last_name}`,
+        author_last_name: currentUser.last_name,
+        portal: currentUser.portal,
+        subject: currentChatSubject,
+        file_url: fileUrl
+    }]);
+
+    input.value = '';
+    window.clearChatFile();
+};
+
+window.deleteMessage = (id) => {
+    window.alsatiaConfirm("SUPPRIMER", "Voulez-vous supprimer ce message ?", async () => {
+        await supabaseClient.from('chat_global').delete().eq('id', id);
+        window.showNotice("Effacé", "Message supprimé.");
+    }, true);
+};
+
+window.deleteSubject = (id, name) => {
+    window.alsatiaConfirm("SUPPRIMER CANAL", `Supprimer le sujet #${name} et tous ses messages ?`, async () => {
+        await supabaseClient.from('chat_global').delete().eq('subject', name);
+        await supabaseClient.from('chat_subjects').delete().eq('id', id);
+        window.loadChatSubjects();
+        window.switchChatSubject('Général');
+    }, true);
+};
