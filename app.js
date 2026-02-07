@@ -125,21 +125,28 @@ function initInterface() {
     const sideLogo = document.getElementById('entity-logo-container');
     if(sideLogo) sideLogo.innerHTML = `<img src="${logoSrc}" class="entity-logo">`;
     
-    document.getElementById('user-name-display').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
-    document.getElementById('current-portal-display').innerText = portal;
+    // On ajoute des protections "if" pour éviter l'erreur "null"
+    const nameDisplay = document.getElementById('user-name-display');
+    if(nameDisplay) nameDisplay.innerText = `${currentUser.first_name} ${currentUser.last_name}`;
+
+    const portalDisplay = document.getElementById('current-portal-display');
+    if(portalDisplay) portalDisplay.innerText = portal;
 
     const bigLogo = document.getElementById('big-logo-display');
     if(bigLogo) bigLogo.innerHTML = `<img src="${logoSrc}" style="width:250px; filter:drop-shadow(0 20px 30px rgba(0,0,0,0.15));">`;
     
-    document.getElementById('welcome-full-name').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
-    document.getElementById('welcome-portal-label').innerText = `Portail Officiel — ${portal}`;
+    const welcomeName = document.getElementById('welcome-full-name');
+    if(welcomeName) welcomeName.innerText = `${currentUser.first_name} ${currentUser.last_name}`;
+
+    const welcomePortal = document.getElementById('welcome-portal-label');
+    if(welcomePortal) welcomePortal.innerText = `Portail Officiel — ${portal}`;
 
     const navDonors = document.getElementById('nav-donors');
     if (navDonors) {
         navDonors.style.display = (portal === "Institut Alsatia") ? "flex" : "none";
     }
 
-    lucide.createIcons();
+    if(window.lucide) lucide.createIcons();
 }
 
 // ==========================================
