@@ -263,3 +263,27 @@ body {
 .blink-warning {
     animation: blink-red 2s infinite;
 }
+
+/* Style pour les boites de dialogue de confirmation */
+.confirm-box {
+    text-align: center;
+    padding: 10px;
+}
+
+.confirm-box h3 {
+    font-family: 'Playfair Display', serif;
+    color: var(--primary);
+    margin-bottom: 15px;
+}
+
+.confirm-box p {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    margin-bottom: 25px;
+}
+
+.confirm-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
