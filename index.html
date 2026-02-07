@@ -21,7 +21,7 @@
         </div>
         <ul id="main-nav">
             <li id="nav-home" class="active" onclick="switchTab('home')"><i data-lucide="home"></i> Accueil</li>
-            <li id="nav-donors" onclick="switchTab('donors'); loadDonors();"><i data-lucide="users"></i> Base Donateurs</li>
+            <li id="nav-donors" onclick="switchTab('donors')"><i data-lucide="users"></i> Base Donateurs</li>
             <li id="nav-chat" onclick="switchTab('chat')"><i data-lucide="message-square"></i> Discussion</li>
             <li id="nav-contacts" onclick="switchTab('contacts')"><i data-lucide="book-user"></i> Annuaire</li>
             <li id="nav-campaigns" onclick="switchTab('campaigns')"><i data-lucide="megaphone"></i> Campagnes</li>
@@ -50,48 +50,46 @@
         </section>
 
         <div id="chat" class="page-content">
-    <div class="header-tab">
-        <h1>ESPACE COLLABORATIF</h1>
-        <div id="unread-global-badge" class="badge-error" style="display:none;">NOUVEAU</div>
-    </div>
-
-    <div style="display: grid; grid-template-columns: 280px 1fr; gap: 20px; height: calc(100vh - 250px);">
-        <div class="table-container" style="display: flex; flex-direction: column; padding: 15px; background: white;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                <p class="mini-label">Sujets thématiques</p>
-                <button onclick="window.promptCreateSubject()" class="btn-gold" style="padding: 4px 8px; font-size: 0.6rem;">+</button>
+            <div class="header-tab">
+                <h1>ESPACE COLLABORATIF</h1>
+                <div id="unread-global-badge" class="badge-error" style="display:none;">NOUVEAU</div>
             </div>
-            <div id="chat-subjects-list" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 5px;">
-                </div>
-        </div>
 
-        <div class="chat-container">
-            <div id="chat-header" style="padding: 15px 25px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: white;">
-                <h3 id="chat-current-title" class="luxe-title" style="margin:0; font-size:1.1rem;"># Général</h3>
-                <div id="subject-actions"></div>
-            </div>
-            
-            <div id="chat-messages-container" class="chat-box">
+            <div style="display: grid; grid-template-columns: 280px 1fr; gap: 20px; height: calc(100vh - 250px);">
+                <div class="table-container" style="display: flex; flex-direction: column; padding: 15px; background: white;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                        <p class="mini-label">Sujets thématiques</p>
+                        <button onclick="window.promptCreateSubject()" class="btn-gold" style="padding: 4px 8px; font-size: 0.6rem;">+</button>
+                    </div>
+                    <div id="chat-subjects-list" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 5px;"></div>
                 </div>
 
-            <div class="input-wrapper" style="position:relative;">
-                <div id="mention-box" class="mention-suggestions-box"></div>
-                
-                <label for="chat-file-input" style="cursor:pointer; color:var(--gold); padding: 10px;">
-                    <i data-lucide="paperclip"></i>
-                    <input type="file" id="chat-file-input" style="display:none" onchange="window.handleChatFile(this)">
-                </label>
-                
-                <input type="text" id="chat-input" class="luxe-input" placeholder="Tapez votre message ou @ pour mentionner..." onkeyup="window.handleChatKeyUp(event)">
-                
-                <button onclick="window.sendChatMessage()" class="btn-gold">ENVOYER</button>
-            </div>
-            <div id="file-preview-bar" style="display:none; padding: 5px 20px; font-size: 0.7rem; color: var(--gold); background: #fff; border-top:1px solid #eee;">
-                📎 <span id="file-name-preview"></span> <button onclick="window.clearChatFile()" style="border:none; background:none; color:red; cursor:pointer; font-weight:bold;">&times;</button>
+                <div class="chat-container">
+                    <div id="chat-header" style="padding: 15px 25px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: white;">
+                        <h3 id="chat-current-title" class="luxe-title" style="margin:0; font-size:1.1rem;"># Général</h3>
+                        <div id="subject-actions"></div>
+                    </div>
+                    
+                    <div id="chat-messages-container" class="chat-box"></div>
+
+                    <div class="input-wrapper" style="position:relative;">
+                        <div id="mention-box" class="mention-suggestions-box"></div>
+                        
+                        <label for="chat-file-input" style="cursor:pointer; color:var(--gold); padding: 10px;">
+                            <i data-lucide="paperclip"></i>
+                            <input type="file" id="chat-file-input" style="display:none" onchange="window.handleChatFile(this)">
+                        </label>
+                        
+                        <input type="text" id="chat-input" class="luxe-input" placeholder="Tapez votre message ou @ pour mentionner..." onkeyup="window.handleChatKeyUp(event)">
+                        
+                        <button onclick="window.sendChatMessage()" class="btn-gold">ENVOYER</button>
+                    </div>
+                    <div id="file-preview-bar" style="display:none; padding: 5px 20px; font-size: 0.7rem; color: var(--gold); background: #fff; border-top:1px solid #eee;">
+                        📎 <span id="file-name-preview"></span> <button onclick="window.clearChatFile()" style="border:none; background:none; color:red; cursor:pointer; font-weight:bold;">&times;</button>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
-</div>
 
         <section id="tab-contacts" class="page-content">
             <div class="header-tab"><h1>Annuaire Alsatia</h1></div>
