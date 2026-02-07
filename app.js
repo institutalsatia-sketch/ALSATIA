@@ -116,7 +116,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Services Messagerie (Ajoutés pour la nouvelle version)
     await loadUsersForMentions();
-    setupMentionLogic();
     subscribeToChat();
 });
 
@@ -147,30 +146,30 @@ function initInterface() {
 // ==========================================
 // GESTION DE LA NAVIGATION (ONGLETS)
 // ==========================================
-window.switchTab = (id) => {
-    document.querySelectorAll('.side-nav li').forEach(li => li.classList.remove('active'));
-    const activeNav = document.getElementById(`nav-${id}`);
-    if (activeNav) activeNav.classList.add('active');
+window.switchTab = (tabId) => { // <-- Assure-toi que tabId est bien ici
+    console.log("Changement d'onglet vers :", tabId);
 
-    document.querySelectorAll('.page-content').forEach(section => section.classList.remove('active'));
-    const targetSection = document.getElementById(`tab-${id}`);
-    if (targetSection) {
-        targetSection.classList.add('active');
-        targetSection.scrollTop = 0; 
-    }
+    // 1. Gère l'affichage visuel des onglets
+    document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.side-nav li').forEach(l => l.classList.remove('active'));
 
-    if (id === 'contacts') loadContacts();
-    if (id === 'chat') loadChatMessages();
-    if (id === 'donors') loadDonors();
-    if (id === 'events') loadEvents();
+    const targetPage = document.getElementById(tabId);
+    if (targetPage) targetPage.classList.add('active');
+    
+    // On cherche l'élément de menu correspondant pour mettre l'icône en doré
+    const menuIcon = document.querySelector(`li[onclick*="${tabId}"]`);
+    if (menuIcon) menuIcon.classList.add('active');
 
-    lucide.createIcons();
-
+    // 2. CHARGEMENT DES DONNÉES SPÉCIFIQUES
+    if (tabId === 'donors') loadDonors();
+    if (tabId === 'events') loadEvents();
+    
+    // Activation de la Messagerie que nous venons de créer
     if (tabId === 'chat') {
-    window.loadChatSubjects();
-    window.loadChatMessages();
-    window.subscribeToChat(); // Crucial pour le temps réel
-}
+        window.loadChatSubjects();
+        window.loadChatMessages();
+        window.subscribeToChat();
+    }
 };
 
 // ==========================================
@@ -1143,4 +1142,20 @@ window.deleteSubject = (id, name) => {
         window.loadChatSubjects();
         window.switchChatSubject('Général');
     }, true);
+};
+
+window.reactToMessage = async (messageId, emoji) => {
+    // 1. On récupère le message actuel
+    const { data: msg } = await supabaseClient.from('chat_global').select('content').eq('id', messageId).single();
+    
+    // 2. On ajoute l'emoji à la fin du texte (façon simple et efficace)
+    const newContent = msg.content + " " + emoji;
+    
+    const { error } = await supabaseClient
+        .from('chat_global')
+        .update({ content: newContent })
+        .eq('id', messageId);
+
+    if (error) console.error("Erreur réaction:", error);
+    // Le Realtime s'occupe de rafraîchir l'affichage pour tout le monde
 };
