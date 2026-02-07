@@ -919,7 +919,6 @@ window.askDeleteEvent = (id, title) => {
 // ==========================================
 
 let currentChatSubject = 'Général';
-let selectedChatFile = null;
 
 /**
  * 1. INITIALISATION & TEMPS RÉEL
