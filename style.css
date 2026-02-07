@@ -342,7 +342,7 @@ body {
     scroll-behavior: smooth;
 }
 
-.message:hover .msg-actions {
+.message-wrapper:hover .msg-actions {
     opacity: 1 !important;
 }
 
