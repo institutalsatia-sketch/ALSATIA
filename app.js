@@ -59,8 +59,17 @@ window.logout = () => {
 };
 
 window.closeCustomModal = () => { 
-    const modal = document.getElementById('custom-modal');
-    if(modal) modal.style.display = 'none'; 
+    const m = document.getElementById('custom-modal');
+    if (m) {
+        // Animation de fermeture
+        m.style.opacity = '0';
+        const card = m.querySelector('.modal-card');
+        if (card) card.style.transform = 'scale(0.9)';
+        
+        setTimeout(() => {
+            m.style.display = 'none';
+        }, 300);
+    }
 };
 
 // Fonction critique pour éviter les injections et bugs d'affichage dans le chat
@@ -72,8 +81,48 @@ function escapeHTML(str) {
 }
 
 // Fonction pour centraliser l'affichage des notifications
-window.showNotice = (title, message) => {
-    alert(`${title}\n${message}`); 
+window.showNotice = (title, message, type = 'info') => {
+    // Créer une notification élégante au lieu d'un alert natif
+    const colors = {
+        info: { bg: '#eff6ff', border: '#3b82f6', icon: 'info' },
+        success: { bg: '#f0fdf4', border: '#22c55e', icon: 'check-circle' },
+        error: { bg: '#fef2f2', border: '#ef4444', icon: 'alert-circle' },
+        warning: { bg: '#fffbeb', border: '#f59e0b', icon: 'alert-triangle' }
+    };
+    
+    const color = colors[type] || colors.info;
+    
+    const toastId = 'toast-' + Date.now();
+    const toastHTML = `
+        <div id="${toastId}" style="position:fixed; top:20px; right:20px; z-index:100000; background:${color.bg}; border:2px solid ${color.border}; border-radius:12px; padding:16px 20px; box-shadow:0 4px 20px rgba(0,0,0,0.15); display:flex; align-items:center; gap:12px; min-width:300px; max-width:500px; animation:slideInRight 0.3s ease;">
+            <i data-lucide="${color.icon}" style="width:24px; height:24px; color:${color.border}; flex-shrink:0;"></i>
+            <div style="flex:1;">
+                <div style="font-weight:700; font-size:0.95rem; color:#1f2937; margin-bottom:4px;">${title}</div>
+                <div style="font-size:0.85rem; color:#6b7280;">${message}</div>
+            </div>
+            <i data-lucide="x" onclick="document.getElementById('${toastId}').remove()" style="width:18px; height:18px; cursor:pointer; color:#9ca3af; flex-shrink:0;"></i>
+        </div>
+        <style>
+            @keyframes slideInRight {
+                from { transform: translateX(400px); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+        </style>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', toastHTML);
+    if (window.lucide) lucide.createIcons();
+    
+    // Auto-suppression après 5 secondes
+    setTimeout(() => {
+        const toast = document.getElementById(toastId);
+        if (toast) {
+            toast.style.transition = 'all 0.3s ease';
+            toast.style.opacity = '0';
+            toast.style.transform = 'translateX(400px)';
+            setTimeout(() => toast.remove(), 300);
+        }
+    }, 5000);
 };
 
 // Helper pour l'affichage des Modals Luxe
@@ -82,7 +131,31 @@ function showCustomModal(html) {
     const b = document.getElementById('modal-body');
     if(m && b) { 
         b.innerHTML = html; 
-        m.style.display = 'flex'; 
+        m.style.display = 'flex';
+        
+        // Animation d'apparition
+        setTimeout(() => {
+            m.style.opacity = '1';
+            const card = m.querySelector('.modal-card');
+            if (card) card.style.transform = 'scale(1)';
+        }, 10);
+        
+        // Fermer avec ESC
+        const closeOnEsc = (e) => {
+            if (e.key === 'Escape') {
+                window.closeCustomModal();
+                document.removeEventListener('keydown', closeOnEsc);
+            }
+        };
+        document.addEventListener('keydown', closeOnEsc);
+        
+        // Fermer en cliquant sur l'overlay (pas sur la carte)
+        m.onclick = (e) => {
+            if (e.target === m) {
+                window.closeCustomModal();
+            }
+        };
+        
         if(window.lucide) lucide.createIcons();
     }
 }
@@ -862,10 +935,11 @@ window.refreshGallery = async (eventId) => {
 };
 
 window.deleteMedia = async (eventId, fileName) => {
-    if(confirm("Supprimer ce fichier ?")) {
+    window.alsatiaConfirm("SUPPRIMER LE FICHIER", "Voulez-vous vraiment supprimer ce fichier ?", async () => {
         await supabaseClient.storage.from('documents').remove([`events_media/${eventId}/${fileName}`]);
         window.refreshGallery(eventId);
-    }
+        window.showNotice("Supprimé", "Fichier supprimé avec succès.", "success");
+    }, true);
 };
 
 window.downloadAllMedia = async (eventId) => {
@@ -911,9 +985,13 @@ window.copyToClipboard = (text) => {
 };
 
 window.askDeleteEvent = (id, title) => {
-    if(confirm(`Supprimer "${title}" ?`)) {
-        supabaseClient.from('events').delete().eq('id', id).then(() => { closeCustomModal(); loadEvents(); });
-    }
+    window.alsatiaConfirm("SUPPRIMER L'ÉVÉNEMENT", `Voulez-vous vraiment supprimer "${title}" ?`, () => {
+        supabaseClient.from('events').delete().eq('id', id).then(() => { 
+            closeCustomModal(); 
+            loadEvents(); 
+            window.showNotice("Supprimé", "Événement supprimé avec succès.", "success");
+        });
+    }, true);
 };
 
 // ==========================================
