@@ -165,6 +165,12 @@ window.switchTab = (id) => {
     if (id === 'events') loadEvents();
 
     lucide.createIcons();
+
+    if (tabId === 'chat') {
+    window.loadChatSubjects();
+    window.loadChatMessages();
+    window.subscribeToChat(); // Crucial pour le temps réel
+}
 };
 
 // ==========================================
