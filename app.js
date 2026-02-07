@@ -1202,24 +1202,51 @@ function renderSingleMessage(msg, isReply = false) {
                             ${isMe ? 'margin-left:auto;' : ''}">
                     ${msg.content.replace(/@([\w\sàéèêîïôûù]+)/g, `<span class="mention-badge" style="background:${isMe ? 'rgba(197,160,89,0.3)' : 'rgba(197,160,89,0.15)'}; color:${isMe ? '#fbbf24' : 'var(--gold)'}; padding:2px 6px; border-radius:4px; font-weight:700;">@$1</span>`)}
                     
-                    ${msg.file_url ? `
-                        <div style="margin-top:12px; padding-top:12px; border-top:1px solid ${isMe ? 'rgba(255,255,255,0.2)' : 'var(--border)'};">
-                            <a href="${msg.file_url}" target="_blank" 
-                               style="color:${isMe ? '#fbbf24' : 'var(--gold)'}; 
-                                      text-decoration:none; 
-                                      font-size:0.85rem; 
-                                      font-weight:600; 
-                                      display:inline-flex; 
-                                      align-items:center; 
-                                      gap:6px;
-                                      transition: transform 0.2s;"
-                               onmouseover="this.style.transform='translateX(3px)'" 
-                               onmouseout="this.style.transform='translateX(0)'">
-                                <i data-lucide="paperclip" style="width:14px; height:14px;"></i>
-                                Document joint
-                            </a>
-                        </div>
-                    ` : ''}
+                    ${msg.file_url ? (() => {
+                        const fileName = msg.file_url.split('/').pop();
+                        const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName);
+                        const isPDF = /\.pdf$/i.test(fileName);
+                        
+                        if (isImage) {
+                            return `
+                                <div style="margin-top:12px; padding-top:12px; border-top:1px solid ${isMe ? 'rgba(255,255,255,0.2)' : 'var(--border)'};">
+                                    <a href="${msg.file_url}" target="_blank">
+                                        <img src="${msg.file_url}" 
+                                             style="max-width:100%; 
+                                                    max-height:300px; 
+                                                    border-radius:12px; 
+                                                    cursor:pointer;
+                                                    box-shadow:0 2px 8px rgba(0,0,0,0.15);
+                                                    transition:transform 0.2s;"
+                                             onmouseover="this.style.transform='scale(1.02)'"
+                                             onmouseout="this.style.transform='scale(1)'">
+                                    </a>
+                                </div>
+                            `;
+                        } else {
+                            return `
+                                <div style="margin-top:12px; padding-top:12px; border-top:1px solid ${isMe ? 'rgba(255,255,255,0.2)' : 'var(--border)'};">
+                                    <a href="${msg.file_url}" target="_blank" 
+                                       style="color:${isMe ? '#fbbf24' : 'var(--gold)'}; 
+                                              text-decoration:none; 
+                                              font-size:0.85rem; 
+                                              font-weight:600; 
+                                              display:inline-flex; 
+                                              align-items:center; 
+                                              gap:6px;
+                                              padding:8px 12px;
+                                              background:${isMe ? 'rgba(255,255,255,0.1)' : 'rgba(197,160,89,0.1)'};
+                                              border-radius:8px;
+                                              transition: all 0.2s;"
+                                       onmouseover="this.style.transform='translateX(3px)'; this.style.background='${isMe ? 'rgba(255,255,255,0.15)' : 'rgba(197,160,89,0.15)'}'" 
+                                       onmouseout="this.style.transform='translateX(0)'; this.style.background='${isMe ? 'rgba(255,255,255,0.1)' : 'rgba(197,160,89,0.1)'}'">
+                                        <i data-lucide="${isPDF ? 'file-text' : 'paperclip'}" style="width:16px; height:16px;"></i>
+                                        ${fileName.length > 30 ? fileName.substring(0, 30) + '...' : fileName}
+                                    </a>
+                                </div>
+                            `;
+                        }
+                    })() : ''}
                 </div>
                 
                 ${!isReply ? `
@@ -1444,18 +1471,32 @@ window.sendChatMessage = async () => {
         }
     }
 
-    const { data, error } = await supabaseClient.from('chat_global').insert([{
-        content: content,  // Pas de modification du contenu
+    // Préparer les données du message
+    const messageData = {
+        content: content,
         author_full_name: `${currentUser.first_name} ${currentUser.last_name}`,
         author_last_name: currentUser.last_name,
         portal: currentUser.portal,
         subject: currentChatSubject,
-        file_url: fileUrl,
-        reply_to: replyingTo ? replyingTo.id : null  // Sauvegarder l'ID du message parent
-    }]).select().single();
+        file_url: fileUrl
+    };
+
+    // Ajouter reply_to seulement si on répond à un message
+    // (La colonne reply_to doit exister dans Supabase)
+    if (replyingTo) {
+        messageData.reply_to = replyingTo.id;
+    }
+
+    const { data, error } = await supabaseClient.from('chat_global').insert([messageData]).select().single();
+
+    if (error) {
+        console.error('Erreur lors de l\'envoi du message:', error);
+        window.showNotice('Erreur', 'Impossible d\'envoyer le message. Vérifiez que la colonne reply_to existe dans Supabase.', 'error');
+        return;
+    }
 
     // Affichage optimiste : ajouter le message immédiatement
-    if (!error && data) {
+    if (data) {
         appendSingleMessage(data);
     }
 
@@ -1466,8 +1507,28 @@ window.sendChatMessage = async () => {
 
 window.deleteMessage = (id) => {
     window.alsatiaConfirm("SUPPRIMER", "Voulez-vous supprimer ce message ?", async () => {
-        await supabaseClient.from('chat_global').delete().eq('id', id);
-        window.showNotice("Effacé", "Message supprimé.");
+        // Supprimer visuellement IMMÉDIATEMENT
+        const msgWrapper = document.querySelector(`[data-msg-id="${id}"]`);
+        if (msgWrapper) {
+            msgWrapper.style.transition = 'all 0.3s ease';
+            msgWrapper.style.opacity = '0';
+            msgWrapper.style.transform = 'translateX(-20px)';
+            setTimeout(() => {
+                msgWrapper.remove();
+            }, 300);
+        }
+        
+        // Supprimer dans la base de données
+        const { error } = await supabaseClient.from('chat_global').delete().eq('id', id);
+        
+        if (error) {
+            console.error('Erreur suppression:', error);
+            window.showNotice("Erreur", "Impossible de supprimer le message.", "error");
+            // Recharger les messages en cas d'erreur
+            window.loadChatMessages();
+        } else {
+            window.showNotice("Effacé", "Message supprimé.");
+        }
     }, true);
 };
 
