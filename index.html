@@ -25,6 +25,7 @@
             <li id="nav-contacts" onclick="switchTab('contacts')"><i data-lucide="contact"></i> Contacts</li>
             <li id="nav-chat" onclick="switchTab('chat')"><i data-lucide="message-square"></i> Discussion</li>
             <li id="nav-events" onclick="switchTab('events')"><i data-lucide="calendar"></i> Événements</li>
+            <li id="nav-account" onclick="switchTab('account')"><i data-lucide="user-circle"></i> Mon Compte</li>
         </ul>
         <div class="nav-footer" onclick="logout()">
             <i data-lucide="log-out"></i> Déconnexion
@@ -153,6 +154,98 @@
                     </thead>
                     <tbody id="donors-list"></tbody>
                 </table>
+            </div>
+        </section>
+
+        <section id="tab-account" class="page-content">
+            <div class="header-tab">
+                <h1>Mon Compte</h1>
+            </div>
+            
+            <div style="max-width: 600px; margin: 0 auto;">
+                <!-- Informations non modifiables -->
+                <div style="background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); padding: 30px; border-radius: 20px; margin-bottom: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+                    <p class="mini-label" style="color: #64748b; margin-bottom: 15px;">INFORMATIONS DU COMPTE</p>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                        <div>
+                            <p style="font-size: 0.75rem; color: #64748b; margin-bottom: 5px;">PRÉNOM</p>
+                            <input type="text" id="account-first-name" class="luxe-input" disabled style="background: #f1f5f9; cursor: not-allowed;">
+                        </div>
+                        <div>
+                            <p style="font-size: 0.75rem; color: #64748b; margin-bottom: 5px;">NOM</p>
+                            <input type="text" id="account-last-name" class="luxe-input" disabled style="background: #f1f5f9; cursor: not-allowed;">
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <p style="font-size: 0.75rem; color: #64748b; margin-bottom: 5px;">ENTITÉ</p>
+                        <input type="text" id="account-portal" class="luxe-input" disabled style="background: #f1f5f9; cursor: not-allowed;">
+                    </div>
+                </div>
+
+                <!-- Informations modifiables -->
+                <div style="background: white; padding: 30px; border-radius: 20px; margin-bottom: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 2px solid var(--border);">
+                    <p class="mini-label" style="margin-bottom: 20px;">INFORMATIONS PERSONNELLES</p>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <p style="font-size: 0.75rem; color: #64748b; margin-bottom: 5px;">EMAIL</p>
+                        <input type="email" id="account-email" class="luxe-input" placeholder="exemple@domaine.fr">
+                    </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <p style="font-size: 0.75rem; color: #64748b; margin-bottom: 5px;">TÉLÉPHONE</p>
+                        <input type="tel" id="account-phone" class="luxe-input" placeholder="06 12 34 56 78">
+                    </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <p style="font-size: 0.75rem; color: #64748b; margin-bottom: 5px;">FONCTION</p>
+                        <input type="text" id="account-job-title" class="luxe-input" placeholder="Directeur, Enseignant, etc.">
+                    </div>
+                </div>
+
+                <!-- Changement de PIN -->
+                <div style="background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); padding: 30px; border-radius: 20px; margin-bottom: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 2px solid #fbbf24;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+                        <i data-lucide="lock" style="width: 24px; height: 24px; color: #f59e0b;"></i>
+                        <p class="mini-label" style="color: #92400e; margin: 0;">MODIFIER LE CODE PIN</p>
+                    </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <p style="font-size: 0.75rem; color: #92400e; margin-bottom: 5px;">ANCIEN CODE PIN</p>
+                        <div style="position: relative;">
+                            <input type="password" id="account-old-pin" class="luxe-input" placeholder="••••" maxlength="4" style="padding-right: 45px;">
+                            <i data-lucide="eye" onclick="window.togglePinVisibility('account-old-pin', this)" style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; color: #94a3b8; cursor: pointer;"></i>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <p style="font-size: 0.75rem; color: #92400e; margin-bottom: 5px;">NOUVEAU CODE PIN</p>
+                        <div style="position: relative;">
+                            <input type="password" id="account-new-pin" class="luxe-input" placeholder="••••" maxlength="4" style="padding-right: 45px;">
+                            <i data-lucide="eye" onclick="window.togglePinVisibility('account-new-pin', this)" style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; color: #94a3b8; cursor: pointer;"></i>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <p style="font-size: 0.75rem; color: #92400e; margin-bottom: 5px;">CONFIRMER LE NOUVEAU CODE PIN</p>
+                        <div style="position: relative;">
+                            <input type="password" id="account-confirm-pin" class="luxe-input" placeholder="••••" maxlength="4" style="padding-right: 45px;">
+                            <i data-lucide="eye" onclick="window.togglePinVisibility('account-confirm-pin', this)" style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; color: #94a3b8; cursor: pointer;"></i>
+                        </div>
+                    </div>
+                    
+                    <p style="font-size: 0.75rem; color: #92400e; margin-top: 10px;">
+                        <i data-lucide="info" style="width: 14px; height: 14px; vertical-align: middle;"></i>
+                        Le code PIN doit contenir exactement 4 chiffres
+                    </p>
+                </div>
+
+                <!-- Bouton de sauvegarde -->
+                <button onclick="window.saveAccountChanges()" class="btn-gold-fill" style="width: 100%; height: 55px; font-size: 1rem; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                    <i data-lucide="save" style="width: 20px; height: 20px;"></i>
+                    ENREGISTRER LES MODIFICATIONS
+                </button>
             </div>
         </section>
 
