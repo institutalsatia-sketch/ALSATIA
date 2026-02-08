@@ -174,18 +174,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Chargement initial des données
     loadContacts();
     if(currentUser.portal === "Institut Alsatia") {
-        loadDonors();
+        window.loadDonors();
     }
     loadEvents();
     
-    // Initialisation du chat
+    // Initialisation du chat avec Realtime
     window.loadChatSubjects();
     window.loadChatMessages();
     window.subscribeToChat();
-    
-    // NOTE: Realtime pour donors/events désactivé temporairement
-    // Pour l'activer, décommente la ligne ci-dessous :
-    // window.subscribeToRealtime();
     
     // Initialiser les icônes Lucide
     if(window.lucide) lucide.createIcons();
@@ -307,7 +303,7 @@ window.switchTab = (tabId) => {
     if (menuIcon) menuIcon.classList.add('active');
 
     // 2. CHARGEMENT DES DONNÉES SPÉCIFIQUES
-    if (tabId === 'donors') loadDonors();
+    if (tabId === 'donors') window.loadDonors();
     if (tabId === 'events') loadEvents();
     
     // Activation de la Messagerie que nous venons de créer
@@ -509,7 +505,7 @@ if (typeof window.allDonorsData === 'undefined') {
 /**
  * 1. CHARGEMENT DES DONNÉES
  */
-async function loadDonors() {
+window.loadDonors = async function() {
     const { data, error } = await supabaseClient
         .from('donors')
         .select('*, donations(*)')
@@ -517,11 +513,15 @@ async function loadDonors() {
 
     if (error) {
         console.error("Erreur de chargement donateurs:", error);
+        const list = document.getElementById('donors-list');
+        if (list) {
+            list.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:40px; color:#ef4444;">Erreur de chargement. Vérifiez vos permissions Supabase.</td></tr>';
+        }
         return;
     }
     window.allDonorsData = data || [];
     window.filterDonors();
-}
+};
 
 /**
  * 2. SYSTÈME DE FILTRAGE
@@ -1103,138 +1103,7 @@ let currentChatSubject = 'Général';
  */
 /**
  * ==========================================
- * REALTIME GLOBAL POUR TOUTES LES TABLES
- * ==========================================
- */
-window.subscribeToRealtime = () => {
-    console.log('🔴 Activation Realtime sur toutes les tables');
-    
-    // Channel unique pour toute l'app
-    const realtimeChannel = supabaseClient
-        .channel('app-realtime-' + Date.now())
-        
-        // ==========================================
-        // DONATEURS - Realtime
-        // ==========================================
-        .on('postgres_changes', 
-            { event: 'INSERT', schema: 'public', table: 'donors' }, 
-            payload => {
-                console.log('➕ Nouveau donateur:', payload.new);
-                // Recharger la liste si on est sur l'onglet donors
-                const donorsTab = document.getElementById('tab-donors');
-                if (donorsTab && donorsTab.classList.contains('active')) {
-                    loadDonors();
-                }
-                // Recharger les stats de l'accueil
-                if (typeof loadHomeStats === 'function') {
-                    loadHomeStats();
-                }
-            }
-        )
-        .on('postgres_changes', 
-            { event: 'UPDATE', schema: 'public', table: 'donors' }, 
-            payload => {
-                console.log('✏️ Donateur modifié:', payload.new);
-                const donorsTab = document.getElementById('tab-donors');
-                if (donorsTab && donorsTab.classList.contains('active')) {
-                    loadDonors();
-                }
-            }
-        )
-        .on('postgres_changes', 
-            { event: 'DELETE', schema: 'public', table: 'donors' }, 
-            payload => {
-                console.log('🗑️ Donateur supprimé:', payload.old.id);
-                const donorsTab = document.getElementById('tab-donors');
-                if (donorsTab && donorsTab.classList.contains('active')) {
-                    loadDonors();
-                }
-                if (typeof loadHomeStats === 'function') {
-                    loadHomeStats();
-                }
-            }
-        )
-        
-        // ==========================================
-        // DONATIONS - Realtime
-        // ==========================================
-        .on('postgres_changes', 
-            { event: '*', schema: 'public', table: 'donations' }, 
-            payload => {
-                console.log('💰 Don modifié:', payload);
-                // Recharger les donateurs pour mettre à jour les totaux
-                const donorsTab = document.getElementById('tab-donors');
-                if (donorsTab && donorsTab.classList.contains('active')) {
-                    loadDonors();
-                }
-            }
-        )
-        
-        // ==========================================
-        // ÉVÉNEMENTS - Realtime
-        // ==========================================
-        .on('postgres_changes', 
-            { event: 'INSERT', schema: 'public', table: 'events' }, 
-            payload => {
-                console.log('➕ Nouvel événement:', payload.new);
-                const eventsTab = document.getElementById('tab-events');
-                if (eventsTab && eventsTab.classList.contains('active')) {
-                    loadEvents();
-                }
-                if (typeof loadHomeStats === 'function') {
-                    loadHomeStats();
-                }
-            }
-        )
-        .on('postgres_changes', 
-            { event: 'UPDATE', schema: 'public', table: 'events' }, 
-            payload => {
-                console.log('✏️ Événement modifié:', payload.new);
-                const eventsTab = document.getElementById('tab-events');
-                if (eventsTab && eventsTab.classList.contains('active')) {
-                    loadEvents();
-                }
-            }
-        )
-        .on('postgres_changes', 
-            { event: 'DELETE', schema: 'public', table: 'events' }, 
-            payload => {
-                console.log('🗑️ Événement supprimé:', payload.old.id);
-                const eventsTab = document.getElementById('tab-events');
-                if (eventsTab && eventsTab.classList.contains('active')) {
-                    loadEvents();
-                }
-                if (typeof loadHomeStats === 'function') {
-                    loadHomeStats();
-                }
-            }
-        )
-        
-        // ==========================================
-        // PROFILS - Realtime (pour l'annuaire)
-        // ==========================================
-        .on('postgres_changes', 
-            { event: '*', schema: 'public', table: 'profiles' }, 
-            payload => {
-                console.log('👤 Profil modifié:', payload);
-                const contactsTab = document.getElementById('tab-contacts');
-                if (contactsTab && contactsTab.classList.contains('active')) {
-                    loadContacts();
-                }
-            }
-        )
-        
-        .subscribe((status) => {
-            console.log('🔴 Realtime global status:', status);
-        });
-    
-    // Sauvegarder le channel pour pouvoir le fermer plus tard si besoin
-    window.realtimeChannel = realtimeChannel;
-};
-
-/**
- * ==========================================
- * MESSAGERIE - REALTIME (déjà existant)
+ * MESSAGERIE - REALTIME
  * ==========================================
  */
 window.subscribeToChat = () => {
