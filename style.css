@@ -259,6 +259,20 @@ body {
 }
 .btn-gold:hover { background: var(--gold-light); transform: translateY(-2px); box-shadow: 0 8px 15px rgba(197, 160, 89, 0.3); }
 
+.btn-gold-fill {
+    background: var(--gold); color: white; border: none; padding: 12px 25px;
+    border-radius: 12px; font-weight: 700; cursor: pointer; transition: 0.3s;
+    text-transform: uppercase; font-size: 0.75rem; letter-spacing: 1px;
+}
+.btn-gold-fill:hover { background: var(--gold-light); transform: translateY(-2px); box-shadow: 0 8px 15px rgba(197, 160, 89, 0.3); }
+
+.btn-outline {
+    background: white; color: var(--gold); border: 2px solid var(--gold); padding: 12px 25px;
+    border-radius: 12px; font-weight: 700; cursor: pointer; transition: 0.3s;
+    text-transform: uppercase; font-size: 0.75rem; letter-spacing: 1px;
+}
+.btn-outline:hover { background: var(--gold); color: white; transform: translateY(-2px); box-shadow: 0 8px 15px rgba(197, 160, 89, 0.3); }
+
 .luxe-input {
     width: 100%; padding: 14px; border: 1px solid var(--border); border-radius: 12px;
     font-size: 0.95rem; transition: 0.3s; outline: none;
