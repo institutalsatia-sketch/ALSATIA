@@ -782,15 +782,21 @@ window.openDonorFile = async (id) => {
                 <p class="mini-label">HISTORIQUE DES DONS</p>
                 <button onclick="window.addDonationPrompt('${id}')" class="btn-gold" style="padding:4px 10px; font-size:0.65rem;">+ AJOUTER UN DON</button>
             </div>
-            <div style="max-height:180px; overflow-y:auto; border:1px solid #eee; margin-top:10px; border-radius:8px;">
+            <div style="max-height:240px; overflow-y:auto; border:1px solid #eee; margin-top:10px; border-radius:8px;">
                 <table class="luxe-table">
-                    <thead><tr><th>DATE</th><th>MONTANT</th><th>REMERCIÉ ?</th><th style="text-align:right;">ACTION</th></tr></thead>
+                    <thead><tr><th>DATE</th><th>MONTANT</th><th>N° REÇU</th><th>REMERCIÉ ?</th><th style="text-align:right;">ACTION</th></tr></thead>
                     <tbody>
-                        ${dons.length === 0 ? '<tr><td colspan="4" style="text-align:center; padding:15px; color:#999;">Aucun don enregistré</td></tr>' : ''}
+                        ${dons.length === 0 ? '<tr><td colspan="5" style="text-align:center; padding:15px; color:#999;">Aucun don enregistré</td></tr>' : ''}
                         ${dons.map(don => `
                             <tr style="${!don.thanked ? 'background:rgba(239, 68, 68, 0.05);' : ''}">
                                 <td>${new Date(don.date).toLocaleDateString()}</td>
                                 <td style="font-weight:700;">${don.amount}€</td>
+                                <td>
+                                    <div style="display:flex; align-items:center; gap:6px;">
+                                        <input type="text" id="receipt-${don.id}" value="${don.tax_receipt_number || ''}" placeholder="RF-2024-001" style="padding:4px 8px; border:1px solid #e2e8f0; border-radius:6px; font-size:0.85rem; width:100%; max-width:120px;">
+                                        <i data-lucide="save" style="width:14px; color:var(--gold); cursor:pointer;" onclick="window.updateReceiptNumber('${don.id}')" title="Enregistrer"></i>
+                                    </div>
+                                </td>
                                 <td style="text-align:center;">
                                     <input type="checkbox" ${don.thanked ? 'checked' : ''} onchange="window.toggleThanked('${don.id}', this.checked)">
                                 </td>
@@ -808,6 +814,29 @@ window.openDonorFile = async (id) => {
 /**
  * 6. LOGIQUE DES DONS
  */
+window.updateReceiptNumber = async (donId) => {
+    const input = document.getElementById(`receipt-${donId}`);
+    if (!input) return;
+    
+    const receiptNumber = input.value.trim() || null;
+    
+    const { error } = await supabaseClient
+        .from('donations')
+        .update({ tax_receipt_number: receiptNumber })
+        .eq('id', donId);
+    
+    if (error) {
+        window.showNotice("Erreur", "Impossible de mettre à jour le reçu.", "error");
+        return;
+    }
+    
+    window.showNotice("Enregistré", "N° de reçu fiscal mis à jour.", "success");
+    window.loadDonors();
+};
+
+/**
+ * 6. LOGIQUE DES DONS (suite)
+ */
 window.toggleThanked = async (donId, isChecked) => {
     await supabaseClient.from('donations').update({ thanked: isChecked }).eq('id', donId);
     loadDonors(); 
@@ -824,6 +853,8 @@ window.addDonationPrompt = (donorId) => {
         <select id="don-method" class="luxe-input">
             <option>Virement</option><option>Chèque</option><option>Espèces</option><option>CB</option><option>Autre</option>
         </select>
+        <p class="mini-label" style="margin-top:10px;">N° REÇU FISCAL (Optionnel)</p>
+        <input type="text" id="don-receipt" class="luxe-input" placeholder="Ex: RF-2024-001">
         <button onclick="window.execAddDonation('${donorId}')" class="btn-gold-fill" style="width:100%; margin-top:20px;">VALIDER LE PAIEMENT</button>
     `);
 };
@@ -838,13 +869,14 @@ window.execAddDonation = async (donorId) => {
         amount: parseFloat(amt),
         date: dat,
         payment_mode: document.getElementById('don-method').value,
+        tax_receipt_number: document.getElementById('don-receipt').value.trim() || null,
         thanked: false
     }]);
 
     window.showNotice("Bravo !", "Don enregistré.");
     if(typeof loadDashboardData === 'function') loadDashboardData(); 
     closeCustomModal();
-    loadDonors();
+    window.loadDonors();
 };
 
 window.updateDonorFields = async (id) => {
@@ -1038,6 +1070,7 @@ window.executeExportToExcel = async () => {
                         'Date du don': new Date(don.date).toLocaleDateString('fr-FR'),
                         'Montant': parseFloat(don.amount || 0) + ' €',
                         'Mode de paiement': don.payment_mode || '',
+                        'N° Reçu Fiscal': don.tax_receipt_number || '',
                         'Remercié': don.thanked ? 'Oui' : 'Non'
                     });
                 }
@@ -1102,6 +1135,7 @@ window.exportDonorToExcel = async (donorId) => {
             'Date': new Date(don.date).toLocaleDateString('fr-FR'),
             'Montant': parseFloat(don.amount || 0) + ' €',
             'Mode de paiement': don.payment_mode || '',
+            'N° Reçu Fiscal': don.tax_receipt_number || '',
             'Remercié': don.thanked ? 'Oui' : 'Non'
         }))
         : [{ 'Aucun don enregistré': '' }];
@@ -1718,8 +1752,18 @@ window.loadChatSubjects = async () => {
     const container = document.getElementById('chat-subjects-list');
     if (!container) return;
 
+    const myName = `${currentUser.first_name} ${currentUser.last_name}`;
+    
     const filtered = subjects.filter(s => {
+        // Si c'est Institut Alsatia, voir tout
         if (currentUser.portal === 'Institut Alsatia') return true;
+        
+        // Si c'est un canal privé (entity = 'Privé'), vérifier si mon nom est dedans
+        if (s.entity === 'Privé') {
+            return s.name.includes(myName);
+        }
+        
+        // Sinon, filtrer par entité
         return !s.entity || s.entity === currentUser.portal;
     });
 
