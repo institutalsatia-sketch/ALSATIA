@@ -857,8 +857,192 @@ window.askDeleteDonor = (id, name) => {
             loadDonors();
             closeCustomModal();
         },
-        true
     );
+};
+
+// ==========================================
+// EXPORT EXCEL - SYSTÈME COMPLET
+// ==========================================
+
+/**
+ * MODALE DE FILTRES POUR L'EXPORT GLOBAL
+ */
+window.showExportFiltersModal = () => {
+    const currentYear = new Date().getFullYear();
+    const years = [];
+    for(let y = currentYear; y >= currentYear - 10; y--) {
+        years.push(y);
+    }
+    
+    showCustomModal(`
+        <div class="modal-header-luxe">
+            <h3 class="luxe-title">EXPORTER VERS EXCEL</h3>
+            <button onclick="window.closeCustomModal()" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-scroll-body">
+            <p class="mini-label">FILTRER PAR ENTITÉ</p>
+            <select id="export-entity-filter" class="luxe-input" style="margin-bottom:20px;">
+                <option value="ALL">Toutes les entités</option>
+                <option>Institut Alsatia</option>
+                <option>Academia Alsatia</option>
+                <option>Cours Herrade de Landsberg</option>
+                <option>Collège Saints Louis et Zélie Martin</option>
+            </select>
+            
+            <p class="mini-label">FILTRER PAR ANNÉE DE DON</p>
+            <select id="export-year-filter" class="luxe-input" style="margin-bottom:20px;">
+                <option value="ALL">Toutes les années</option>
+                ${years.map(y => `<option value="${y}">${y}</option>`).join('')}
+            </select>
+            
+            <button onclick="window.executeExportToExcel()" class="btn-gold-fill" style="width:100%; height:50px; font-size:1rem;">
+                <i data-lucide="download" style="width:20px; margin-right:10px; vertical-align:middle;"></i>
+                TÉLÉCHARGER LE FICHIER EXCEL
+            </button>
+        </div>
+    `);
+    if(window.lucide) lucide.createIcons();
+};
+
+/**
+ * EXPORT GLOBAL DE TOUS LES DONATEURS
+ */
+window.executeExportToExcel = async () => {
+    const entityFilter = document.getElementById('export-entity-filter').value;
+    const yearFilter = document.getElementById('export-year-filter').value;
+    
+    // Charger TOUS les donateurs avec leurs dons
+    const { data: allDonors, error } = await supabaseClient
+        .from('donors')
+        .select('*, donations(*)')
+        .order('last_name', { ascending: true });
+    
+    if (error) {
+        window.showNotice("Erreur", "Impossible de charger les données.", "error");
+        return;
+    }
+    
+    // Filtrer par entité
+    let filteredDonors = allDonors;
+    if (entityFilter !== "ALL") {
+        filteredDonors = allDonors.filter(d => d.entity === entityFilter);
+    }
+    
+    // Préparer les données pour l'onglet DONATEURS
+    const donorsData = filteredDonors.map(d => ({
+        'Nom': d.last_name || '',
+        'Prénom': d.first_name || '',
+        'Entreprise': d.company_name || '',
+        'Entité': d.entity || '',
+        'Email': d.email || '',
+        'Téléphone': d.phone || '',
+        'Code Postal': d.zip_code || '',
+        'Ville': d.city || '',
+        'Notes': d.notes || '',
+        'Modifié par': d.last_modified_by || '',
+        'Total des dons': d.donations ? d.donations.reduce((sum, don) => sum + parseFloat(don.amount || 0), 0) + ' €' : '0 €'
+    }));
+    
+    // Préparer les données pour l'onglet DONS
+    let allDonations = [];
+    filteredDonors.forEach(d => {
+        if (d.donations && d.donations.length > 0) {
+            d.donations.forEach(don => {
+                // Filtrer par année si nécessaire
+                const donYear = new Date(don.date).getFullYear().toString();
+                if (yearFilter === "ALL" || donYear === yearFilter) {
+                    allDonations.push({
+                        'Nom donateur': d.last_name || '',
+                        'Prénom donateur': d.first_name || '',
+                        'Entreprise': d.company_name || '',
+                        'Entité': d.entity || '',
+                        'Date du don': new Date(don.date).toLocaleDateString('fr-FR'),
+                        'Montant': parseFloat(don.amount || 0) + ' €',
+                        'Mode de paiement': don.payment_mode || '',
+                        'Remercié': don.thanked ? 'Oui' : 'Non'
+                    });
+                }
+            });
+        }
+    });
+    
+    // Créer le fichier Excel avec 2 onglets
+    const wb = XLSX.utils.book_new();
+    
+    // Onglet 1 : DONATEURS
+    const ws1 = XLSX.utils.json_to_sheet(donorsData);
+    XLSX.utils.book_append_sheet(wb, ws1, "Donateurs");
+    
+    // Onglet 2 : DONS
+    const ws2 = XLSX.utils.json_to_sheet(allDonations);
+    XLSX.utils.book_append_sheet(wb, ws2, "Dons");
+    
+    // Télécharger le fichier
+    const fileName = `Alsatia_Export_${entityFilter}_${yearFilter}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    
+    window.closeCustomModal();
+    window.showNotice("Téléchargé !", `Fichier "${fileName}" prêt`, "success");
+};
+
+/**
+ * EXPORT D'UN DONATEUR SPÉCIFIQUE (depuis sa fiche)
+ */
+window.exportDonorToExcel = async (donorId) => {
+    // Charger le donateur avec tous ses dons
+    const { data: donor, error } = await supabaseClient
+        .from('donors')
+        .select('*, donations(*)')
+        .eq('id', donorId)
+        .single();
+    
+    if (error || !donor) {
+        window.showNotice("Erreur", "Impossible de charger les données.", "error");
+        return;
+    }
+    
+    // Onglet 1 : INFORMATIONS DU DONATEUR
+    const donorInfo = [{
+        'Nom': donor.last_name || '',
+        'Prénom': donor.first_name || '',
+        'Entreprise': donor.company_name || '',
+        'Entité': donor.entity || '',
+        'Email': donor.email || '',
+        'Téléphone': donor.phone || '',
+        'Code Postal': donor.zip_code || '',
+        'Ville': donor.city || '',
+        'Notes': donor.notes || '',
+        'Modifié par': donor.last_modified_by || '',
+        'Total des dons': donor.donations ? donor.donations.reduce((sum, don) => sum + parseFloat(don.amount || 0), 0) + ' €' : '0 €',
+        'Nombre de dons': donor.donations ? donor.donations.length : 0
+    }];
+    
+    // Onglet 2 : TOUS LES DONS DU DONATEUR
+    const donationsData = donor.donations && donor.donations.length > 0 
+        ? donor.donations.map(don => ({
+            'Date': new Date(don.date).toLocaleDateString('fr-FR'),
+            'Montant': parseFloat(don.amount || 0) + ' €',
+            'Mode de paiement': don.payment_mode || '',
+            'Remercié': don.thanked ? 'Oui' : 'Non'
+        }))
+        : [{ 'Aucun don enregistré': '' }];
+    
+    // Créer le fichier Excel
+    const wb = XLSX.utils.book_new();
+    
+    // Onglet 1 : DONATEUR
+    const ws1 = XLSX.utils.json_to_sheet(donorInfo);
+    XLSX.utils.book_append_sheet(wb, ws1, "Informations");
+    
+    // Onglet 2 : DONS
+    const ws2 = XLSX.utils.json_to_sheet(donationsData);
+    XLSX.utils.book_append_sheet(wb, ws2, "Historique des dons");
+    
+    // Télécharger
+    const fileName = `${donor.last_name}_${donor.first_name || 'Donateur'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    
+    window.showNotice("Téléchargé !", `Fichier "${fileName}" prêt`, "success");
 };
 
 function loadUsersForMentions() { console.log("Module CRM Alsatia v1.0 chargé."); }
