@@ -183,8 +183,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.loadChatMessages();
     window.subscribeToChat();
     
-    // Initialiser Realtime pour toutes les tables
-    window.subscribeToRealtime();
+    // NOTE: Realtime pour donors/events désactivé temporairement
+    // Pour l'activer, décommente la ligne ci-dessous :
+    // window.subscribeToRealtime();
     
     // Initialiser les icônes Lucide
     if(window.lucide) lucide.createIcons();
@@ -509,17 +510,15 @@ if (typeof window.allDonorsData === 'undefined') {
  * 1. CHARGEMENT DES DONNÉES
  */
 async function loadDonors() {
-    console.log('🔍 loadDonors appelée');
     const { data, error } = await supabaseClient
         .from('donors')
         .select('*, donations(*)')
         .order('last_name', { ascending: true });
 
     if (error) {
-        console.error("❌ Erreur de chargement CRM:", error);
+        console.error("Erreur de chargement donateurs:", error);
         return;
     }
-    console.log('✅ Donateurs chargés:', data ? data.length : 0);
     window.allDonorsData = data || [];
     window.filterDonors();
 }
@@ -542,7 +541,6 @@ window.filterDonors = () => {
         const matchesEntity = (entityVal === "ALL" || d.entity === entityVal);
         return matchesSearch && matchesEntity;
     });
-    console.log('📊 Donateurs filtrés:', filtered.length);
     renderDonors(filtered);
 };
 
@@ -552,11 +550,9 @@ window.filterDonors = () => {
 function renderDonors(data) {
     const list = document.getElementById('donors-list');
     if (!list) {
-        console.error('❌ Element donors-list introuvable');
+        console.error('Element donors-list introuvable');
         return;
     }
-    
-    console.log('🎨 Rendu de', data.length, 'donateurs');
     
     if (data.length === 0) {
         list.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:40px; color:#64748b;">Aucun donateur trouvé</td></tr>';
