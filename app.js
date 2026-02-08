@@ -652,12 +652,17 @@ window.execCreateDonor = async () => {
  * 5. DOSSIER DONATEUR (INTERFACE COMPLÈTE)
  */
 window.openDonorFile = async (id) => {
+    console.log('Opening donor file:', id);
+    console.log('All donors data:', window.allDonorsData);
     const donor = window.allDonorsData.find(d => d.id === id);
-    if (!donor) return;
+    if (!donor) {
+        console.error('Donor not found:', id);
+        window.showNotice("Erreur", "Donateur introuvable. Rechargez la page.", "error");
+        return;
+    }
     const dons = donor.donations || [];
     
-    document.getElementById('custom-modal').style.display = 'flex';
-    document.getElementById('modal-body').innerHTML = `
+    showCustomModal(`
         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px;">
             <div>
                 <p class="mini-label">ÉCOLE / ENTITÉ</p>
@@ -671,7 +676,7 @@ window.openDonorFile = async (id) => {
             <div style="display:flex; gap:10px;">
                 <button onclick="window.exportDonorToExcel('${donor.id}')" class="btn-gold" style="font-size:0.65rem; padding:5px 10px;">EXCEL</button>
                 <button onclick="window.askDeleteDonor('${donor.id}', '${donor.last_name.replace(/'/g, "\\'")}')" style="background:#fee2e2; color:#ef4444; border:none; padding:5px 10px; border-radius:6px; cursor:pointer; font-size:0.65rem;">SUPPRIMER</button>
-                <button onclick="closeCustomModal()" style="border:none; background:none; cursor:pointer; font-size:1.5rem;">&times;</button>
+                <button onclick="window.closeCustomModal()" style="border:none; background:none; cursor:pointer; font-size:1.5rem;">&times;</button>
             </div>
         </div>
 
@@ -722,7 +727,7 @@ window.openDonorFile = async (id) => {
                     </tbody>
                 </table>
             </div>
-        </div>`;
+        </div>`);
     lucide.createIcons();
 };
 
