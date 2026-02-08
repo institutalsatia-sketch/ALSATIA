@@ -53,6 +53,18 @@ window.alsatiaConfirm = (title, text, callback, isDanger = false) => {
 // ==========================================
 // FONCTIONS GLOBALES (SÉCURITÉ ET INTERFACE)
 // ==========================================
+window.confirmLogout = () => {
+    window.alsatiaConfirm(
+        "DÉCONNEXION",
+        "Voulez-vous vraiment vous déconnecter ?",
+        () => {
+            localStorage.clear(); 
+            window.location.href = 'login.html';
+        },
+        true
+    );
+};
+
 window.logout = () => { 
     localStorage.clear(); 
     window.location.href = 'login.html'; 
@@ -231,58 +243,8 @@ function initInterface() {
 
 // Fonction pour charger les statistiques de la page d'accueil
 async function loadHomeStats() {
-    // Compter les événements
-    const { data: events } = await supabaseClient.from('events').select('id', { count: 'exact' });
-    const eventsCount = events ? events.length : 0;
-    const eventsEl = document.getElementById('stat-events-count');
-    if(eventsEl) eventsEl.innerText = eventsCount;
-
-    // Compter les messages totaux et non lus
-    const { data: allMessages } = await supabaseClient.from('chat_global').select('*');
-    const messagesCount = allMessages ? allMessages.length : 0;
-    const messagesEl = document.getElementById('stat-messages-count');
-    if(messagesEl) messagesEl.innerText = messagesCount;
-
-    // Calculer les messages non lus (messages créés après la dernière connexion)
-    const lastLogin = localStorage.getItem('alsatia_last_login');
-    const lastLoginDate = lastLogin ? new Date(lastLogin) : new Date(0);
-    
-    const unreadMessages = allMessages ? allMessages.filter(msg => {
-        const msgDate = new Date(msg.created_at);
-        return msgDate > lastLoginDate && msg.author_full_name !== `${currentUser.first_name} ${currentUser.last_name}`;
-    }) : [];
-
-    const unreadCount = unreadMessages.length;
-
-    // Afficher le badge si messages non lus
-    if(unreadCount > 0) {
-        const unreadBadge = document.getElementById('unread-badge-stat');
-        if(unreadBadge) {
-            unreadBadge.innerText = unreadCount;
-            unreadBadge.style.display = 'block';
-        }
-
-        const unreadAlert = document.getElementById('unread-messages-alert');
-        if(unreadAlert) {
-            unreadAlert.style.display = 'block';
-            const unreadText = document.getElementById('unread-count-text');
-            if(unreadText) {
-                unreadText.innerText = `${unreadCount} message${unreadCount > 1 ? 's' : ''} non lu${unreadCount > 1 ? 's' : ''}`;
-            }
-        }
-
-        // Badge sur l'onglet Discussion dans le menu
-        const chatTab = document.querySelector('[onclick*="chat"]');
-        if(chatTab && !chatTab.querySelector('.menu-badge')) {
-            chatTab.style.position = 'relative';
-            chatTab.insertAdjacentHTML('beforeend', `
-                <span class="menu-badge" style="position:absolute; top:8px; right:8px; background:#ef4444; color:white; font-size:0.7rem; padding:2px 6px; border-radius:10px; font-weight:700; min-width:18px; text-align:center;">${unreadCount}</span>
-            `);
-        }
-    }
-
-    // Sauvegarder la date de connexion actuelle
-    localStorage.setItem('alsatia_last_login', new Date().toISOString());
+    // Plus de statistiques à charger sur la page d'accueil
+    // Cette fonction est conservée au cas où on veuille ajouter des stats plus tard
 }
 
 // ==========================================
@@ -311,19 +273,6 @@ window.switchTab = (tabId) => {
         window.loadChatSubjects();
         window.loadChatMessages();
         window.subscribeToChat();
-        
-        // Marquer les messages comme lus (mettre à jour last_login)
-        localStorage.setItem('alsatia_last_login', new Date().toISOString());
-        
-        // Supprimer les badges de notification
-        const unreadBadge = document.getElementById('unread-badge-stat');
-        if(unreadBadge) unreadBadge.style.display = 'none';
-        
-        const unreadAlert = document.getElementById('unread-messages-alert');
-        if(unreadAlert) unreadAlert.style.display = 'none';
-        
-        const menuBadge = document.querySelector('.menu-badge');
-        if(menuBadge) menuBadge.remove();
     }
     
     // Activation de Mon Compte
@@ -331,7 +280,7 @@ window.switchTab = (tabId) => {
         window.loadAccountPage();
     }
     
-    // Retourner à l'accueil : recharger les stats
+    // Retourner à l'accueil
     if (tabId === 'home') {
         loadHomeStats();
     }
@@ -340,50 +289,171 @@ window.switchTab = (tabId) => {
 // ==========================================
 // SECTION ANNUAIRE (CONTACTS)
 // ==========================================
+// Sauvegarder tous les contacts pour le filtre
+window.allContactsData = [];
+
 async function loadContacts() {
-    const list = document.getElementById('contacts-list');
-    if(!list) return;
+    const grid = document.getElementById('contacts-grid');
+    if(!grid) return;
     
-    // Message d'attente identique à ton original
-    list.innerHTML = `<p style="grid-column: 1/-1; text-align: center; padding: 20px; color: #64748b; font-family: 'Inter', sans-serif;">Chargement de l'annuaire de l'Alsatia...</p>`;
+    grid.innerHTML = `<p style="grid-column: 1/-1; text-align: center; padding: 40px; color: #64748b;">Chargement de l'annuaire...</p>`;
     
     const { data: users, error } = await supabaseClient
         .from('profiles')
         .select('*')
         .order('portal', { ascending: true })
-        .order('last_name', { ascending: true });
+        .order('last_name', { ascending: true});
 
     if (error) {
-        list.innerHTML = `<p style="grid-column: 1/-1; text-align: center; color: #ef4444; padding: 20px;">Erreur lors du chargement des contacts.</p>`;
+        grid.innerHTML = `<p style="grid-column: 1/-1; text-align: center; color: #ef4444; padding: 40px;">Erreur lors du chargement des contacts.</p>`;
         return;
     }
 
-    // Rendu strict sans aucune simplification des styles inline
-    list.innerHTML = users.map(u => `
-        <div class="contact-card" style="background:white; padding:20px; border-radius:12px; border:1px solid #e2e8f0; display:flex; flex-direction:column; justify-content:space-between; min-height:180px; transition: transform 0.2s ease, box-shadow 0.2s ease;">
-            <div>
-                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                    <span style="font-size:0.65rem; font-weight:800; color:#d4af37; letter-spacing:1px; text-transform:uppercase; font-family: 'Montserrat', sans-serif;">${u.portal}</span>
-                    <i data-lucide="shield-check" style="width:14px; height:14px; color:#d4af37; opacity:0.5;"></i>
+    window.allContactsData = users || [];
+    renderContacts(users);
+}
+
+function renderContacts(users) {
+    const grid = document.getElementById('contacts-grid');
+    if(!grid) return;
+    
+    grid.innerHTML = users.map(u => {
+        // Générer initiales colorées
+        const initials = `${u.first_name.charAt(0)}${u.last_name.charAt(0)}`.toUpperCase();
+        const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
+        const colorIndex = (u.first_name.charCodeAt(0) + u.last_name.charCodeAt(0)) % colors.length;
+        const avatarColor = colors[colorIndex];
+        
+        return `
+            <div class="contact-card" style="background:white; border-radius:16px; box-shadow:0 2px 8px rgba(0,0,0,0.08); padding:24px; transition:all 0.3s; border:2px solid transparent;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 24px rgba(0,0,0,0.12)'; this.style.borderColor='var(--gold)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'; this.style.borderColor='transparent';">
+                
+                <!-- Avatar avec initiales -->
+                <div style="display:flex; align-items:center; gap:15px; margin-bottom:20px;">
+                    <div style="width:60px; height:60px; border-radius:50%; background:${avatarColor}; display:flex; align-items:center; justify-content:center; color:white; font-weight:800; font-size:1.3rem; flex-shrink:0;">
+                        ${initials}
+                    </div>
+                    <div style="flex:1;">
+                        <h3 style="margin:0 0 4px 0; font-size:1.1rem; font-weight:800; color:#1e293b;">${u.first_name} ${u.last_name.toUpperCase()}</h3>
+                        <p style="margin:0; font-size:0.85rem; color:#64748b; font-weight:500;">${u.job_title || 'Collaborateur'}</p>
+                    </div>
                 </div>
-                <h3 style="margin:8px 0 5px 0; font-size:1.1rem; color:#1e293b; font-family: 'Playfair Display', serif; font-weight: 700;">${u.first_name} ${u.last_name.toUpperCase()}</h3>
-                <p style="font-size:0.85rem; color:#64748b; font-weight: 500;">${u.job_title || 'Collaborateur Alsatia'}</p>
-            </div>
-            <div style="display:flex; gap:10px; margin-top:20px; border-top:1px solid #f1f5f9; padding-top:15px;">
-                <a href="mailto:${u.email}" style="flex:1; text-align:center; text-decoration:none; color:#1e293b; background:#f8fafc; padding:10px; border-radius:8px; font-size:0.75rem; border:1px solid #e2e8f0; font-weight:700; transition: background 0.2s;">
-                    <i data-lucide="mail" style="width:12px; height:12px; vertical-align:middle; margin-right:5px;"></i>EMAIL
-                </a>
-                ${u.phone ? `
-                <a href="tel:${u.phone}" style="flex:1; text-align:center; text-decoration:none; color:#1e293b; background:#f8fafc; padding:10px; border-radius:8px; font-size:0.75rem; border:1px solid #e2e8f0; font-weight:700; transition: background 0.2s;">
-                    <i data-lucide="phone" style="width:12px; height:12px; vertical-align:middle; margin-right:5px;"></i>APPEL
-                </a>
+                
+                <!-- Entité -->
+                <div style="display:inline-block; background:linear-gradient(135deg, #fef3c7, #fde68a); color:#92400e; font-size:0.7rem; font-weight:700; padding:6px 12px; border-radius:20px; margin-bottom:16px; text-transform:uppercase; letter-spacing:0.5px;">
+                    ${u.portal}
+                </div>
+                
+                <!-- Coordonnées -->
+                ${u.email ? `
+                <div style="margin-bottom:12px; display:flex; align-items:center; gap:10px;">
+                    <div style="flex:1; background:#f8fafc; padding:10px 12px; border-radius:10px; font-size:0.85rem; color:#475569; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                        <i data-lucide="mail" style="width:14px; height:14px; vertical-align:middle; margin-right:6px; color:#64748b;"></i>${u.email}
+                    </div>
+                    <button onclick="window.copyToClipboard('${u.email}')" style="background:var(--gold); color:white; border:none; width:36px; height:36px; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s;" onmouseover="this.style.background='var(--gold-light)'" onmouseout="this.style.background='var(--gold)'">
+                        <i data-lucide="copy" style="width:16px; height:16px;"></i>
+                    </button>
+                </div>
                 ` : ''}
+                
+                ${u.phone ? `
+                <div style="margin-bottom:16px; display:flex; align-items:center; gap:10px;">
+                    <div style="flex:1; background:#f8fafc; padding:10px 12px; border-radius:10px; font-size:0.85rem; color:#475569;">
+                        <i data-lucide="phone" style="width:14px; height:14px; vertical-align:middle; margin-right:6px; color:#64748b;"></i>${u.phone}
+                    </div>
+                    <button onclick="window.copyToClipboard('${u.phone}')" style="background:var(--gold); color:white; border:none; width:36px; height:36px; border-radius:8px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.2s;" onmouseover="this.style.background='var(--gold-light)'" onmouseout="this.style.background='var(--gold)'">
+                        <i data-lucide="copy" style="width:16px; height:16px;"></i>
+                    </button>
+                </div>
+                ` : ''}
+                
+                <!-- Bouton message -->
+                <button onclick="window.startPrivateChat('${u.id}', '${u.first_name}', '${u.last_name}')" class="btn-gold-fill" style="width:100%; height:42px; display:flex; align-items:center; justify-content:center; gap:8px; font-size:0.85rem;">
+                    <i data-lucide="message-circle" style="width:18px; height:18px;"></i>
+                    ENVOYER UN MESSAGE
+                </button>
             </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
     
     lucide.createIcons();
 }
+
+// Fonction pour filtrer les contacts
+window.filterContacts = () => {
+    const searchVal = document.getElementById('contact-search')?.value.toLowerCase().trim() || "";
+    
+    const filtered = window.allContactsData.filter(u => {
+        return (u.first_name || "").toLowerCase().includes(searchVal) ||
+               (u.last_name || "").toLowerCase().includes(searchVal) ||
+               (u.email || "").toLowerCase().includes(searchVal) ||
+               (u.portal || "").toLowerCase().includes(searchVal) ||
+               (u.job_title || "").toLowerCase().includes(searchVal);
+    });
+    
+    renderContacts(filtered);
+};
+
+// Fonction pour copier dans le presse-papier
+window.copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text).then(() => {
+        window.showNotice("Copié !", `${text} copié dans le presse-papier`, "success");
+    });
+};
+
+// Fonction pour démarrer une discussion privée
+window.startPrivateChat = async (userId, firstName, lastName) => {
+    // Créer ou trouver le canal privé
+    const myName = `${currentUser.first_name} ${currentUser.last_name}`;
+    const theirName = `${firstName} ${lastName}`;
+    
+    // Format du nom de canal : toujours par ordre alphabétique pour cohérence
+    const names = [myName, theirName].sort();
+    const channelName = `${names[0]} ↔ ${names[1]}`;
+    
+    // Vérifier si le canal existe déjà
+    const { data: existing } = await supabaseClient
+        .from('chat_subjects')
+        .select('*')
+        .eq('name', channelName)
+        .single();
+    
+    if (!existing) {
+        // Créer le canal privé
+        const { error } = await supabaseClient
+            .from('chat_subjects')
+            .insert([{
+                name: channelName,
+                entity: 'Privé'
+            }]);
+        
+        if (error) {
+            window.showNotice("Erreur", "Impossible de créer la discussion privée.", "error");
+            return;
+        }
+    }
+    
+    // Basculer vers Discussion et sélectionner ce canal
+    window.switchTab('chat');
+    
+    // Attendre que la page chat soit chargée
+    setTimeout(() => {
+        // Sélectionner le canal
+        const channelButton = Array.from(document.querySelectorAll('.subject-item')).find(btn => 
+            btn.textContent.includes(channelName)
+        );
+        
+        if (channelButton) {
+            channelButton.click();
+        }
+        
+        // Focus sur l'input et pré-remplir avec mention
+        const chatInput = document.getElementById('chat-input-field');
+        if (chatInput) {
+            chatInput.value = `@${firstName} ${lastName} `;
+            chatInput.focus();
+        }
+    }, 500);
+};
 
 // ==========================================
 // SECTION MON PROFIL (VERSION COMPLÈTE + EMAIL & PIN)
