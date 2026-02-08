@@ -183,6 +183,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.loadChatMessages();
     window.subscribeToChat();
     
+    // Initialiser Realtime pour toutes les tables
+    window.subscribeToRealtime();
+    
     // Initialiser les icônes Lucide
     if(window.lucide) lucide.createIcons();
 });
@@ -310,7 +313,8 @@ window.switchTab = (tabId) => {
     if (tabId === 'chat') {
         window.loadChatSubjects();
         window.loadChatMessages();
-        window.subscribeToChat();
+        // DÉSACTIVÉ TEMPORAIREMENT - cause des boucles infinies
+        // window.subscribeToChat();
         
         // Marquer les messages comme lus (mettre à jour last_login)
         localStorage.setItem('alsatia_last_login', new Date().toISOString());
@@ -1101,10 +1105,152 @@ let currentChatSubject = 'Général';
 /**
  * 1. INITIALISATION & TEMPS RÉEL
  */
+/**
+ * ==========================================
+ * REALTIME GLOBAL POUR TOUTES LES TABLES
+ * ==========================================
+ */
+window.subscribeToRealtime = () => {
+    console.log('🔴 Activation Realtime sur toutes les tables');
+    
+    // Channel unique pour toute l'app
+    const realtimeChannel = supabaseClient
+        .channel('app-realtime-' + Date.now())
+        
+        // ==========================================
+        // DONATEURS - Realtime
+        // ==========================================
+        .on('postgres_changes', 
+            { event: 'INSERT', schema: 'public', table: 'donors' }, 
+            payload => {
+                console.log('➕ Nouveau donateur:', payload.new);
+                // Recharger la liste si on est sur l'onglet donors
+                const donorsTab = document.getElementById('tab-donors');
+                if (donorsTab && donorsTab.classList.contains('active')) {
+                    loadDonors();
+                }
+                // Recharger les stats de l'accueil
+                if (typeof loadHomeStats === 'function') {
+                    loadHomeStats();
+                }
+            }
+        )
+        .on('postgres_changes', 
+            { event: 'UPDATE', schema: 'public', table: 'donors' }, 
+            payload => {
+                console.log('✏️ Donateur modifié:', payload.new);
+                const donorsTab = document.getElementById('tab-donors');
+                if (donorsTab && donorsTab.classList.contains('active')) {
+                    loadDonors();
+                }
+            }
+        )
+        .on('postgres_changes', 
+            { event: 'DELETE', schema: 'public', table: 'donors' }, 
+            payload => {
+                console.log('🗑️ Donateur supprimé:', payload.old.id);
+                const donorsTab = document.getElementById('tab-donors');
+                if (donorsTab && donorsTab.classList.contains('active')) {
+                    loadDonors();
+                }
+                if (typeof loadHomeStats === 'function') {
+                    loadHomeStats();
+                }
+            }
+        )
+        
+        // ==========================================
+        // DONATIONS - Realtime
+        // ==========================================
+        .on('postgres_changes', 
+            { event: '*', schema: 'public', table: 'donations' }, 
+            payload => {
+                console.log('💰 Don modifié:', payload);
+                // Recharger les donateurs pour mettre à jour les totaux
+                const donorsTab = document.getElementById('tab-donors');
+                if (donorsTab && donorsTab.classList.contains('active')) {
+                    loadDonors();
+                }
+            }
+        )
+        
+        // ==========================================
+        // ÉVÉNEMENTS - Realtime
+        // ==========================================
+        .on('postgres_changes', 
+            { event: 'INSERT', schema: 'public', table: 'events' }, 
+            payload => {
+                console.log('➕ Nouvel événement:', payload.new);
+                const eventsTab = document.getElementById('tab-events');
+                if (eventsTab && eventsTab.classList.contains('active')) {
+                    loadEvents();
+                }
+                if (typeof loadHomeStats === 'function') {
+                    loadHomeStats();
+                }
+            }
+        )
+        .on('postgres_changes', 
+            { event: 'UPDATE', schema: 'public', table: 'events' }, 
+            payload => {
+                console.log('✏️ Événement modifié:', payload.new);
+                const eventsTab = document.getElementById('tab-events');
+                if (eventsTab && eventsTab.classList.contains('active')) {
+                    loadEvents();
+                }
+            }
+        )
+        .on('postgres_changes', 
+            { event: 'DELETE', schema: 'public', table: 'events' }, 
+            payload => {
+                console.log('🗑️ Événement supprimé:', payload.old.id);
+                const eventsTab = document.getElementById('tab-events');
+                if (eventsTab && eventsTab.classList.contains('active')) {
+                    loadEvents();
+                }
+                if (typeof loadHomeStats === 'function') {
+                    loadHomeStats();
+                }
+            }
+        )
+        
+        // ==========================================
+        // PROFILS - Realtime (pour l'annuaire)
+        // ==========================================
+        .on('postgres_changes', 
+            { event: '*', schema: 'public', table: 'profiles' }, 
+            payload => {
+                console.log('👤 Profil modifié:', payload);
+                const contactsTab = document.getElementById('tab-contacts');
+                if (contactsTab && contactsTab.classList.contains('active')) {
+                    loadContacts();
+                }
+            }
+        )
+        
+        .subscribe((status) => {
+            console.log('🔴 Realtime global status:', status);
+        });
+    
+    // Sauvegarder le channel pour pouvoir le fermer plus tard si besoin
+    window.realtimeChannel = realtimeChannel;
+};
+
+/**
+ * ==========================================
+ * MESSAGERIE - REALTIME (déjà existant)
+ * ==========================================
+ */
 window.subscribeToChat = () => {
     // On ferme l'ancien canal s'il existe pour éviter les doublons
     if (window.chatChannel) {
         window.chatChannel.unsubscribe();
+    }
+
+    // Ne pas se réabonner si on a déjà une erreur
+    if (window.chatRealtimeDisabled) {
+        console.warn('⚠️ Realtime désactivé suite à des erreurs');
+        return;
     }
 
     window.chatChannel = supabaseClient
@@ -1142,7 +1288,143 @@ window.subscribeToChat = () => {
             }
         )
         .subscribe((status) => {
-            console.log('Chat subscription status:', status);
+            if (status === 'CHANNEL_ERROR') {
+                console.error('❌ Erreur Realtime - Désactivation');
+                window.chatRealtimeDisabled = true;
+                if (window.chatChannel) {
+                    window.chatChannel.unsubscribe();
+                }
+            } else {
+                console.log('Chat subscription status:', status);
+            }
+        });
+};
+
+// ==========================================
+// REALTIME POUR DONORS (DONATEURS)
+// ==========================================
+window.subscribeToDonors = () => {
+    if (window.donorsChannel) {
+        window.donorsChannel.unsubscribe();
+    }
+
+    window.donorsChannel = supabaseClient
+        .channel('donors-realtime-' + Date.now())
+        .on('postgres_changes', 
+            { event: 'INSERT', schema: 'public', table: 'donors' }, 
+            payload => {
+                console.log('✅ Nouveau donateur ajouté:', payload.new);
+                // Recharger la liste
+                if (document.getElementById('tab-donors')?.classList.contains('active')) {
+                    loadDonors();
+                }
+            }
+        )
+        .on('postgres_changes', 
+            { event: 'UPDATE', schema: 'public', table: 'donors' }, 
+            payload => {
+                console.log('📝 Donateur modifié:', payload.new);
+                if (document.getElementById('tab-donors')?.classList.contains('active')) {
+                    loadDonors();
+                }
+            }
+        )
+        .on('postgres_changes', 
+            { event: 'DELETE', schema: 'public', table: 'donors' }, 
+            payload => {
+                console.log('🗑️ Donateur supprimé:', payload.old.id);
+                if (document.getElementById('tab-donors')?.classList.contains('active')) {
+                    loadDonors();
+                }
+            }
+        )
+        .subscribe((status) => {
+            console.log('Donors subscription status:', status);
+        });
+};
+
+// ==========================================
+// REALTIME POUR DONATIONS (DONS)
+// ==========================================
+window.subscribeToDonations = () => {
+    if (window.donationsChannel) {
+        window.donationsChannel.unsubscribe();
+    }
+
+    window.donationsChannel = supabaseClient
+        .channel('donations-realtime-' + Date.now())
+        .on('postgres_changes', 
+            { event: 'INSERT', schema: 'public', table: 'donations' }, 
+            payload => {
+                console.log('💰 Nouveau don ajouté:', payload.new);
+                // Recharger la liste des donateurs pour mettre à jour les totaux
+                if (document.getElementById('tab-donors')?.classList.contains('active')) {
+                    loadDonors();
+                }
+            }
+        )
+        .on('postgres_changes', 
+            { event: 'UPDATE', schema: 'public', table: 'donations' }, 
+            payload => {
+                console.log('📝 Don modifié:', payload.new);
+                if (document.getElementById('tab-donors')?.classList.contains('active')) {
+                    loadDonors();
+                }
+            }
+        )
+        .on('postgres_changes', 
+            { event: 'DELETE', schema: 'public', table: 'donations' }, 
+            payload => {
+                console.log('🗑️ Don supprimé:', payload.old.id);
+                if (document.getElementById('tab-donors')?.classList.contains('active')) {
+                    loadDonors();
+                }
+            }
+        )
+        .subscribe((status) => {
+            console.log('Donations subscription status:', status);
+        });
+};
+
+// ==========================================
+// REALTIME POUR EVENTS (ÉVÉNEMENTS)
+// ==========================================
+window.subscribeToEvents = () => {
+    if (window.eventsChannel) {
+        window.eventsChannel.unsubscribe();
+    }
+
+    window.eventsChannel = supabaseClient
+        .channel('events-realtime-' + Date.now())
+        .on('postgres_changes', 
+            { event: 'INSERT', schema: 'public', table: 'events' }, 
+            payload => {
+                console.log('📅 Nouvel événement ajouté:', payload.new);
+                if (document.getElementById('tab-events')?.classList.contains('active')) {
+                    loadEvents();
+                }
+            }
+        )
+        .on('postgres_changes', 
+            { event: 'UPDATE', schema: 'public', table: 'events' }, 
+            payload => {
+                console.log('📝 Événement modifié:', payload.new);
+                if (document.getElementById('tab-events')?.classList.contains('active')) {
+                    loadEvents();
+                }
+            }
+        )
+        .on('postgres_changes', 
+            { event: 'DELETE', schema: 'public', table: 'events' }, 
+            payload => {
+                console.log('🗑️ Événement supprimé:', payload.old.id);
+                if (document.getElementById('tab-events')?.classList.contains('active')) {
+                    loadEvents();
+                }
+            }
+        )
+        .subscribe((status) => {
+            console.log('Events subscription status:', status);
         });
 };
 
