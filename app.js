@@ -306,12 +306,11 @@ window.switchTab = (tabId) => {
     if (tabId === 'donors') window.loadDonors();
     if (tabId === 'events') loadEvents();
     
-    // Activation de la Messagerie que nous venons de créer
+    // Activation de la Messagerie
     if (tabId === 'chat') {
         window.loadChatSubjects();
         window.loadChatMessages();
-        // DÉSACTIVÉ TEMPORAIREMENT - cause des boucles infinies
-        // window.subscribeToChat();
+        window.subscribeToChat();
         
         // Marquer les messages comme lus (mettre à jour last_login)
         localStorage.setItem('alsatia_last_login', new Date().toISOString());
@@ -325,6 +324,11 @@ window.switchTab = (tabId) => {
         
         const menuBadge = document.querySelector('.menu-badge');
         if(menuBadge) menuBadge.remove();
+    }
+    
+    // Activation de Mon Compte
+    if (tabId === 'account') {
+        window.loadAccountPage();
     }
     
     // Retourner à l'accueil : recharger les stats
@@ -1051,6 +1055,158 @@ window.exportDonorToExcel = async (donorId) => {
 };
 
 function loadUsersForMentions() { console.log("Module CRM Alsatia v1.0 chargé."); }
+
+// ==========================================
+// GESTION DU COMPTE UTILISATEUR
+// ==========================================
+
+/**
+ * CHARGER LES INFORMATIONS DU COMPTE
+ */
+window.loadAccountPage = async () => {
+    // Charger les infos depuis Supabase
+    const { data: profile, error } = await supabaseClient
+        .from('profiles')
+        .select('*')
+        .eq('id', currentUser.id)
+        .single();
+    
+    if (error || !profile) {
+        window.showNotice("Erreur", "Impossible de charger votre profil.", "error");
+        return;
+    }
+    
+    // Remplir les champs non modifiables
+    document.getElementById('account-first-name').value = profile.first_name || '';
+    document.getElementById('account-last-name').value = profile.last_name || '';
+    document.getElementById('account-portal').value = profile.portal || '';
+    
+    // Remplir les champs modifiables
+    document.getElementById('account-email').value = profile.email || '';
+    document.getElementById('account-phone').value = profile.phone || '';
+    document.getElementById('account-job-title').value = profile.job_title || '';
+    
+    // Vider les champs PIN
+    document.getElementById('account-old-pin').value = '';
+    document.getElementById('account-new-pin').value = '';
+    document.getElementById('account-confirm-pin').value = '';
+    
+    if(window.lucide) lucide.createIcons();
+};
+
+/**
+ * AFFICHER/MASQUER LE PIN (bouton oeil)
+ */
+window.togglePinVisibility = (inputId, iconElement) => {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    
+    if (input.type === 'password') {
+        input.type = 'text';
+        iconElement.setAttribute('data-lucide', 'eye-off');
+    } else {
+        input.type = 'password';
+        iconElement.setAttribute('data-lucide', 'eye');
+    }
+    
+    if(window.lucide) lucide.createIcons();
+};
+
+/**
+ * SAUVEGARDER LES MODIFICATIONS DU COMPTE
+ */
+window.saveAccountChanges = async () => {
+    // Récupérer les valeurs
+    const email = document.getElementById('account-email').value.trim();
+    const phone = document.getElementById('account-phone').value.trim();
+    const jobTitle = document.getElementById('account-job-title').value.trim();
+    const oldPin = document.getElementById('account-old-pin').value.trim();
+    const newPin = document.getElementById('account-new-pin').value.trim();
+    const confirmPin = document.getElementById('account-confirm-pin').value.trim();
+    
+    // Préparer les données à mettre à jour
+    const updates = {
+        email: email || null,
+        phone: phone || null,
+        job_title: jobTitle || null
+    };
+    
+    // Gérer le changement de PIN si demandé
+    let pinChanged = false;
+    if (oldPin || newPin || confirmPin) {
+        // Vérifier que l'ancien PIN est fourni
+        if (!oldPin) {
+            window.showNotice("Erreur", "Veuillez saisir votre ancien code PIN.", "error");
+            return;
+        }
+        
+        // Vérifier que le nouveau PIN est fourni
+        if (!newPin) {
+            window.showNotice("Erreur", "Veuillez saisir un nouveau code PIN.", "error");
+            return;
+        }
+        
+        // Vérifier que la confirmation est fournie
+        if (!confirmPin) {
+            window.showNotice("Erreur", "Veuillez confirmer votre nouveau code PIN.", "error");
+            return;
+        }
+        
+        // Vérifier que l'ancien PIN est correct
+        const { data: currentProfile } = await supabaseClient
+            .from('profiles')
+            .select('pin')
+            .eq('id', currentUser.id)
+            .single();
+        
+        if (!currentProfile || currentProfile.pin !== oldPin) {
+            window.showNotice("Erreur", "L'ancien code PIN est incorrect.", "error");
+            return;
+        }
+        
+        // Vérifier que le nouveau PIN fait 4 chiffres
+        if (!/^\d{4}$/.test(newPin)) {
+            window.showNotice("Erreur", "Le nouveau code PIN doit contenir exactement 4 chiffres.", "error");
+            return;
+        }
+        
+        // Vérifier que les deux nouveaux PIN correspondent
+        if (newPin !== confirmPin) {
+            window.showNotice("Erreur", "Les deux nouveaux codes PIN ne correspondent pas.", "error");
+            return;
+        }
+        
+        // Ajouter le PIN aux updates
+        updates.pin = newPin;
+        pinChanged = true;
+    }
+    
+    // Mettre à jour dans Supabase
+    const { error } = await supabaseClient
+        .from('profiles')
+        .update(updates)
+        .eq('id', currentUser.id);
+    
+    if (error) {
+        window.showNotice("Erreur", "Impossible de sauvegarder les modifications.", "error");
+        console.error("Update error:", error);
+        return;
+    }
+    
+    // Mettre à jour currentUser en mémoire
+    currentUser = { ...currentUser, ...updates };
+    localStorage.setItem('alsatia_user', JSON.stringify(currentUser));
+    
+    // Message de succès
+    if (pinChanged) {
+        window.showNotice("Succès", "Vos informations et votre code PIN ont été mis à jour.", "success");
+    } else {
+        window.showNotice("Succès", "Vos informations ont été mises à jour.", "success");
+    }
+    
+    // Recharger la page
+    window.loadAccountPage();
+};
 
 // ==========================================
 // GESTION DES ÉVÉNEMENTS - SYSTÈME COMPLET & RÉSEAUX
