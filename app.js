@@ -20,7 +20,6 @@ const LOGOS = {
     "Academia Alsatia": "academia.png"
 };
 // FIX CHAT REALTIME
-let currentChatSubject = 'Général';
 window.subscribeToChat = function() {
     if (window.chatChannel) window.chatChannel.unsubscribe();
     window.chatChannel = supabaseClient.channel('chat-' + Date.now()).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_global', filter: 'subject=eq.' + currentChatSubject }, function(p) { 
@@ -2167,6 +2166,7 @@ window.switchChatSubject = (subjectName) => {
     if(titleEl) titleEl.innerText = `# ${subjectName}`;
     window.loadChatSubjects(); 
     window.loadChatMessages();
+    window.subscribeToChat();
 };
 
 window.promptCreateSubject = () => {
