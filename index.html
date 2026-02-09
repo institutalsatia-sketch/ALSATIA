@@ -11,6 +11,14 @@
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
+    <!-- Menu burger mobile -->
+    <button class="mobile-menu-toggle" id="mobile-menu-btn" onclick="toggleMobileMenu()">
+        <i data-lucide="menu" style="width:24px; height:24px; color:white;"></i>
+    </button>
+    
+    <!-- Overlay mobile -->
+    <div class="mobile-overlay" id="mobile-overlay" onclick="closeMobileMenu()"></div>
+    
     <div id="notice-toast" class="notice-toast"></div>
 
     <nav class="side-nav">
