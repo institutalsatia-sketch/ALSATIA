@@ -50,9 +50,9 @@ async function loadRootFolder() {
             .eq('entity', driveCurrentEntity)
             .is('parent_id', null)
             .eq('type', 'folder')
-            .single();
+            .maybeSingle();
         
-        if (error) throw error;
+        if (error && error.code !== 'PGRST116') throw error;
         
         if (!data) {
             // Créer le dossier racine s'il n'existe pas
@@ -62,7 +62,8 @@ async function loadRootFolder() {
                     name: driveCurrentEntity,
                     type: 'folder',
                     entity: driveCurrentEntity,
-                    parent_id: null
+                    parent_id: null,
+                    uploaded_by: driveCurrentUser.id
                 }])
                 .select()
                 .single();
