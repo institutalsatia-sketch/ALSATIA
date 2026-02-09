@@ -11,7 +11,6 @@ let currentUser = JSON.parse(localStorage.getItem('alsatia_user'));
 let allDonorsData = [];
 let allUsersForMentions = []; 
 let selectedChatFile = null; // Pour la gestion des pièces jointes dans la messagerie
-let currentChatSubject = 'Général'; // Canal de discussion actif
 
 const LOGOS = {
     "Institut Alsatia": "logo_alsatia.png",
