@@ -1426,18 +1426,18 @@ window.openEventDetails = async (id) => {
     
     const isCompleted = ev.status === 'Complet' || ev.status === 'Terminé';
 
-    // Créer le canal de discussion pour cet événement
-    const channelSlug = 'event-' + id;
+    // Créer le canal de discussion pour cet événement (slug simplifié)
+    const channelSlug = 'evt_' + id.replace(/-/g, '');
     const channelDisplayName = `Événement : ${ev.title}`;
     const { data: existingChannel } = await supabaseClient
         .from('chat_subjects')
         .select('*')
-        .ilike('name', channelSlug)
-        .single();
+        .eq('name', channelSlug)
+        .maybeSingle();
     
     if (!existingChannel) {
         await supabaseClient.from('chat_subjects').insert([{
-            name: channelName,
+            name: channelSlug,
             entity: 'Privé'
         }]);
     }
