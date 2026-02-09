@@ -97,6 +97,20 @@
                 </div>
 
                 <div class="chat-main">
+                    <!-- Dropdown canaux mobile -->
+                    <div id="mobile-channel-dropdown" class="mobile-channel-dropdown" style="display:none;">
+                        <button id="mobile-channel-toggle" class="mobile-channel-toggle" onclick="window.toggleChannelDropdown()">
+                            <span id="mobile-current-channel"># Général</span>
+                            <i data-lucide="chevron-down" id="mobile-chevron" style="width:20px; height:20px;"></i>
+                        </button>
+                        <button class="mobile-add-channel" onclick="window.promptCreateSubject()" title="Créer un canal">
+                            <i data-lucide="plus" style="width:20px; height:20px;"></i>
+                        </button>
+                        <div id="mobile-channel-menu" class="mobile-channel-menu" style="display:none;">
+                            <!-- Liste remplie par JS -->
+                        </div>
+                    </div>
+                    
                     <div class="chat-header">
                         <span id="chat-current-title" style="font-weight:800; font-size:1.2rem;"># Général</span>
                     </div>
