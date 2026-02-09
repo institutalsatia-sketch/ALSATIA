@@ -1,16 +1,14 @@
 // Service Worker Alsatia PWA
 const CACHE_NAME = 'alsatia-v1';
 const urlsToCache = [
-  '/',
-  '/index.html',
-  '/login.html',
-  '/style.css',
-  '/app.js',
-  '/manifest.json',
-  '/logo_alsatia.png',
-  '/herrade.png',
-  '/martin.png',
-  '/academia.png'
+  './login.html',
+  './index.html',
+  './style.css',
+  './app.js',
+  './logo_alsatia.png',
+  './herrade.png',
+  './martin.png',
+  './academia.png'
 ];
 
 // Installation du Service Worker
