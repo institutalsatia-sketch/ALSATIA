@@ -1,0 +1,49 @@
+{
+  "name": "Alsatia - Portail de Gestion",
+  "short_name": "Alsatia",
+  "description": "Portail de gestion unifié pour Institut Alsatia, Academia, Cours Herrade et Collège Saints Martin",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#c5a059",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "logo_alsatia.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "logo_alsatia.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "education", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Base Donateurs",
+      "short_name": "Donateurs",
+      "description": "Accéder à la base donateurs",
+      "url": "/index.html?tab=donors",
+      "icons": [{ "src": "logo_alsatia.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Discussion",
+      "short_name": "Chat",
+      "description": "Ouvrir la messagerie",
+      "url": "/index.html?tab=chat",
+      "icons": [{ "src": "logo_alsatia.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Événements",
+      "short_name": "Événements",
+      "description": "Voir les événements",
+      "url": "/index.html?tab=events",
+      "icons": [{ "src": "logo_alsatia.png", "sizes": "192x192" }]
+    }
+  ]
+}
