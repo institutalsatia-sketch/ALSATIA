@@ -455,15 +455,24 @@
                         email: autoEmail,
                         portal: currentPortal,
                         pin: pin,
-                        auth_user_id: authData.user.id
+                        auth_user_id: authData.user.id,
+                        status: 'pending'
                     }])
                     .select()
                     .single();
 
                 if(profileError) throw new Error("Profil : " + profileError.message);
 
-                localStorage.setItem('alsatia_user', JSON.stringify(profileData));
-                window.location.href = 'index.html';
+                // Ne PAS connecter directement, attendre approbation
+                showError("Compte créé ! En attente d'approbation par l'Institut Alsatia. Vous recevrez un email une fois approuvé.");
+                loginBtn.disabled = false;
+                loginBtn.innerText = 'Accéder';
+                
+                // Recharger la page après 3 secondes
+                setTimeout(() => {
+                    location.reload();
+                }, 3000);
+                return;
                 
             } else {
                 // UTILISATEUR EXISTANT
@@ -475,6 +484,28 @@
                 
                 if (!profileData || profileData.pin !== pin) {
                     showError("Code PIN incorrect.");
+                    loginBtn.disabled = false;
+                    loginBtn.innerText = 'Accéder';
+                    return;
+                }
+                
+                // VÉRIFIER LE STATUT DU COMPTE
+                if (profileData.status === 'pending') {
+                    showError("Votre compte est en attente d'approbation par l'Institut Alsatia.");
+                    loginBtn.disabled = false;
+                    loginBtn.innerText = 'Accéder';
+                    return;
+                }
+                
+                if (profileData.status === 'rejected') {
+                    showError("Votre inscription a été refusée. Contactez l'Institut Alsatia.");
+                    loginBtn.disabled = false;
+                    loginBtn.innerText = 'Accéder';
+                    return;
+                }
+                
+                if (profileData.status === 'revoked') {
+                    showError("Votre accès a été révoqué. Contactez l'Institut Alsatia.");
                     loginBtn.disabled = false;
                     loginBtn.innerText = 'Accéder';
                     return;
