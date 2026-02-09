@@ -1427,7 +1427,7 @@ window.openEventDetails = async (id) => {
     const { data: existingChannel } = await supabaseClient
         .from('chat_subjects')
         .select('*')
-        .eq('name', channelSlug)
+        .ilike('name', channelSlug)
         .single();
     
     if (!existingChannel) {
