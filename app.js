@@ -417,7 +417,7 @@ window.startPrivateChat = async (userId, firstName, lastName) => {
     const { data: existing } = await supabaseClient
         .from('chat_subjects')
         .select('*')
-        .eq('name', channelName)
+        .ilike('name', channelSlug)
         .single();
     
     if (!existing) {
@@ -1427,11 +1427,12 @@ window.openEventDetails = async (id) => {
     const isCompleted = ev.status === 'Complet' || ev.status === 'Terminé';
 
     // Créer le canal de discussion pour cet événement
-    const channelName = `Événement : ${ev.title}`;
+    const channelSlug = 'event-' + id;
+    const channelDisplayName = `Événement : ${ev.title}`;
     const { data: existingChannel } = await supabaseClient
         .from('chat_subjects')
         .select('*')
-        .eq('name', channelName)
+        .ilike('name', channelSlug)
         .single();
     
     if (!existingChannel) {
@@ -1577,8 +1578,8 @@ window.openEventDetails = async (id) => {
                 
                 <!-- Input message -->
                 <div style="display:flex; gap:10px;">
-                    <input type="text" id="event-chat-input-${id}" class="luxe-input" placeholder="Écrire un message..." style="flex:1;" onkeypress="if(event.key==='Enter') window.sendEventMessage('${id}', '${channelName}')">
-                    <button onclick="window.sendEventMessage('${id}', '${channelName}')" class="btn-gold" style="white-space:nowrap;">
+                    <input type="text" id="event-chat-input-${id}" class="luxe-input" placeholder="Écrire un message..." style="flex:1;" onkeypress="if(event.key==='Enter') window.sendEventMessage('${id}', '${channelSlug}')">
+                    <button onclick="window.sendEventMessage('${id}', '${channelSlug}')" class="btn-gold" style="white-space:nowrap;">
                         <i data-lucide="send" style="width:16px; height:16px; vertical-align:middle;"></i>
                     </button>
                 </div>
@@ -1633,7 +1634,7 @@ window.openEventDetails = async (id) => {
     lucide.createIcons();
     
     // Charger les messages du canal
-    window.loadEventChat(id, channelName);
+    window.loadEventChat(id, channelSlug);
 };
 
 // Charger les messages du canal événement
@@ -1700,7 +1701,7 @@ window.saveEventInfos = async (eventId) => {
     const time = document.getElementById(`ev-time-${eventId}`)?.value || null;
     const location = document.getElementById(`ev-location-${eventId}`)?.value || null;
     
-    console.log('💾 Sauvegarde événement:', { eventId, description, date, time, location });
+    console.log('💾 Sauvegarde:', { eventId, description, date, time, location });
     
     const { error } = await supabaseClient
         .from('events')
@@ -1713,12 +1714,12 @@ window.saveEventInfos = async (eventId) => {
         .eq('id', eventId);
     
     if (error) {
-        console.error('❌ Erreur sauvegarde:', error);
+        console.error('❌ Erreur:', error);
         window.showNotice("Erreur", "Impossible de sauvegarder.", "error");
         return;
     }
     
-    console.log('✅ Sauvegarde réussie');
+    console.log('✅ Sauvegardé !');
     window.showNotice("Enregistré !", "Informations sauvegardées.", "success");
     loadEvents();
 };
@@ -1879,7 +1880,7 @@ window.deleteMedia = async (eventId, type, fileName) => {
 window.toggleEventComplete = async (eventId, isCurrentlyCompleted) => {
     const newStatus = isCurrentlyCompleted ? 'En cours' : 'Terminé';
     
-    console.log('🔄 Toggle statut:', { eventId, isCurrentlyCompleted, newStatus });
+    console.log('🔄 Toggle:', { eventId, was: isCurrentlyCompleted, now: newStatus });
     
     const { error } = await supabaseClient
         .from('events')
@@ -1887,12 +1888,12 @@ window.toggleEventComplete = async (eventId, isCurrentlyCompleted) => {
         .eq('id', eventId);
     
     if (error) {
-        console.error('❌ Erreur toggle:', error);
+        console.error('❌ Erreur:', error);
         window.showNotice("Erreur", "Impossible de changer le statut.", "error");
         return;
     }
     
-    console.log('✅ Statut changé en:', newStatus);
+    console.log('✅ Statut:', newStatus);
     window.showNotice("Statut modifié", `Événement marqué comme "${newStatus}".`, "success");
     window.openEventDetails(eventId);
     loadEvents();
