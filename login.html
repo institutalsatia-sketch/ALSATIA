@@ -12,7 +12,6 @@
         .login-card { background: white; padding: 40px; border-radius: 24px; box-shadow: 0 25px 50px rgba(0,0,0,0.5); width: 100%; max-width: 400px; text-align: center; }
         .logo-gold { color: var(--gold); font-size: 1.6rem; font-weight: 800; margin-bottom: 25px; text-transform: uppercase; letter-spacing: 3px; }
         
-        /* Zone de notification interne */
         #login-error { display: none; background: #fef2f2; color: #b91c1c; padding: 12px; border-radius: 10px; font-size: 0.8rem; margin-bottom: 15px; border: 1px solid #fee2e2; }
 
         .portal-grid { display: flex; flex-direction: column; gap: 10px; }
@@ -28,6 +27,7 @@
         
         .btn-access { background: var(--gold); color: white; border: none; width: 100%; padding: 16px; border-radius: 12px; font-weight: 800; cursor: pointer; text-transform: uppercase; margin-top: 10px; transition: 0.3s; }
         .btn-access:hover { filter: brightness(1.1); box-shadow: 0 10px 20px rgba(197, 160, 89, 0.3); }
+        .btn-access:disabled { opacity: 0.5; cursor: not-allowed; }
     </style>
 </head>
 <body>
@@ -59,13 +59,12 @@
         <div id="new-user-fields" class="new-user-fields">
             <input type="text" id="reg-fname" placeholder="Prénom" class="luxe-input">
             <input type="text" id="reg-lname" placeholder="Nom" class="luxe-input">
-            <input type="email" id="reg-email" placeholder="Email" class="luxe-input">
         </div>
 
         <div id="pin-area" class="pin-area">
             <p style="font-size: 0.75rem; color:#64748b; font-weight:bold;">CODE PIN (4 CHIFFRES)</p>
             <input type="password" id="pin-input" maxlength="4" placeholder="••••" autocomplete="off">
-            <button onclick="attemptLogin()" class="btn-access">Accéder</button>
+            <button onclick="attemptLogin()" class="btn-access" id="login-btn">Accéder</button>
         </div>
     </div>
 </div>
@@ -109,33 +108,99 @@
     }
 
     async function attemptLogin() {
+        const loginBtn = document.getElementById('login-btn');
+        loginBtn.disabled = true;
+        loginBtn.innerText = 'Connexion...';
+
         const userSelect = document.getElementById('user-select').value;
         const pin = document.getElementById('pin-input').value;
-        let finalUser = null;
 
-        if (userSelect === 'NEW') {
-            const fname = document.getElementById('reg-fname').value.trim();
-            const lname = document.getElementById('reg-lname').value.trim();
-            const email = document.getElementById('reg-email').value.trim();
-            
-            if(!fname || !lname || !email || !pin) return showError("Tous les champs sont requis.");
-            if(pin.length !== 4) return showError("Le PIN doit faire 4 chiffres.");
+        try {
+            if (userSelect === 'NEW') {
+                // NOUVEL UTILISATEUR
+                const fname = document.getElementById('reg-fname').value.trim();
+                const lname = document.getElementById('reg-lname').value.trim();
+                
+                if(!fname || !lname || !pin) {
+                    showError("Tous les champs sont requis.");
+                    loginBtn.disabled = false;
+                    loginBtn.innerText = 'Accéder';
+                    return;
+                }
+                if(pin.length !== 4) {
+                    showError("Le PIN doit faire 4 chiffres.");
+                    loginBtn.disabled = false;
+                    loginBtn.innerText = 'Accéder';
+                    return;
+                }
 
-            const { data, error } = await supabaseClient.from('profiles').insert([
-                { first_name: fname, last_name: lname, email: email, portal: currentPortal, pin: pin }
-            ]).select().single();
+                // Générer email automatique (invisible pour l'utilisateur)
+                const autoEmail = `${fname.toLowerCase()}.${lname.toLowerCase()}.${pin}@alsatia.internal`;
 
-            if(error) return showError("Erreur : " + error.message);
-            finalUser = data;
-        } else {
-            const { data, error } = await supabaseClient.from('profiles').select('*').eq('id', userSelect).single();
-            if (!data || data.pin !== pin) return showError("Code PIN incorrect.");
-            finalUser = data;
+                // Créer compte Supabase Auth (en arrière-plan)
+                const { data: authData, error: authError } = await supabaseClient.auth.signUp({
+                    email: autoEmail,
+                    password: pin + pin + pin + pin, // PIN x4 = mot de passe
+                    options: {
+                        data: { first_name: fname, last_name: lname, portal: currentPortal }
+                    }
+                });
+
+                if (authError) throw new Error("Inscription : " + authError.message);
+
+                // Créer profil
+                const { data: profileData, error: profileError } = await supabaseClient
+                    .from('profiles')
+                    .insert([{
+                        first_name: fname,
+                        last_name: lname,
+                        email: autoEmail,
+                        portal: currentPortal,
+                        pin: pin,
+                        auth_user_id: authData.user.id
+                    }])
+                    .select()
+                    .single();
+
+                if(profileError) throw new Error("Profil : " + profileError.message);
+
+                localStorage.setItem('alsatia_user', JSON.stringify(profileData));
+                window.location.href = 'index.html';
+                
+            } else {
+                // UTILISATEUR EXISTANT
+                const { data: profileData, error: profileError } = await supabaseClient
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', userSelect)
+                    .single();
+                
+                if (!profileData || profileData.pin !== pin) {
+                    showError("Code PIN incorrect.");
+                    loginBtn.disabled = false;
+                    loginBtn.innerText = 'Accéder';
+                    return;
+                }
+
+                // Connexion Supabase Auth (en arrière-plan avec email auto)
+                const { data: authData, error: authError } = await supabaseClient.auth.signInWithPassword({
+                    email: profileData.email,
+                    password: pin + pin + pin + pin
+                });
+
+                if (authError) throw new Error("Connexion : " + authError.message);
+
+                localStorage.setItem('alsatia_user', JSON.stringify(profileData));
+                console.log('✅ Session Supabase:', authData.session);
+                window.location.href = 'index.html';
+            }
+
+        } catch (err) {
+            console.error('Erreur:', err);
+            showError(err.message);
+            loginBtn.disabled = false;
+            loginBtn.innerText = 'Accéder';
         }
-
-        // LE POINT CLÉ : On stocke l'objet complet pour l'index.html
-        localStorage.setItem('alsatia_user', JSON.stringify(finalUser));
-        window.location.href = 'index.html';
     }
 </script>
 </body>
