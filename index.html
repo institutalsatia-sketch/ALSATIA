@@ -15,6 +15,7 @@
     
     <title>Portail Alsatia</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="drive.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -64,6 +65,7 @@
             <li id="nav-contacts" onclick="switchTab('contacts')"><i data-lucide="contact"></i> Contacts</li>
             <li id="nav-chat" onclick="switchTab('chat')"><i data-lucide="message-square"></i> Discussion</li>
             <li id="nav-events" onclick="switchTab('events')"><i data-lucide="calendar"></i> Événements</li>
+            <li id="nav-drive" onclick="switchTab('drive')"><i data-lucide="folder"></i> Drive</li>
             <li id="nav-account" onclick="switchTab('account')"><i data-lucide="user-circle"></i> Mon Compte</li>
         </ul>
         <div class="nav-footer" onclick="window.confirmLogout()" style="background:linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); color:#991b1b; border:2px solid #ef4444; border-radius:12px; padding:14px 20px; cursor:pointer; transition:all 0.3s; font-weight:700; display:flex; align-items:center; gap:10px; justify-content:center;" onmouseover="this.style.background='linear-gradient(135deg, #fecaca 0%, #fca5a5 100%)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(239,68,68,0.3)'" onmouseout="this.style.background='linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)'; this.style.transform='translateY(0)'; this.style.boxShadow='none'">
@@ -291,6 +293,52 @@
             </div>
             <div id="events-container" class="events-list-container"></div>
         </section>
+
+        <section id="tab-drive" class="page-content">
+            <div id="drive-container">
+                <!-- Header -->
+                <div id="drive-header">
+                    <div id="drive-breadcrumb"></div>
+                    <div id="drive-toolbar"></div>
+                </div>
+                
+                <!-- Content -->
+                <div id="drive-content"></div>
+                
+                <!-- Upload progress -->
+                <div id="drive-upload-progress">
+                    <div id="drive-upload-text">Upload en cours...</div>
+                    <div class="drive-progress-bar">
+                        <div id="drive-upload-bar"></div>
+                    </div>
+                </div>
+                
+                <!-- Modal prévisualisation -->
+                <div id="drive-preview-modal">
+                    <div class="drive-preview-container">
+                        <div class="drive-preview-header">
+                            <h2 id="drive-preview-title">Fichier</h2>
+                            <button onclick="closePreview()" class="drive-preview-close">
+                                <i data-lucide="x" style="width:24px; height:24px;"></i>
+                            </button>
+                        </div>
+                        <div class="drive-preview-body">
+                            <div id="drive-preview-content"></div>
+                            <div class="drive-preview-sidebar">
+                                <div class="drive-preview-section">
+                                    <h3>💬 Commentaires</h3>
+                                    <div id="drive-comments-list"></div>
+                                    <textarea id="drive-comment-input" placeholder="Ajouter un commentaire..."></textarea>
+                                    <button onclick="addComment()" class="drive-btn-primary" style="width:100%;">
+                                        Envoyer
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
     </main>
 
     <div id="custom-modal" class="modal-overlay" style="display:none;">
@@ -300,5 +348,6 @@
     </div>
 
     <script src="app.js"></script>
+    <script src="drive.js"></script>
 </body>
 </html>
