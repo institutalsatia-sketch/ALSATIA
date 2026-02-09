@@ -19,7 +19,21 @@ const LOGOS = {
     "Collège Saints Louis et Zélie Martin": "martin.png",
     "Academia Alsatia": "academia.png"
 };
-
+// FIX CHAT REALTIME
+let currentChatSubject = 'Général';
+window.subscribeToChat = function() {
+    if (window.chatChannel) window.chatChannel.unsubscribe();
+    window.chatChannel = supabaseClient.channel('chat-' + Date.now()).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_global', filter: 'subject=eq.' + currentChatSubject }, function(p) { 
+        if (p.new.author_full_name !== currentUser.first_name + ' ' + currentUser.last_name) { 
+            var c = document.getElementById('chat-messages-container'); 
+            if (c) { 
+                c.insertAdjacentHTML('beforeend', renderSingleMessage(p.new)); 
+                c.scrollTop = c.scrollHeight; 
+                if(window.lucide) lucide.createIcons(); 
+            }
+        }
+    }).subscribe();
+};
 // ==========================================
 // MOTEUR DE DIALOGUE DE LUXE (INDISPENSABLE)
 // ==========================================
@@ -49,20 +63,6 @@ window.alsatiaConfirm = (title, text, callback, isDanger = false) => {
             closeCustomModal();
         };
     }
-// ==========================================
-// VARIABLES GLOBALES CHAT
-// ==========================================
-let currentChatSubject = 'Général';
-
-// ==========================================
-// REALTIME CHAT (VERSION SIMPLIFIÉE)
-// ==========================================
-window.subscribeToChat = () => {
-    // Version simplifiée - pas de realtime actif pour éviter les bugs
-    // Le chat se recharge manuellement
-    console.log('Chat subscription disabled - manual refresh only');
-};
-
 };
 
 // ==========================================
