@@ -1320,6 +1320,560 @@ window.saveAccountChanges = async () => {
 // ==========================================
 
 // 1. DASHBOARD : LISTE GLOBALE AVEC INDICATEUR DE STATUT
+window.loadChatSubjects = async () => {
+    const { data: subjects, error } = await supabaseClient.from('chat_subjects').select('*').order('name');
+    if (error) return;
+
+    const container = document.getElementById('chat-subjects-list');
+    if (!container) return;
+
+    const myName = `${currentUser.first_name} ${currentUser.last_name}`;
+    
+    const filtered = subjects.filter(s => {
+        // Si c'est Institut Alsatia, voir tout
+        if (currentUser.portal === 'Institut Alsatia') return true;
+        
+        // Si c'est un canal privé (entity = 'Privé'), vérifier si mon nom est dedans
+        if (s.entity === 'Privé') {
+            return s.name.includes(myName);
+        }
+        
+        // Sinon, filtrer par entité
+        return !s.entity || s.entity === currentUser.portal;
+    });
+
+    container.innerHTML = filtered.map(s => {
+        const isActive = currentChatSubject === s.name;
+        return `
+        <div class="chat-subject-item ${isActive ? 'active-chat-tab' : ''}" 
+             style="display:flex; 
+                    justify-content:space-between; 
+                    align-items:center; 
+                    border-radius:12px; 
+                    margin-bottom:6px; 
+                    padding:14px 16px; 
+                    cursor:pointer; 
+                    background:${isActive ? 'rgba(197, 160, 89, 0.15)' : 'transparent'};
+                    border-left: 3px solid ${isActive ? 'var(--gold)' : 'transparent'};
+                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                    position:relative;"
+             onclick="window.switchChatSubject('${s.name.replace(/'/g, "\\'")}')"
+             onmouseover="if (!this.classList.contains('active-chat-tab')) { this.style.background='rgba(255,255,255,0.05)'; this.style.borderLeftColor='rgba(197,160,89,0.3)'; }"
+             onmouseout="if (!this.classList.contains('active-chat-tab')) { this.style.background='transparent'; this.style.borderLeftColor='transparent'; }">
+            <div style="display:flex; align-items:center; gap:10px; flex:1;">
+                <div style="width:8px; height:8px; border-radius:50%; background:${isActive ? 'var(--gold)' : '#64748b'}; box-shadow:${isActive ? '0 0 8px var(--gold)' : 'none'}; transition:all 0.3s;"></div>
+                <div style="flex:1;">
+                    <div style="font-weight:${isActive ? '800' : '600'}; font-size:0.9rem; color:${isActive ? 'var(--gold)' : 'white'}; transition:all 0.3s;"># ${s.name}</div>
+                    ${s.entity ? `<div style="font-size:0.7rem; opacity:0.6; margin-top:2px; color:white;">${s.entity}</div>` : ''}
+                </div>
+            </div>
+            ${(currentUser.portal === 'Institut Alsatia' || s.entity === currentUser.portal) ? 
+                `<i data-lucide="trash-2" 
+                    style="width:14px; 
+                           color:var(--danger); 
+                           opacity:0; 
+                           transition:all 0.2s; 
+                           cursor:pointer;" 
+                    onclick="event.stopPropagation(); window.deleteSubject('${s.id}', '${s.name}')"
+                    onmouseover="this.style.opacity='1'; this.style.transform='scale(1.2)';"
+                    onmouseout="this.style.opacity='0.5'; this.style.transform='scale(1);"></i>` : ''}
+        </div>
+    `;
+    }).join('');
+    lucide.createIcons();
+};
+
+window.switchChatSubject = (subjectName) => {
+    currentChatSubject = subjectName;
+    const titleEl = document.getElementById('chat-current-title');
+    if(titleEl) titleEl.innerText = `# ${subjectName}`;
+    window.loadChatSubjects(); 
+    window.loadChatMessages();
+};
+
+window.promptCreateSubject = () => {
+    const isInstitut = currentUser.portal === 'Institut Alsatia';
+    showCustomModal(`
+        <h3 class="luxe-title">NOUVEAU CANAL</h3>
+        <p class="mini-label">NOM DU SUJET</p>
+        <input type="text" id="new-sub-name" class="luxe-input" placeholder="ex: Travaux Été">
+        <p class="mini-label" style="margin-top:15px;">AFFECTATION ÉCOLE</p>
+        <select id="new-sub-entity" class="luxe-input">
+            <option value="">Visible par tous (Général)</option>
+            <option value="Institut Alsatia" ${!isInstitut ? 'disabled' : ''}>Institut Alsatia Uniquement</option>
+            <option value="Academia Alsatia">Academia Alsatia</option>
+            <option value="Cours Herrade de Landsberg">Cours Herrade de Landsberg</option>
+            <option value="Collège Saints Louis et Zélie Martin">Collège Saints Louis et Zélie Martin</option>
+        </select>
+        <button onclick="window.execCreateSubject()" class="btn-gold" style="width:100%; margin-top:20px;">CRÉER LE SUJET</button>
+    `);
+};
+
+window.execCreateSubject = async () => {
+    const name = document.getElementById('new-sub-name').value.trim();
+    const entity = document.getElementById('new-sub-entity').value;
+    if(!name) return;
+
+    await supabaseClient.from('chat_subjects').insert([{ name, entity }]);
+    window.showNotice("Succès", "Canal de discussion créé.");
+    closeCustomModal();
+    window.loadChatSubjects();
+};
+
+/**
+ * 3. LOGIQUE DES MESSAGES
+ */
+window.loadChatMessages = async () => {
+    const container = document.getElementById('chat-messages-container');
+    if (!container) return;
+    
+    // Indicateur de chargement élégant
+    container.innerHTML = `
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; gap:15px;">
+            <div style="width:40px; height:40px; border:3px solid rgba(197,160,89,0.2); border-top-color:var(--gold); border-radius:50%; animation:spin 1s linear infinite;"></div>
+            <p style="color:var(--text-muted); font-size:0.9rem;">Chargement des messages...</p>
+        </div>
+        <style>
+            @keyframes spin {
+                to { transform: rotate(360deg); }
+            }
+        </style>
+    `;
+    
+    const { data, error } = await supabaseClient.from('chat_global')
+        .select('*').eq('subject', currentChatSubject).order('created_at', { ascending: true });
+    
+    if (error) {
+        container.innerHTML = `
+            <div style="text-align:center; padding:40px; color:var(--text-muted);">
+                <i data-lucide="alert-circle" style="width:48px; height:48px; margin-bottom:15px; opacity:0.5;"></i>
+                <p>Erreur lors du chargement des messages</p>
+            </div>
+        `;
+        return;
+    }
+    
+    if (!data || data.length === 0) {
+        container.innerHTML = `
+            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; gap:15px; opacity:0.6;">
+                <i data-lucide="message-circle" style="width:64px; height:64px; color:var(--gold);"></i>
+                <p style="color:var(--text-muted); font-size:1rem; font-weight:600;">Aucun message pour le moment</p>
+                <p style="color:var(--text-muted); font-size:0.85rem;">Soyez le premier à écrire dans ce canal !</p>
+            </div>
+        `;
+        lucide.createIcons();
+        return;
+    }
+    
+    // Organiser les messages en threads (parents + réponses)
+    const parentMessages = data.filter(msg => !msg.reply_to);
+    const replyMessages = data.filter(msg => msg.reply_to);
+    
+    // Construire le HTML avec les threads
+    let html = '';
+    parentMessages.forEach(parent => {
+        html += renderSingleMessage(parent, false);
+        
+        // Ajouter les réponses de ce message
+        const replies = replyMessages.filter(r => r.reply_to === parent.id);
+        if (replies.length > 0) {
+            // Fermer la div du parent, ajouter les réponses dans le container replies-{id}
+            html = html.replace(
+                `<div id="replies-${parent.id}" class="replies-container"></div>`,
+                `<div id="replies-${parent.id}" class="replies-container">
+                    ${replies.map(r => renderSingleMessage(r, true)).join('')}
+                </div>`
+            );
+        }
+    });
+    
+    container.innerHTML = html;
+    container.scrollTop = container.scrollHeight;
+    lucide.createIcons();
+};
+
+function renderSingleMessage(msg, isReply = false) {
+    const isMe = msg.author_full_name === `${currentUser.first_name} ${currentUser.last_name}`;
+    const isMentioned = msg.content.includes(`@${currentUser.last_name}`);
+    const date = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const portalIcon = LOGOS[msg.portal] || 'logo_alsatia.png';
+
+    return `
+        <div class="message-wrapper ${isMe ? 'my-wrapper' : ''}" data-msg-id="${msg.id}" style="display:flex; gap:12px; margin-bottom:${isReply ? '8px' : '20px'}; ${isReply ? 'margin-left:0;' : ''} align-items:flex-start; ${isMe ? 'flex-direction:row-reverse;' : ''} animation: slideIn 0.3s ease-out; width:100%;">
+            
+            <div style="${isMe ? 'text-align:right;' : ''} flex:1; min-width:0;">
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:5px; ${isMe ? 'justify-content:flex-end;' : ''}">
+                    <img src="${portalIcon}" style="width:${isReply ? '16px' : '20px'}; height:${isReply ? '16px' : '20px'}; object-fit:contain;">
+                    <span style="font-weight:700; font-size:${isReply ? '0.8rem' : '0.9rem'}; color:var(--text-main);">${msg.author_full_name}</span>
+                    <span style="font-size:0.7rem; color:var(--text-muted);">${date}</span>
+                    ${isMe ? `
+                        <i data-lucide="trash-2" 
+                           onclick="window.deleteMessage('${msg.id}')" 
+                           style="width:14px; 
+                                  height:14px; 
+                                  color:var(--danger); 
+                                  cursor:pointer; 
+                                  transition:all 0.2s;
+                                  opacity:0.7;" 
+                           onmouseover="this.style.opacity='1'; this.style.transform='scale(1.2)';" 
+                           onmouseout="this.style.opacity='0.7'; this.style.transform='scale(1)';"></i>
+                    ` : ''}
+                </div>
+                
+                <div class="message ${isMe ? 'my-msg' : ''} ${isMentioned ? 'mentioned-luxe' : ''}" id="msg-${msg.id}" 
+                     style="position:relative; 
+                            padding:${isReply ? '10px 14px' : '14px 18px'}; 
+                            border-radius:${isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px'}; 
+                            background:${isMe ? 'linear-gradient(135deg, var(--primary) 0%, #1e293b 100%)' : isMentioned ? 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)' : 'white'}; 
+                            color:${isMe ? 'white' : 'var(--text-main)'}; 
+                            box-shadow: 0 ${isReply ? '1px 6px' : '2px 12px'} rgba(0,0,0,${isMe ? '0.15' : '0.08'}); 
+                            border:${isMentioned && !isMe ? '2px solid var(--gold)' : 'none'};
+                            line-height:1.6;
+                            word-wrap: break-word;
+                            display:inline-block;
+                            max-width:100%;
+                            font-size:${isReply ? '0.9rem' : '1rem'};
+                            ${isMe ? 'margin-left:auto;' : ''}">
+                    ${msg.content.replace(/@([\w\sàéèêîïôûù]+)/g, `<span class="mention-badge" style="background:${isMe ? 'rgba(197,160,89,0.3)' : 'rgba(197,160,89,0.15)'}; color:${isMe ? '#fbbf24' : 'var(--gold)'}; padding:2px 6px; border-radius:4px; font-weight:700;">@$1</span>`)}
+                    
+                    ${msg.file_url ? (() => {
+                        const fileName = msg.file_url.split('/').pop();
+                        const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName);
+                        const isPDF = /\.pdf$/i.test(fileName);
+                        
+                        if (isImage) {
+                            return `
+                                <div style="margin-top:12px; padding-top:12px; border-top:1px solid ${isMe ? 'rgba(255,255,255,0.2)' : 'var(--border)'};">
+                                    <a href="${msg.file_url}" target="_blank">
+                                        <img src="${msg.file_url}" 
+                                             style="max-width:100%; 
+                                                    max-height:300px; 
+                                                    border-radius:12px; 
+                                                    cursor:pointer;
+                                                    box-shadow:0 2px 8px rgba(0,0,0,0.15);
+                                                    transition:transform 0.2s;"
+                                             onmouseover="this.style.transform='scale(1.02)'"
+                                             onmouseout="this.style.transform='scale(1)'">
+                                    </a>
+                                </div>
+                            `;
+                        } else {
+                            return `
+                                <div style="margin-top:12px; padding-top:12px; border-top:1px solid ${isMe ? 'rgba(255,255,255,0.2)' : 'var(--border)'};">
+                                    <a href="${msg.file_url}" target="_blank" 
+                                       style="color:${isMe ? '#fbbf24' : 'var(--gold)'}; 
+                                              text-decoration:none; 
+                                              font-size:0.85rem; 
+                                              font-weight:600; 
+                                              display:inline-flex; 
+                                              align-items:center; 
+                                              gap:6px;
+                                              padding:8px 12px;
+                                              background:${isMe ? 'rgba(255,255,255,0.1)' : 'rgba(197,160,89,0.1)'};
+                                              border-radius:8px;
+                                              transition: all 0.2s;"
+                                       onmouseover="this.style.transform='translateX(3px)'; this.style.background='${isMe ? 'rgba(255,255,255,0.15)' : 'rgba(197,160,89,0.15)'}'" 
+                                       onmouseout="this.style.transform='translateX(0)'; this.style.background='${isMe ? 'rgba(255,255,255,0.1)' : 'rgba(197,160,89,0.1)'}'">
+                                        <i data-lucide="${isPDF ? 'file-text' : 'paperclip'}" style="width:16px; height:16px;"></i>
+                                        ${fileName.length > 30 ? fileName.substring(0, 30) + '...' : fileName}
+                                    </a>
+                                </div>
+                            `;
+                        }
+                    })() : ''}
+                </div>
+                
+                ${!isReply ? `
+                <!-- Bouton Répondre et conteneur pour les réponses -->
+                <div style="display:flex; gap:4px; margin-top:6px; ${isMe ? 'justify-content:flex-end;' : ''}">
+                    <span onclick="window.replyToMessage('${msg.id}', '${msg.author_full_name}', \`${msg.content.replace(/`/g, '').substring(0, 50)}\`)" style="cursor:pointer; padding:6px 12px; border-radius:12px; background:white; box-shadow:0 1px 3px rgba(0,0,0,0.1); transition:all 0.2s; font-size:0.75rem; font-weight:600; color:var(--gold);" onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)';">↩️ Répondre</span>
+                </div>
+                <div id="replies-${msg.id}" style="margin-top:12px;"></div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+}
+
+function appendSingleMessage(msg) {
+    const container = document.getElementById('chat-messages-container');
+    if (!container) return;
+    
+    // Vérifier si le message existe déjà (éviter les doublons)
+    if (document.getElementById(`msg-${msg.id}`)) {
+        console.log('Message déjà affiché, ignoré:', msg.id);
+        return;
+    }
+    
+    // Si c'est une réponse, l'ajouter sous le message parent
+    if (msg.reply_to) {
+        const repliesContainer = document.getElementById(`replies-${msg.reply_to}`);
+        if (repliesContainer) {
+            const messageHTML = renderSingleMessage(msg, true);
+            repliesContainer.insertAdjacentHTML('beforeend', messageHTML);
+            
+            // Animation d'apparition
+            const lastReply = repliesContainer.lastElementChild;
+            if (lastReply) {
+                lastReply.style.opacity = '0';
+                lastReply.style.transform = 'translateY(10px)';
+                setTimeout(() => {
+                    lastReply.style.transition = 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+                    lastReply.style.opacity = '1';
+                    lastReply.style.transform = 'translateY(0)';
+                }, 50);
+            }
+            
+            lucide.createIcons();
+            container.scrollTop = container.scrollHeight;
+            return;
+        }
+    }
+    
+    // Sinon, c'est un message principal, l'ajouter à la fin
+    const messageHTML = renderSingleMessage(msg, false);
+    container.insertAdjacentHTML('beforeend', messageHTML);
+    
+    // Récupérer le message qu'on vient d'ajouter
+    const lastMsg = container.lastElementChild;
+    if (!lastMsg) return;
+    
+    // Animation d'apparition
+    lastMsg.style.opacity = '0';
+    lastMsg.style.transform = 'translateY(20px)';
+    
+    container.scrollTop = container.scrollHeight;
+    
+    // Animation fluide
+    setTimeout(() => {
+        lastMsg.style.transition = 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+        lastMsg.style.opacity = '1';
+        lastMsg.style.transform = 'translateY(0)';
+    }, 50);
+    
+    lucide.createIcons();
+    
+    // Notification sonore discrète pour les nouveaux messages (sauf les siens)
+    if (msg.author_full_name !== `${currentUser.first_name} ${currentUser.last_name}`) {
+        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYHGGS67emnURALT6Lf77BdGAU9kc/ywXIiBS9/y/DdjD4IFme57+ijUhAKTKHd67FeGgU8ktHtw3cmBi6AzvLaiTQGF2K48eylUxAKTJ/d7bdgGgU/k9HuwXMjBCx/zPHejj4HFme64OunVRILSZ3c67RfGQc/k9HuwHIkBC1+y/HejT0GFmi74OynUhAJTKHe67RgGQc/ktLux3QlBSx+zPLgkD0GFWe74eynVBELSZ7d7LNgGQc+ktPvxHMkBCt9y/Hej0AGF2i74O2oVBILSJ7e7LNhGwc+k9TwxnQlBSx8y/PhkUEGFWa64e2oVRIKSZ/e7LVgGQc+ktPvw3QlBCt8y/Ddjj0GF2m74O2nVBEKS57d7LRfGQc/k9Pvw3QmBSt8yO/ejT0HGWm84O6nVBEKS5/d7LReGAc/k9TwxHMkBCt7yO/djT4IHGq94O2oVREJS57e7LNgGAc+ktTwxHMlBCp7x+/ejj8JH2y84O+rVhIJSp7e7LNgGQc9ktTvw3QkBCp7x+/fi0AIH2284e+sWRQLSZ7f7rZjHAk9k9XwxHQlBCl6xu/ejD8JIm+74u+uWhYMSJ3f77RiGwk9lNbvw3YmBSh6xe7cizsIJHG64+6vWhYMSJ3g8LVjGgk8lNbvwnQmBSh5xe7djDsHJHG65O6wWxYLR53h8LRjGgk8lNfvwnUmBSd5xO3djDwHI3G65e6vWxYLSJ7h8bZkGwk7k9fvwXQlBSd4xO3di0AII3K65e6uWxYLSJ/h8bVjGgk7k9fvwHMlBSd4xOzdjj4II3G65e2vWhYKSJ/i8rZjGgk7kszvwHMjBSd3w+3ciz0JJHGz5u2vWRQJR5/j8rVhGQk5ktXwv3IlBCZ3wuzci0AIJHK05+2vWxUJRp7j8rViGQk5kdXwvnEkBCZ2wuvciz8JI3Kz5+2vWxUJRZ3j87RhGQk5kdTvv3IlBCZ2wuvcij4IJHOy5+yuWhQIRZ3j8rNfGAc4kdXvvnIkAyV1werciz4JJHO05+uuWhQIRZvj8rNfFwc4kNPvvXEkAyV0weraij4IJHSx5uuuWRQHRZrj8bJdFgY3j9Puu3AjAyR0wOralD0HJXS06euqWBQHQ5nk8bJcFQY3jtLtuG8iAyNzv+nYkD4HJXa16+qrVxMGQpjk8LJbFAU1jdDts28hAiJyvunXkD8HJ3az6+mpVxMFQZbj8LBaFAU0ks/ts28gAiByvenWjz8HKHW06+ioVRMFQJXi8K9ZEwQzj87ss24fASBwvujWkUAHKXe36+inVBIEP5Th8K5aEgQyjczssmwfAR9tvujVkUEHKne56+imUxEEPpPh8K5YEgQxjMvssWwdAR5svObUkEIHK3e76+imURIDP5Lg765YEQP=');
+        audio.volume = 0.15;
+        audio.play().catch(() => {});
+    }
+}
+
+/**
+ * 4. MENTIONS & ENVOI
+ */
+window.handleChatKeyUp = async (e) => {
+    const input = e.target;
+    const box = document.getElementById('mention-box');
+
+    if (input.value.includes('@')) {
+        const query = input.value.split('@').pop().toLowerCase();
+        box.style.display = 'block';
+        
+        console.log('@ détecté, requête:', query);
+        
+        // Charger tous les utilisateurs depuis la base de données
+        if (!allUsersForMentions || allUsersForMentions.length === 0) {
+            console.log('Chargement des utilisateurs...');
+            const { data: users, error } = await supabaseClient.from('profiles').select('first_name, last_name, portal');
+            if (users && !error) {
+                allUsersForMentions = users.map(u => ({
+                    name: `${u.first_name} ${u.last_name}`,
+                    portal: u.portal
+                }));
+                console.log('Utilisateurs chargés:', allUsersForMentions.length);
+            } else {
+                console.error('Erreur chargement utilisateurs:', error);
+                allUsersForMentions = [];
+            }
+        }
+        
+        // Liste des entités
+        const entities = [
+            'Institut Alsatia', 
+            'Academia Alsatia', 
+            'Cours Herrade de Landsberg', 
+            'Collège Saints Louis et Zélie Martin'
+        ];
+        
+        // Combiner utilisateurs et entités
+        const userSuggestions = allUsersForMentions.map(u => u.name);
+        const allSuggestions = [...entities, ...userSuggestions];
+        
+        console.log('Total suggestions:', allSuggestions.length);
+        
+        const filtered = allSuggestions.filter(s => s.toLowerCase().includes(query));
+        
+        console.log('Suggestions filtrées:', filtered.length);
+        
+        if (filtered.length === 0) {
+            box.innerHTML = '<div style="padding:10px; color:var(--text-muted); font-size:0.85rem; text-align:center;">Aucune suggestion</div>';
+        } else {
+            box.innerHTML = filtered.slice(0, 8).map(s => {
+                const isEntity = entities.includes(s);
+                return `
+                    <div class="suggest-item" 
+                         onclick="window.insertMention('${s.replace(/'/g, "\\'")}')" 
+                         style="padding:12px 15px; 
+                                cursor:pointer; 
+                                border-bottom:1px solid #f1f5f9; 
+                                transition:all 0.2s;
+                                display:flex;
+                                align-items:center;
+                                gap:10px;"
+                         onmouseover="this.style.background='#fdfaf3'; this.style.borderLeftColor='var(--gold)';"
+                         onmouseout="this.style.background='white'; this.style.borderLeftColor='transparent';">
+                        <div style="width:6px; height:6px; border-radius:50%; background:${isEntity ? 'var(--gold)' : '#64748b'};"></div>
+                        <div style="flex:1;">
+                            <div style="font-weight:600; color:var(--text-main);">@${s}</div>
+                            ${isEntity ? '<div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">Entité</div>' : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    } else {
+        box.style.display = 'none';
+    }
+    
+    if (e.key === 'Enter') window.sendChatMessage();
+};
+
+window.insertMention = (name) => {
+    const input = document.getElementById('chat-input');
+    const parts = input.value.split('@');
+    parts.pop();
+    input.value = parts.join('@') + '@' + name + ' ';
+    document.getElementById('mention-box').style.display = 'none';
+    input.focus();
+};
+
+// Variable globale pour stocker le message auquel on répond
+let replyingTo = null;
+
+window.replyToMessage = (messageId, authorName, messagePreview) => {
+    replyingTo = { id: messageId, author: authorName, preview: messagePreview };
+    
+    // Afficher la barre de réponse
+    const replyBar = document.getElementById('reply-bar');
+    if (replyBar) {
+        replyBar.style.display = 'flex';
+        document.getElementById('reply-author').innerText = authorName;
+        document.getElementById('reply-preview').innerText = messagePreview;
+    }
+    
+    // Focus sur l'input
+    document.getElementById('chat-input').focus();
+};
+
+window.cancelReply = () => {
+    replyingTo = null;
+    const replyBar = document.getElementById('reply-bar');
+    if (replyBar) {
+        replyBar.style.display = 'none';
+    }
+};
+
+window.handleChatFile = (input) => {
+    selectedChatFile = input.files[0];
+    if (selectedChatFile) {
+        document.getElementById('file-preview-bar').style.display = 'block';
+        document.getElementById('file-name-preview').innerText = selectedChatFile.name;
+    }
+};
+
+window.clearChatFile = () => {
+    selectedChatFile = null;
+    document.getElementById('chat-file-input').value = "";
+    document.getElementById('file-preview-bar').style.display = 'none';
+};
+
+window.sendChatMessage = async () => {
+    const input = document.getElementById('chat-input');
+    const content = input.value.trim();
+    if(!content && !selectedChatFile) return;
+
+    let fileUrl = null;
+    if (selectedChatFile) {
+        const filePath = `chat/${Date.now()}_${selectedChatFile.name}`;
+        const { error: uploadError } = await supabaseClient.storage.from('chat-attachments').upload(filePath, selectedChatFile);
+        if (!uploadError) {
+            const { data } = supabaseClient.storage.from('chat-attachments').getPublicUrl(filePath);
+            fileUrl = data.publicUrl;
+        }
+    }
+
+    // Préparer les données du message
+    const messageData = {
+        content: content,
+        author_full_name: `${currentUser.first_name} ${currentUser.last_name}`,
+        author_last_name: currentUser.last_name,
+        portal: currentUser.portal,
+        subject: currentChatSubject,
+        file_url: fileUrl
+    };
+
+    // Ajouter reply_to seulement si on répond à un message
+    // (La colonne reply_to doit exister dans Supabase)
+    if (replyingTo) {
+        messageData.reply_to = replyingTo.id;
+    }
+
+    const { data, error } = await supabaseClient.from('chat_global').insert([messageData]).select().single();
+
+    if (error) {
+        console.error('Erreur lors de l\'envoi du message:', error);
+        window.showNotice('Erreur', 'Impossible d\'envoyer le message. Vérifiez que la colonne reply_to existe dans Supabase.', 'error');
+        return;
+    }
+
+    // Affichage optimiste : ajouter le message immédiatement
+    if (data) {
+        appendSingleMessage(data);
+    }
+
+    input.value = '';
+    window.clearChatFile();
+    window.cancelReply();
+};
+
+window.deleteMessage = (id) => {
+    window.alsatiaConfirm("SUPPRIMER", "Voulez-vous supprimer ce message ?", async () => {
+        // Supprimer visuellement IMMÉDIATEMENT
+        const msgWrapper = document.querySelector(`[data-msg-id="${id}"]`);
+        if (msgWrapper) {
+            msgWrapper.style.transition = 'all 0.3s ease';
+            msgWrapper.style.opacity = '0';
+            msgWrapper.style.transform = 'translateX(-20px)';
+            setTimeout(() => {
+                msgWrapper.remove();
+            }, 300);
+        }
+        
+        // Supprimer dans la base de données
+        const { error } = await supabaseClient.from('chat_global').delete().eq('id', id);
+        
+        if (error) {
+            console.error('Erreur suppression:', error);
+            window.showNotice("Erreur", "Impossible de supprimer le message.", "error");
+            // Recharger les messages en cas d'erreur
+            window.loadChatMessages();
+        } else {
+            window.showNotice("Effacé", "Message supprimé.");
+        }
+    }, true);
+};
+
+window.deleteSubject = (id, name) => {
+    window.alsatiaConfirm("SUPPRIMER CANAL", `Supprimer le sujet #${name} et tous ses messages ?`, async () => {
+        await supabaseClient.from('chat_global').delete().eq('subject', name);
+        await supabaseClient.from('chat_subjects').delete().eq('id', id);
+        window.loadChatSubjects();
+        window.switchChatSubject('Général');
+    }, true);
+};
 // =====================================================
 // ÉVÉNEMENTS - VERSION REFONTE COMPLÈTE
 // =====================================================
