@@ -182,16 +182,62 @@
                     return;
                 }
 
-                // Connexion Supabase Auth (en arrière-plan avec email auto)
-                const { data: authData, error: authError } = await supabaseClient.auth.signInWithPassword({
-                    email: profileData.email,
-                    password: pin + pin + pin + pin
-                });
+                // Si l'utilisateur a déjà un auth_user_id, se connecter avec Auth
+                if (profileData.auth_user_id) {
+                    const { data: authData, error: authError } = await supabaseClient.auth.signInWithPassword({
+                        email: profileData.email,
+                        password: pin + pin + pin + pin
+                    });
 
-                if (authError) throw new Error("Connexion : " + authError.message);
+                    if (authError) {
+                        // Si échec auth mais PIN correct, créer le compte Auth maintenant
+                        console.log('Création compte Auth pour utilisateur existant...');
+                        const { data: newAuthData, error: newAuthError } = await supabaseClient.auth.signUp({
+                            email: profileData.email,
+                            password: pin + pin + pin + pin,
+                            options: {
+                                data: { 
+                                    first_name: profileData.first_name, 
+                                    last_name: profileData.last_name, 
+                                    portal: profileData.portal 
+                                }
+                            }
+                        });
+                        
+                        if (!newAuthError) {
+                            // Mettre à jour auth_user_id
+                            await supabaseClient
+                                .from('profiles')
+                                .update({ auth_user_id: newAuthData.user.id })
+                                .eq('id', userSelect);
+                        }
+                    }
+                } else {
+                    // Pas de compte Auth, en créer un maintenant
+                    console.log('Création compte Auth pour utilisateur existant...');
+                    const { data: newAuthData, error: newAuthError } = await supabaseClient.auth.signUp({
+                        email: profileData.email,
+                        password: pin + pin + pin + pin,
+                        options: {
+                            data: { 
+                                first_name: profileData.first_name, 
+                                last_name: profileData.last_name, 
+                                portal: profileData.portal 
+                            }
+                        }
+                    });
+                    
+                    if (!newAuthError && newAuthData.user) {
+                        // Mettre à jour auth_user_id
+                        await supabaseClient
+                            .from('profiles')
+                            .update({ auth_user_id: newAuthData.user.id })
+                            .eq('id', userSelect);
+                    }
+                }
 
                 localStorage.setItem('alsatia_user', JSON.stringify(profileData));
-                console.log('✅ Session Supabase:', authData.session);
+                console.log('✅ Connexion réussie');
                 window.location.href = 'index.html';
             }
 
