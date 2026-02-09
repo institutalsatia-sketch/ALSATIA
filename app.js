@@ -1317,37 +1317,15 @@ window.loadChatSubjects = async () => {
         const isActive = currentChatSubject === s.name;
         return `
         <div class="chat-subject-item ${isActive ? 'active-chat-tab' : ''}" 
-             style="display:flex; 
-                    justify-content:space-between; 
-                    align-items:center; 
-                    border-radius:12px; 
-                    margin-bottom:6px; 
-                    padding:14px 16px; 
-                    cursor:pointer; 
-                    background:${isActive ? 'rgba(197, 160, 89, 0.15)' : 'transparent'};
-                    border-left: 3px solid ${isActive ? 'var(--gold)' : 'transparent'};
-                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                    position:relative;"
-             onclick="window.switchChatSubject('${s.name.replace(/'/g, "\\'")}')"
-             onmouseover="if (!this.classList.contains('active-chat-tab')) { this.style.background='rgba(255,255,255,0.05)'; this.style.borderLeftColor='rgba(197,160,89,0.3)'; }"
-             onmouseout="if (!this.classList.contains('active-chat-tab')) { this.style.background='transparent'; this.style.borderLeftColor='transparent'; }">
-            <div style="display:flex; align-items:center; gap:10px; flex:1;">
-                <div style="width:8px; height:8px; border-radius:50%; background:${isActive ? 'var(--gold)' : '#64748b'}; box-shadow:${isActive ? '0 0 8px var(--gold)' : 'none'}; transition:all 0.3s;"></div>
-                <div style="flex:1;">
-                    <div style="font-weight:${isActive ? '800' : '600'}; font-size:0.9rem; color:${isActive ? 'var(--gold)' : 'white'}; transition:all 0.3s;"># ${s.name}</div>
-                    ${s.entity ? `<div style="font-size:0.7rem; opacity:0.6; margin-top:2px; color:white;">${s.entity}</div>` : ''}
-                </div>
+             onclick="window.switchChatSubject('${s.name.replace(/'/g, "\\'")}')">
+            <div class="channel-indicator"></div>
+            <div class="channel-name">
+                <div class="channel-title"># ${s.name}</div>
+                ${s.entity ? `<div class="channel-entity">${s.entity}</div>` : ''}
             </div>
             ${(currentUser.portal === 'Institut Alsatia' || s.entity === currentUser.portal) ? 
                 `<i data-lucide="trash-2" 
-                    style="width:14px; 
-                           color:var(--danger); 
-                           opacity:0; 
-                           transition:all 0.2s; 
-                           cursor:pointer;" 
-                    onclick="event.stopPropagation(); window.deleteSubject('${s.id}', '${s.name}')"
-                    onmouseover="this.style.opacity='1'; this.style.transform='scale(1.2)';"
-                    onmouseout="this.style.opacity='0.5'; this.style.transform='scale(1);"></i>` : ''}
+                    onclick="event.stopPropagation(); window.deleteSubject('${s.id}', '${s.name}')"></i>` : ''}
         </div>
     `;
     }).join('');
