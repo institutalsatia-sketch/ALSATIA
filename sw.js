@@ -1,5 +1,5 @@
 // Service Worker Alsatia PWA
-const CACHE_NAME = 'alsatia-v1';
+const CACHE_NAME = 'alsatia-v2';
 const urlsToCache = [
   './login.html',
   './index.html',
@@ -40,6 +40,12 @@ self.addEventListener('activate', (event) => {
 
 // Stratégie: Network First, puis Cache
 self.addEventListener('fetch', (event) => {
+  // Ne cacher que les requêtes GET (ignorer POST/PATCH/DELETE/PUT)
+  if (event.request.method !== 'GET') {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+  
   event.respondWith(
     fetch(event.request)
       .then((response) => {
