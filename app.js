@@ -353,7 +353,64 @@ function renderContacts(users) {
     const grid = document.getElementById('contacts-grid');
     if(!grid) return;
     
+    const isInstitutAlsatia = currentUser.portal === 'Institut Alsatia';
+    
     grid.innerHTML = users.map(u => {
+        // Déterminer le badge de statut
+        let statusBadge = '';
+        let statusActions = '';
+        
+        if (u.status === 'pending') {
+            statusBadge = '<div style="display:inline-block; background:#fef3c7; color:#92400e; font-size:0.7rem; font-weight:700; padding:6px 12px; border-radius:20px; margin-bottom:16px;">⏳ EN ATTENTE D\'APPROBATION</div>';
+            if (isInstitutAlsatia) {
+                statusActions = `
+                    <div style="display:flex; gap:8px; margin-top:16px;">
+                        <button onclick="window.approveUser('${u.id}')" style="flex:1; background:#10b981; color:white; border:none; padding:10px; border-radius:8px; cursor:pointer; font-weight:700; font-size:0.85rem;">
+                            ✅ APPROUVER
+                        </button>
+                        <button onclick="window.rejectUser('${u.id}')" style="flex:1; background:#ef4444; color:white; border:none; padding:10px; border-radius:8px; cursor:pointer; font-weight:700; font-size:0.85rem;">
+                            ❌ REFUSER
+                        </button>
+                    </div>
+                `;
+            }
+        } else if (u.status === 'revoked') {
+            statusBadge = '<div style="display:inline-block; background:#fee2e2; color:#991b1b; font-size:0.7rem; font-weight:700; padding:6px 12px; border-radius:20px; margin-bottom:16px;">🚫 ACCÈS RÉVOQUÉ</div>';
+            if (isInstitutAlsatia) {
+                statusActions = `
+                    <div style="margin-top:16px;">
+                        <button onclick="window.reactivateUser('${u.id}')" style="width:100%; background:#3b82f6; color:white; border:none; padding:10px; border-radius:8px; cursor:pointer; font-weight:700; font-size:0.85rem;">
+                            ♻️ RÉACTIVER
+                        </button>
+                    </div>
+                `;
+            }
+        } else if (u.status === 'rejected') {
+            statusBadge = '<div style="display:inline-block; background:#fee2e2; color:#991b1b; font-size:0.7rem; font-weight:700; padding:6px 12px; border-radius:20px; margin-bottom:16px;">❌ INSCRIPTION REFUSÉE</div>';
+            if (isInstitutAlsatia) {
+                statusActions = `
+                    <div style="margin-top:16px;">
+                        <button onclick="window.reactivateUser('${u.id}')" style="width:100%; background:#3b82f6; color:white; border:none; padding:10px; border-radius:8px; cursor:pointer; font-weight:700; font-size:0.85rem;">
+                            ♻️ RÉACTIVER
+                        </button>
+                    </div>
+                `;
+            }
+        } else if (u.status === 'approved' && isInstitutAlsatia && u.id !== currentUser.id) {
+            // Utilisateur approuvé - possibilité de révoquer (sauf soi-même)
+            statusBadge = '<div style="display:inline-block; background:linear-gradient(135deg, #fef3c7, #fde68a); color:#92400e; font-size:0.7rem; font-weight:700; padding:6px 12px; border-radius:20px; margin-bottom:16px;">✅ ACTIF</div>';
+            statusActions = `
+                <div style="margin-top:16px;">
+                    <button onclick="window.revokeUser('${u.id}')" style="width:100%; background:#ef4444; color:white; border:none; padding:10px; border-radius:8px; cursor:pointer; font-weight:700; font-size:0.85rem;">
+                        🚫 RÉVOQUER L'ACCÈS
+                    </button>
+                </div>
+            `;
+        } else {
+            // Utilisateur normal approuvé
+            statusBadge = '<div style="display:inline-block; background:linear-gradient(135deg, #fef3c7, #fde68a); color:#92400e; font-size:0.7rem; font-weight:700; padding:6px 12px; border-radius:20px; margin-bottom:16px; text-transform:uppercase; letter-spacing:0.5px;">' + u.portal + '</div>';
+        }
+        
         return `
             <div class="contact-card" style="background:white; border-radius:16px; box-shadow:0 2px 8px rgba(0,0,0,0.08); padding:24px; transition:all 0.3s; border:2px solid transparent;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 24px rgba(0,0,0,0.12)'; this.style.borderColor='var(--gold)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'; this.style.borderColor='transparent';">
                 
@@ -363,10 +420,8 @@ function renderContacts(users) {
                     <p style="margin:0; font-size:0.85rem; color:#64748b; font-weight:500;">${u.job_title || 'Collaborateur'}</p>
                 </div>
                 
-                <!-- Entité -->
-                <div style="display:inline-block; background:linear-gradient(135deg, #fef3c7, #fde68a); color:#92400e; font-size:0.7rem; font-weight:700; padding:6px 12px; border-radius:20px; margin-bottom:16px; text-transform:uppercase; letter-spacing:0.5px;">
-                    ${u.portal}
-                </div>
+                <!-- Badge statut/entité -->
+                ${statusBadge}
                 
                 <!-- Coordonnées -->
                 ${u.email ? `
@@ -390,6 +445,9 @@ function renderContacts(users) {
                     </button>
                 </div>
                 ` : ''}
+                
+                <!-- Actions de gestion (Institut Alsatia seulement) -->
+                ${statusActions}
             </div>
         `;
     }).join('');
@@ -2799,3 +2857,94 @@ document.addEventListener("DOMContentLoaded", () => {
         chatHeader.addEventListener("click", window.toggleChatSidebar);
     }
 });
+
+
+// =====================================================
+// GESTION DES COMPTES (Institut Alsatia uniquement)
+// =====================================================
+
+window.approveUser = async (userId) => {
+    window.alsatiaConfirm(
+        "APPROUVER LE COMPTE",
+        "Voulez-vous approuver ce compte ? L'utilisateur pourra se connecter.",
+        async () => {
+            const { error } = await supabaseClient
+                .from('profiles')
+                .update({ status: 'approved' })
+                .eq('id', userId);
+            
+            if (error) {
+                window.showNotice("Erreur", "Impossible d'approuver le compte.", "error");
+                return;
+            }
+            
+            window.showNotice("Approuvé", "Le compte a été approuvé avec succès.", "success");
+            loadContacts();
+        }
+    );
+};
+
+window.rejectUser = async (userId) => {
+    window.alsatiaConfirm(
+        "REFUSER L'INSCRIPTION",
+        "Voulez-vous refuser cette inscription ? L'utilisateur ne pourra pas se connecter.",
+        async () => {
+            const { error } = await supabaseClient
+                .from('profiles')
+                .update({ status: 'rejected' })
+                .eq('id', userId);
+            
+            if (error) {
+                window.showNotice("Erreur", "Impossible de refuser le compte.", "error");
+                return;
+            }
+            
+            window.showNotice("Refusé", "L'inscription a été refusée.", "success");
+            loadContacts();
+        },
+        true
+    );
+};
+
+window.revokeUser = async (userId) => {
+    window.alsatiaConfirm(
+        "RÉVOQUER L'ACCÈS",
+        "Voulez-vous révoquer l'accès de cet utilisateur ? Il ne pourra plus se connecter.",
+        async () => {
+            const { error } = await supabaseClient
+                .from('profiles')
+                .update({ status: 'revoked' })
+                .eq('id', userId);
+            
+            if (error) {
+                window.showNotice("Erreur", "Impossible de révoquer l'accès.", "error");
+                return;
+            }
+            
+            window.showNotice("Révoqué", "L'accès a été révoqué.", "success");
+            loadContacts();
+        },
+        true
+    );
+};
+
+window.reactivateUser = async (userId) => {
+    window.alsatiaConfirm(
+        "RÉACTIVER LE COMPTE",
+        "Voulez-vous réactiver ce compte ? L'utilisateur pourra se connecter à nouveau.",
+        async () => {
+            const { error } = await supabaseClient
+                .from('profiles')
+                .update({ status: 'approved' })
+                .eq('id', userId);
+            
+            if (error) {
+                window.showNotice("Erreur", "Impossible de réactiver le compte.", "error");
+                return;
+            }
+            
+            window.showNotice("Réactivé", "Le compte a été réactivé.", "success");
+            loadContacts();
+        }
+    );
+};
