@@ -2472,14 +2472,16 @@ window.sendEventMessage = async (eventId) => {
     
     if (!message) return;
     
-    const { error } = await supabaseClient
+    const { data, error } = await supabaseClient
         .from('event_messages')
         .insert([{
             event_id: eventId,
             author_id: currentUser.id,
             author_name: `${currentUser.first_name} ${currentUser.last_name}`,
             message: message
-        }]);
+        }])
+        .select()
+        .single();
     
     if (error) {
         console.error('Erreur message:', error);
@@ -2488,6 +2490,22 @@ window.sendEventMessage = async (eventId) => {
     }
     
     input.value = '';
+    
+    // Afficher le message immédiatement
+    const container = document.getElementById(`event-chat-${eventId}`);
+    if (container) {
+        const messageHTML = `
+            <div style="margin-bottom:15px; padding:10px; background:var(--bg); border-radius:8px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                    <strong style="color:var(--gold);">${escapeHTML(data.author_name)}</strong>
+                    <span style="color:var(--text-muted); font-size:0.85rem;">${new Date(data.created_at).toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'})}</span>
+                </div>
+                <p style="margin:0; color:var(--text-main);">${escapeHTML(data.message)}</p>
+            </div>
+        `;
+        container.insertAdjacentHTML('beforeend', messageHTML);
+        container.scrollTop = container.scrollHeight;
+    }
 };
 
 /**
@@ -2508,18 +2526,28 @@ window.subscribeToEventChat = (eventId) => {
             table: 'event_messages',
             filter: `event_id=eq.${eventId}`
         }, async (payload) => {
-            console.log('Nouveau message:', payload.new);
+            console.log('Nouveau message Realtime:', payload.new);
             
-            // Recharger tous les messages
-            const { data: messages } = await supabaseClient
-                .from('event_messages')
-                .select('*')
-                .eq('event_id', eventId)
-                .order('created_at', { ascending: true });
+            // Si c'est mon propre message, ne rien faire (déjà affiché immédiatement)
+            const isMyMessage = payload.new.author_id === currentUser.id;
+            if (isMyMessage) {
+                console.log('Mon propre message, ignoré (déjà affiché)');
+                return;
+            }
             
+            // Sinon, afficher le message reçu
             const container = document.getElementById(`event-chat-${eventId}`);
             if (container) {
-                container.innerHTML = renderEventMessages(messages || []);
+                const messageHTML = `
+                    <div style="margin-bottom:15px; padding:10px; background:var(--bg); border-radius:8px;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                            <strong style="color:var(--gold);">${escapeHTML(payload.new.author_name)}</strong>
+                            <span style="color:var(--text-muted); font-size:0.85rem;">${new Date(payload.new.created_at).toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'})}</span>
+                        </div>
+                        <p style="margin:0; color:var(--text-main);">${escapeHTML(payload.new.message)}</p>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', messageHTML);
                 container.scrollTop = container.scrollHeight;
             }
         })
