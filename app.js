@@ -1384,9 +1384,9 @@ window.execCreateEvent = async () => {
 
 // 3. DOSSIER LOGISTIQUE & ACTIONS RÉSEAUX (ÉTAPE 2 & 3)
 // ==========================================
-// NOUVELLES FONCTIONS ÉVÉNEMENTS AVEC MÉDIAS
+// ÉVÉNEMENTS - VERSION COMPLÈTE V2
 // ==========================================
-// Remplace toute la section depuis window.openEventDetails jusqu'à window.refreshGallery
+// Remplace depuis window.openEventDetails jusqu'à window.updateEventField
 
 window.openEventDetails = async (id) => {
     const { data: ev } = await supabaseClient.from('events').select('*').eq('id', id).single();
@@ -1401,8 +1401,11 @@ window.openEventDetails = async (id) => {
         .from('event-media')
         .list(`${id}/documents`);
     
-    const photos = mediaList || [];
-    const documents = docsList || [];
+    const photos = (mediaList || []).filter(f => f.name && f.name !== '.emptyFolderPlaceholder');
+    const documents = (docsList || []).filter(f => f.name && f.name !== '.emptyFolderPlaceholder');
+    
+    // Charger la liste des utilisateurs pour notification
+    const { data: users } = await supabaseClient.from('profiles').select('id, first_name, last_name').order('last_name');
     
     const isCompleted = ev.status === 'Complet' || ev.status === 'Terminé';
 
@@ -1420,24 +1423,30 @@ window.openEventDetails = async (id) => {
             </div>
         </div>
 
+        <!-- Description de l'événement -->
+        <div style="background:#f8fafc; padding:20px; border-radius:12px; margin-bottom:20px;">
+            <p class="mini-label">DESCRIPTION DE L'ÉVÉNEMENT</p>
+            <textarea id="ev-description-${id}" class="luxe-input" style="min-height:100px; font-size:0.9rem; line-height:1.6;" onchange="window.updateEventField('${id}', 'description', this.value)">${ev.description || ''}</textarea>
+        </div>
+
         <!-- Informations de base -->
         <div style="background:#f8fafc; padding:20px; border-radius:12px; margin-bottom:20px;">
-            <p class="mini-label">INFORMATIONS DE L'ÉVÉNEMENT</p>
+            <p class="mini-label">INFORMATIONS PRATIQUES</p>
             
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:15px;">
                 <div>
                     <p style="font-size:0.75rem; color:#64748b; margin-bottom:5px;">DATE</p>
-                    <input type="date" id="ev-date" class="luxe-input" value="${ev.event_date}" onchange="window.updateEventField('${id}', 'event_date', this.value)">
+                    <input type="date" id="ev-date-${id}" class="luxe-input" value="${ev.event_date}" onchange="window.updateEventField('${id}', 'event_date', this.value)">
                 </div>
                 <div>
                     <p style="font-size:0.75rem; color:#64748b; margin-bottom:5px;">HEURE</p>
-                    <input type="time" id="ev-time" class="luxe-input" value="${ev.event_time || ''}" onchange="window.updateEventField('${id}', 'event_time', this.value)">
+                    <input type="time" id="ev-time-${id}" class="luxe-input" value="${ev.event_time || ''}" onchange="window.updateEventField('${id}', 'event_time', this.value)">
                 </div>
             </div>
             
             <div>
                 <p style="font-size:0.75rem; color:#64748b; margin-bottom:5px;">LIEU</p>
-                <input type="text" id="ev-location" class="luxe-input" value="${ev.location || ''}" placeholder="Ex: Salle des fêtes..." onchange="window.updateEventField('${id}', 'location', this.value)">
+                <input type="text" id="ev-location-${id}" class="luxe-input" value="${ev.location || ''}" placeholder="Ex: Salle des fêtes..." onchange="window.updateEventField('${id}', 'location', this.value)">
             </div>
         </div>
 
@@ -1446,35 +1455,17 @@ window.openEventDetails = async (id) => {
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                 <p class="mini-label" style="margin:0; color:var(--gold);">📱 TEXTE POUR LES RÉSEAUX SOCIAUX</p>
                 ${ev.social_media_text ? `
-                    <div style="display:flex; gap:8px;">
-                        <button onclick="window.editSocialText('${id}')" style="background:var(--gold); color:white; border:none; padding:6px 12px; border-radius:6px; font-size:0.75rem; cursor:pointer; font-weight:700;">
-                            <i data-lucide="edit-3" style="width:12px; height:12px; vertical-align:middle; margin-right:4px;"></i>MODIFIER
-                        </button>
-                        <button onclick="window.deleteSocialText('${id}')" style="background:#fee2e2; color:#ef4444; border:none; padding:6px 12px; border-radius:6px; font-size:0.75rem; cursor:pointer; font-weight:700;">
-                            <i data-lucide="trash-2" style="width:12px; height:12px; vertical-align:middle; margin-right:4px;"></i>SUPPRIMER
-                        </button>
-                    </div>
+                    <button onclick="window.deleteSocialText('${id}')" style="background:#fee2e2; color:#ef4444; border:none; padding:6px 12px; border-radius:6px; font-size:0.75rem; cursor:pointer; font-weight:700;">
+                        <i data-lucide="trash-2" style="width:12px; height:12px; vertical-align:middle; margin-right:4px;"></i>SUPPRIMER
+                    </button>
                 ` : ''}
             </div>
             
-            ${ev.social_media_text ? `
-                <div id="social-text-display" style="background:#fffbeb; padding:15px; border-radius:8px; white-space:pre-wrap; font-size:0.9rem; line-height:1.6; color:#1e293b;">
-                    ${ev.social_media_text}
-                </div>
-                <div id="social-text-edit" style="display:none;">
-                    <textarea id="social-text-area" class="luxe-input" style="min-height:150px; font-size:0.9rem; line-height:1.6;">${ev.social_media_text}</textarea>
-                    <div style="display:flex; gap:10px; margin-top:10px;">
-                        <button onclick="window.saveSocialText('${id}')" class="btn-gold-fill" style="flex:1;">ENREGISTRER</button>
-                        <button onclick="window.cancelEditSocialText()" class="btn-outline" style="flex:1;">ANNULER</button>
-                    </div>
-                </div>
-            ` : `
-                <textarea id="social-text-new" class="luxe-input" placeholder="Rédigez votre post pour Instagram, Facebook, LinkedIn..." style="min-height:150px; font-size:0.9rem; line-height:1.6;"></textarea>
-                <button onclick="window.saveSocialText('${id}')" class="btn-gold-fill" style="width:100%; margin-top:10px;">
-                    <i data-lucide="check" style="width:16px; height:16px; vertical-align:middle; margin-right:6px;"></i>
-                    ENREGISTRER LE TEXTE
-                </button>
-            `}
+            <textarea id="social-text-${id}" class="luxe-input" placeholder="Rédigez votre post pour Instagram, Facebook, LinkedIn..." style="min-height:150px; font-size:0.9rem; line-height:1.6; background:#fffbeb;">${ev.social_media_text || ''}</textarea>
+            <button onclick="window.saveSocialText('${id}')" class="btn-gold-fill" style="width:100%; margin-top:10px;">
+                <i data-lucide="check" style="width:16px; height:16px; vertical-align:middle; margin-right:6px;"></i>
+                ${ev.social_media_text ? 'METTRE À JOUR' : 'ENREGISTRER'} LE TEXTE
+            </button>
         </div>
 
         <!-- Photos & Documents -->
@@ -1494,10 +1485,11 @@ window.openEventDetails = async (id) => {
             <div id="photos-list-${id}" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(100px, 1fr)); gap:10px; margin-bottom:20px;">
                 ${photos.length === 0 ? '<p style="grid-column:1/-1; text-align:center; color:#64748b; padding:20px; font-size:0.85rem;">Aucune photo</p>' : ''}
                 ${photos.map(photo => {
-                    const photoUrl = supabaseClient.storage.from('event-media').getPublicUrl(`${id}/photos/${photo.name}`).data.publicUrl;
+                    const { data: urlData } = supabaseClient.storage.from('event-media').getPublicUrl(`${id}/photos/${photo.name}`);
+                    const photoUrl = urlData.publicUrl;
                     return `
                         <div style="position:relative; border-radius:8px; overflow:hidden; aspect-ratio:1; border:2px solid #e2e8f0;">
-                            <img src="${photoUrl}" style="width:100%; height:100%; object-fit:cover;">
+                            <img src="${photoUrl}" style="width:100%; height:100%; object-fit:cover;" onerror="this.parentElement.innerHTML='<div style=\\'display:flex;align-items:center;justify-content:center;height:100%;background:#f8fafc;color:#94a3b8;font-size:0.7rem;\\'>Erreur</div>'">
                             <button onclick="window.deleteMedia('${id}', 'photos', '${photo.name}')" style="position:absolute; top:4px; right:4px; background:rgba(239,68,68,0.9); border:none; color:white; width:24px; height:24px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;">
                                 <i data-lucide="x" style="width:14px; height:14px;"></i>
                             </button>
@@ -1532,6 +1524,21 @@ window.openEventDetails = async (id) => {
             </div>
         </div>
 
+        <!-- Notifier un utilisateur -->
+        <div style="background:#e0f2fe; border:2px solid #0ea5e9; padding:20px; border-radius:12px; margin-bottom:20px;">
+            <p class="mini-label" style="color:#075985; margin-bottom:10px;">🔔 NOTIFIER UN UTILISATEUR</p>
+            <div style="display:flex; gap:10px;">
+                <select id="notify-user-${id}" class="luxe-input" style="flex:1;">
+                    <option value="">Sélectionner un utilisateur...</option>
+                    ${(users || []).map(u => `<option value="${u.id}">${u.first_name} ${u.last_name}</option>`).join('')}
+                </select>
+                <button onclick="window.notifyUserForEvent('${id}')" class="btn-gold" style="background:#0ea5e9; white-space:nowrap;">
+                    <i data-lucide="send" style="width:16px; height:16px; vertical-align:middle; margin-right:6px;"></i>
+                    NOTIFIER
+                </button>
+            </div>
+        </div>
+
         <!-- Actions si terminé -->
         ${isCompleted ? `
             <div style="background:linear-gradient(135deg, #dcfce7, #bbf7d0); padding:20px; border-radius:12px; border:2px solid #22c55e; margin-bottom:20px;">
@@ -1556,7 +1563,7 @@ window.openEventDetails = async (id) => {
         </button>
 
         <!-- Bouton supprimer -->
-        <button onclick="window.askDeleteEvent('${id}', '${ev.title.replace(/'/g, "\\'")}')" style="width:100%; background:#fee2e2; color:#ef4444; border:2px solid #ef4444; padding:12px; border-radius:8px; cursor:pointer; font-weight:700; font-size:0.85rem;">
+        <button onclick="window.askDeleteEvent('${id}', '${ev.title.replace(/'/g, "\\'")}') style="width:100%; background:#fee2e2; color:#ef4444; border:2px solid #ef4444; padding:12px; border-radius:8px; cursor:pointer; font-weight:700; font-size:0.85rem;">
             <i data-lucide="trash-2" style="width:16px; height:16px; vertical-align:middle; margin-right:6px;"></i>
             SUPPRIMER L'ÉVÉNEMENT
         </button>
@@ -1567,13 +1574,10 @@ window.openEventDetails = async (id) => {
 
 // Sauvegarder le texte réseaux sociaux
 window.saveSocialText = async (eventId) => {
-    const newText = document.getElementById('social-text-new');
-    const editText = document.getElementById('social-text-area');
-    const text = newText ? newText.value.trim() : editText.value.trim();
+    const textArea = document.getElementById(`social-text-${eventId}`);
+    if (!textArea) return;
     
-    if (!text) {
-        return window.showNotice("Erreur", "Le texte ne peut pas être vide.", "error");
-    }
+    const text = textArea.value.trim();
     
     const { error } = await supabaseClient
         .from('events')
@@ -1586,20 +1590,7 @@ window.saveSocialText = async (eventId) => {
     }
     
     window.showNotice("Enregistré !", "Texte sauvegardé avec succès.", "success");
-    window.openEventDetails(eventId); // Recharger la modale
-};
-
-// Éditer le texte
-window.editSocialText = (eventId) => {
-    document.getElementById('social-text-display').style.display = 'none';
-    document.getElementById('social-text-edit').style.display = 'block';
-    lucide.createIcons();
-};
-
-// Annuler l'édition
-window.cancelEditSocialText = () => {
-    document.getElementById('social-text-display').style.display = 'block';
-    document.getElementById('social-text-edit').style.display = 'none';
+    loadEvents();
 };
 
 // Supprimer le texte
@@ -1632,6 +1623,7 @@ window.uploadPhotos = async (eventId) => {
     
     if (!files || files.length === 0) return;
     
+    let uploadCount = 0;
     for (let file of files) {
         const filePath = `${eventId}/photos/${Date.now()}_${file.name}`;
         
@@ -1639,13 +1631,15 @@ window.uploadPhotos = async (eventId) => {
             .from('event-media')
             .upload(filePath, file);
         
-        if (error) {
-            window.showNotice("Erreur", `Impossible d'uploader ${file.name}`, "error");
-        }
+        if (!error) uploadCount++;
     }
     
-    window.showNotice("Uploadé !", `${files.length} photo(s) ajoutée(s).`, "success");
-    window.openEventDetails(eventId); // Recharger
+    if (uploadCount > 0) {
+        window.showNotice("Uploadé !", `${uploadCount} photo(s) ajoutée(s).`, "success");
+        window.openEventDetails(eventId);
+    } else {
+        window.showNotice("Erreur", "Impossible d'uploader les photos.", "error");
+    }
 };
 
 // Upload documents
@@ -1655,6 +1649,7 @@ window.uploadDocuments = async (eventId) => {
     
     if (!files || files.length === 0) return;
     
+    let uploadCount = 0;
     for (let file of files) {
         const filePath = `${eventId}/documents/${Date.now()}_${file.name}`;
         
@@ -1662,13 +1657,15 @@ window.uploadDocuments = async (eventId) => {
             .from('event-media')
             .upload(filePath, file);
         
-        if (error) {
-            window.showNotice("Erreur", `Impossible d'uploader ${file.name}`, "error");
-        }
+        if (!error) uploadCount++;
     }
     
-    window.showNotice("Uploadé !", `${files.length} document(s) ajouté(s).`, "success");
-    window.openEventDetails(eventId); // Recharger
+    if (uploadCount > 0) {
+        window.showNotice("Uploadé !", `${uploadCount} document(s) ajouté(s).`, "success");
+        window.openEventDetails(eventId);
+    } else {
+        window.showNotice("Erreur", "Impossible d'uploader les documents.", "error");
+    }
 };
 
 // Supprimer un média
@@ -1711,22 +1708,23 @@ window.toggleEventComplete = async (eventId, isCurrentlyCompleted) => {
     
     window.showNotice("Statut modifié", `Événement marqué comme "${newStatus}".`, "success");
     window.openEventDetails(eventId);
-    loadEvents(); // Recharger la liste
+    loadEvents();
 };
 
-// Télécharger toutes les photos (ZIP via JSZip)
+// Télécharger toutes les photos
 window.downloadAllPhotos = async (eventId) => {
     const { data: files } = await supabaseClient.storage
         .from('event-media')
         .list(`${eventId}/photos`);
     
-    if (!files || files.length === 0) {
+    const photos = (files || []).filter(f => f.name && f.name !== '.emptyFolderPlaceholder');
+    
+    if (photos.length === 0) {
         window.showNotice("Aucune photo", "Aucune photo à télécharger.", "warning");
         return;
     }
     
-    // Télécharger photo par photo (simple)
-    for (let file of files) {
+    for (let file of photos) {
         const { data } = await supabaseClient.storage
             .from('event-media')
             .download(`${eventId}/photos/${file.name}`);
@@ -1741,7 +1739,7 @@ window.downloadAllPhotos = async (eventId) => {
         }
     }
     
-    window.showNotice("Téléchargement", `${files.length} photo(s) téléchargée(s).`, "success");
+    window.showNotice("Téléchargement", `${photos.length} photo(s) téléchargée(s).`, "success");
 };
 
 // Copier le texte dans le presse-papier
@@ -1758,97 +1756,58 @@ window.copyTextToClipboard = async (eventId) => {
     });
 };
 
+// Notifier un utilisateur
+window.notifyUserForEvent = async (eventId) => {
+    const select = document.getElementById(`notify-user-${eventId}`);
+    if (!select || !select.value) {
+        window.showNotice("Erreur", "Veuillez sélectionner un utilisateur.", "error");
+        return;
+    }
+    
+    const userId = select.value;
+    const { data: user } = await supabaseClient.from('profiles').select('first_name, last_name').eq('id', userId).single();
+    const { data: event } = await supabaseClient.from('events').select('title').eq('id', eventId).single();
+    
+    if (!user || !event) return;
+    
+    // Créer un message dans le canal général
+    const message = `@${user.first_name} ${user.last_name} - Vous devez intervenir sur l'événement "${event.title}"`;
+    
+    const { error } = await supabaseClient.from('chat_global').insert([{
+        subject: 'Général',
+        content: message,
+        author_full_name: `${currentUser.first_name} ${currentUser.last_name}`,
+        portal: currentUser.portal
+    }]);
+    
+    if (error) {
+        window.showNotice("Erreur", "Impossible d'envoyer la notification.", "error");
+        return;
+    }
+    
+    window.showNotice("Notifié !", `${user.first_name} ${user.last_name} a été notifié(e).`, "success");
+    select.value = '';
+};
+
 // Mettre à jour un champ de l'événement
 window.updateEventField = async (id, field, value) => {
+    console.log(`Tentative de sauvegarde : ${field} = ${value} pour l'ID ${id}`);
+    
     const { error } = await supabaseClient
         .from('events')
         .update({ [field]: value })
         .eq('id', id);
     
     if (error) {
+        console.error("Erreur de sauvegarde:", error);
         window.showNotice("Erreur", "Impossible de sauvegarder.", "error");
         return;
     }
     
+    console.log("Enregistrement réussi !");
     window.showNotice("Enregistré", "Modification sauvegardée.", "success");
     loadEvents();
 };
-
-// 4. STORAGE (UPLOAD / LISTE / DELETE)
-window.uploadMultipleMedia = async (eventId, files) => {
-    if(!files.length) return;
-    for(let file of files) {
-        const path = `events_media/${eventId}/${Date.now()}_${file.name}`;
-        await supabaseClient.storage.from('documents').upload(path, file);
-    }
-    window.refreshGallery(eventId);
-};
-
-window.refreshGallery = async (eventId) => {
-    const { data } = await supabaseClient.storage.from('documents').list(`events_media/${eventId}`);
-    const gallery = document.getElementById('event-gallery');
-    if(!gallery) return;
-    if(!data || data.length === 0) {
-        gallery.innerHTML = `<p style="font-size:0.6rem; color:#94a3b8; grid-column:span 3; text-align:center;">Aucun média.</p>`;
-        return;
-    }
-    gallery.innerHTML = data.map(file => {
-        const { data: { publicUrl } } = supabaseClient.storage.from('documents').getPublicUrl(`events_media/${eventId}/${file.name}`);
-        const isImg = file.name.match(/\.(jpg|jpeg|png|gif|webp)$/i);
-        return `
-            <div style="position:relative; aspect-ratio:1; border-radius:8px; overflow:hidden; border:1px solid #e2e8f0; background:#f8fafc;">
-                ${isImg ? `<img src="${publicUrl}" style="width:100%; height:100%; object-fit:cover;">` : `<div style="display:flex; align-items:center; justify-content:center; height:100%; font-size:0.5rem; text-align:center;">DOC</div>`}
-                <button onclick="window.deleteMedia('${eventId}', '${file.name}')" style="position:absolute; top:2px; right:2px; background:#ef4444; color:white; border:none; border-radius:50%; width:18px; height:18px; cursor:pointer; font-size:10px;">&times;</button>
-            </div>
-        `;
-    }).join('');
-};
-
-window.deleteMedia = async (eventId, fileName) => {
-    window.alsatiaConfirm("SUPPRIMER LE FICHIER", "Voulez-vous vraiment supprimer ce fichier ?", async () => {
-        await supabaseClient.storage.from('documents').remove([`events_media/${eventId}/${fileName}`]);
-        window.refreshGallery(eventId);
-        window.showNotice("Supprimé", "Fichier supprimé avec succès.", "success");
-    }, true);
-};
-
-window.downloadAllMedia = async (eventId) => {
-    const { data } = await supabaseClient.storage.from('documents').list(`events_media/${eventId}`);
-    if(data) data.forEach(f => {
-        const { data: { publicUrl } } = supabaseClient.storage.from('documents').getPublicUrl(`events_media/${eventId}/${f.name}`);
-        window.open(publicUrl, '_blank');
-    });
-};
-
-// 5. MISES À JOUR & ACTIONS
-window.toggleEventStatus = async (id, currentStatus) => {
-    const newStatus = currentStatus === 'Complet' ? 'En cours' : 'Complet';
-    await supabaseClient.from('events').update({ status: newStatus }).eq('id', id);
-    window.showNotice("Statut", `Événement marqué comme : ${newStatus}`);
-    closeCustomModal();
-    loadEvents();
-};
-
-window.updateEventField = async (id, field, value) => {
-    console.log(`Tentative de sauvegarde : ${field} = ${value} pour l'ID ${id}`);
-
-    const { error } = await supabaseClient
-        .from('events')
-        .update({ [field]: value })
-        .eq('id', id);
-
-    if (error) {
-        console.error("Erreur de sauvegarde:", error.message);
-        window.showNotice("Erreur", "Impossible d'enregistrer la modification.");
-    } else {
-        // Optionnel : un petit indicateur discret dans la console
-        console.log("Enregistrement réussi !");
-        
-        // On rafraîchit la liste en fond pour que le dashboard soit à jour
-        loadEvents(); 
-    }
-};
-
 window.copyToClipboard = (text) => {
     if(!text) return window.showNotice("Vide", "Aucun texte à copier.");
     navigator.clipboard.writeText(text).then(() => window.showNotice("Copié !", "Texte prêt pour les réseaux."));
