@@ -526,7 +526,7 @@ body {
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
     max-height: 60vh;
     overflow-y: auto;
-    z-index: 1000;
+    z-index: 10000;
     animation: slideDown 0.2s ease-out;
 }
 
@@ -597,9 +597,8 @@ body {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.3);
-    z-index: 999;
-    backdrop-filter: blur(2px);
+    background: rgba(0, 0, 0, 0.2);
+    z-index: 9999;
 }
 
 .mobile-dropdown-overlay.active {
