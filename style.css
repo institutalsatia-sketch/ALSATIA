@@ -654,3 +654,408 @@ body {
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
+
+/* =====================================================
+   RESPONSIVE MOBILE - VERSION ULTRA PRO
+   ===================================================== */
+
+/* Menu burger mobile */
+.mobile-menu-toggle {
+    display: none;
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 10000;
+    background: linear-gradient(135deg, var(--gold) 0%, var(--gold-light) 100%);
+    border: none;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(197, 160, 89, 0.4);
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+}
+
+.mobile-menu-toggle:active {
+    transform: scale(0.95);
+}
+
+.mobile-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 9998;
+    backdrop-filter: blur(4px);
+}
+
+/* Tablette (< 1024px) */
+@media (max-width: 1024px) {
+    .side-nav {
+        width: 220px;
+    }
+    
+    .main-content {
+        margin-left: 220px;
+    }
+    
+    .chat-layout {
+        grid-template-columns: 200px 1fr;
+    }
+}
+
+/* Mobile (< 768px) */
+@media (max-width: 768px) {
+    /* === NAVIGATION MOBILE === */
+    .mobile-menu-toggle {
+        display: flex;
+    }
+    
+    .side-nav {
+        position: fixed;
+        left: -280px;
+        top: 0;
+        bottom: 0;
+        width: 280px;
+        z-index: 9999;
+        transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 4px 0 20px rgba(0, 0, 0, 0.3);
+    }
+    
+    .side-nav.mobile-open {
+        left: 0;
+    }
+    
+    .mobile-overlay.active {
+        display: block;
+    }
+    
+    .main-content {
+        margin-left: 0;
+        padding: 80px 15px 20px 15px;
+    }
+    
+    /* === HEADER TABS === */
+    .header-tab {
+        flex-direction: column;
+        gap: 15px;
+        align-items: stretch !important;
+    }
+    
+    .header-tab h1 {
+        font-size: 1.5rem;
+    }
+    
+    .header-tab > div {
+        width: 100%;
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .header-tab button {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    /* === WELCOME CARD === */
+    .welcome-card h1 {
+        font-size: 1.8rem !important;
+    }
+    
+    .welcome-card p {
+        font-size: 1rem !important;
+    }
+    
+    /* === SEARCH BOX === */
+    .search-box {
+        width: 100%;
+    }
+    
+    /* === FILTERS BAR === */
+    .filters-bar {
+        flex-direction: column !important;
+        gap: 10px !important;
+    }
+    
+    .filters-bar input,
+    .filters-bar select {
+        width: 100% !important;
+        flex: none !important;
+    }
+    
+    /* === CONTACTS GRID === */
+    #contacts-grid {
+        grid-template-columns: 1fr !important;
+        gap: 15px !important;
+        padding: 15px 0 !important;
+    }
+    
+    /* === TABLE RESPONSIVE === */
+    .table-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .luxe-table {
+        min-width: 600px;
+        font-size: 0.85rem;
+    }
+    
+    .luxe-table th,
+    .luxe-table td {
+        padding: 10px 12px;
+    }
+    
+    /* === CHAT MOBILE === */
+    .chat-layout {
+        grid-template-columns: 1fr !important;
+        height: calc(100vh - 100px);
+    }
+    
+    .chat-sidebar {
+        display: none;
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 280px;
+        z-index: 9999;
+        background: var(--bg);
+        box-shadow: 4px 0 20px rgba(0, 0, 0, 0.3);
+    }
+    
+    .chat-sidebar.mobile-open {
+        display: block;
+    }
+    
+    .chat-header {
+        padding: 15px 20px;
+        position: relative;
+    }
+    
+    .chat-header::before {
+        content: '☰';
+        position: absolute;
+        left: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 1.5rem;
+        color: var(--gold);
+        cursor: pointer;
+    }
+    
+    .chat-header span {
+        margin-left: 35px;
+        font-size: 1rem !important;
+    }
+    
+    .chat-messages {
+        height: calc(100vh - 280px) !important;
+        padding: 15px;
+    }
+    
+    .chat-input-area {
+        padding: 15px;
+    }
+    
+    .message-wrapper {
+        margin-bottom: 15px !important;
+    }
+    
+    .message {
+        max-width: 85% !important;
+        font-size: 0.9rem !important;
+    }
+    
+    /* === ÉVÉNEMENTS === */
+    .events-list-container {
+        padding: 0 5px;
+    }
+    
+    .event-card {
+        padding: 15px;
+        margin-bottom: 12px;
+    }
+    
+    .event-card h3 {
+        font-size: 1rem !important;
+    }
+    
+    .month-separator {
+        padding: 12px 15px;
+        font-size: 0.85rem;
+    }
+    
+    /* === MODAL MOBILE === */
+    .modal-overlay {
+        padding: 0 !important;
+    }
+    
+    .modal-card {
+        max-width: 100% !important;
+        width: 100% !important;
+        max-height: 100vh !important;
+        border-radius: 0 !important;
+        margin: 0 !important;
+    }
+    
+    .modal-header {
+        padding: 20px 15px;
+    }
+    
+    .modal-body {
+        padding: 15px;
+        max-height: calc(100vh - 140px);
+        overflow-y: auto;
+    }
+    
+    .modal-actions {
+        padding: 15px;
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .modal-actions button {
+        width: 100%;
+    }
+    
+    /* === ACCOUNT PAGE === */
+    #tab-account > div[style*="max-width"] {
+        max-width: 100% !important;
+    }
+    
+    #tab-account .luxe-input {
+        font-size: 1rem;
+        padding: 12px;
+    }
+    
+    #tab-account > div > div[style*="grid-template-columns"] {
+        grid-template-columns: 1fr !important;
+        gap: 10px !important;
+    }
+    
+    /* === BOUTONS === */
+    .btn-gold,
+    .btn-outline,
+    .btn-danger {
+        padding: 12px 20px;
+        font-size: 0.9rem;
+        white-space: nowrap;
+    }
+    
+    .btn-gold i,
+    .btn-outline i {
+        width: 16px;
+        height: 16px;
+    }
+    
+    /* === INPUTS === */
+    .luxe-input {
+        font-size: 1rem;
+        padding: 12px 14px;
+    }
+    
+    /* === NOTICE TOAST === */
+    .notice-toast {
+        left: 50%;
+        transform: translateX(-50%);
+        max-width: calc(100vw - 30px);
+        font-size: 0.85rem;
+        padding: 12px 15px;
+    }
+    
+    /* === LOGO AREA === */
+    .logo-area {
+        padding: 20px 15px;
+    }
+    
+    #entity-logo-container img {
+        max-width: 60px;
+        max-height: 60px;
+    }
+    
+    .brand-name {
+        font-size: 1.3rem;
+    }
+    
+    .portal-tag {
+        font-size: 0.65rem;
+        padding: 4px 10px;
+    }
+}
+
+/* Très petit mobile (< 480px) */
+@media (max-width: 480px) {
+    .main-content {
+        padding: 70px 10px 15px 10px;
+    }
+    
+    .welcome-card h1 {
+        font-size: 1.5rem !important;
+    }
+    
+    .header-tab h1 {
+        font-size: 1.3rem;
+    }
+    
+    .luxe-table {
+        font-size: 0.75rem;
+    }
+    
+    .chat-messages {
+        padding: 10px;
+    }
+    
+    .message {
+        font-size: 0.85rem !important;
+        padding: 10px 12px !important;
+    }
+    
+    .event-card {
+        padding: 12px;
+    }
+    
+    .month-separator {
+        font-size: 0.75rem;
+        padding: 10px 12px;
+    }
+    
+    .modal-header h3 {
+        font-size: 1.1rem;
+    }
+    
+    .btn-gold,
+    .btn-outline {
+        font-size: 0.85rem;
+        padding: 10px 16px;
+    }
+}
+
+/* Mode paysage mobile */
+@media (max-height: 500px) and (orientation: landscape) {
+    .chat-messages {
+        height: calc(100vh - 200px) !important;
+    }
+    
+    .modal-body {
+        max-height: calc(100vh - 100px);
+    }
+}
+
+/* Fix iOS safe area */
+@supports (padding: max(0px)) {
+    .main-content {
+        padding-left: max(15px, env(safe-area-inset-left));
+        padding-right: max(15px, env(safe-area-inset-right));
+        padding-bottom: max(20px, env(safe-area-inset-bottom));
+    }
+    
+    .side-nav {
+        padding-left: max(0px, env(safe-area-inset-left));
+    }
+}
