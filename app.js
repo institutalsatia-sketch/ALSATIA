@@ -1387,6 +1387,10 @@ window.execCreateEvent = async () => {
 // ÉVÉNEMENTS - VERSION FINALE V3 (ULTRA-CORRIGÉE)
 // ==========================================
 
+// ==========================================
+// ÉVÉNEMENTS - VERSION FINALE V3 (ULTRA-CORRIGÉE)
+// ==========================================
+
 window.openEventDetails = async (id) => {
     const { data: ev } = await supabaseClient.from('events').select('*').eq('id', id).single();
     if(!ev) return;
@@ -1949,54 +1953,6 @@ window.notifyUserForEvent = async (eventId) => {
     window.showNotice("Notifié !", `${user.first_name} ${user.last_name} a été notifié(e).`, "success");
     select.value = '';
 };
-    window.chatChannel = supabaseClient
-        .channel('chat-realtime-' + Date.now())
-        .on('postgres_changes', 
-            { event: 'INSERT', schema: 'public', table: 'chat_global' }, 
-            payload => {
-                console.log('Nouveau message reçu:', payload);
-                if (payload.new && payload.new.subject === currentChatSubject) {
-                    appendSingleMessage(payload.new);
-                }
-            }
-        )
-        .on('postgres_changes', 
-            { event: 'UPDATE', schema: 'public', table: 'chat_global' }, 
-            payload => {
-                console.log('Message modifié:', payload);
-                window.loadChatMessages();
-            }
-        )
-        .on('postgres_changes', 
-            { event: 'DELETE', schema: 'public', table: 'chat_global' }, 
-            payload => {
-                console.log('Message supprimé en temps réel:', payload.old.id);
-                // Trouver et supprimer le message avec animation
-                const msgWrapper = document.querySelector(`[data-msg-id="${payload.old.id}"]`);
-                if (msgWrapper) {
-                    msgWrapper.style.transition = 'all 0.3s ease';
-                    msgWrapper.style.opacity = '0';
-                    msgWrapper.style.transform = 'translateX(-20px)';
-                    setTimeout(() => {
-                        msgWrapper.remove();
-                    }, 300);
-                }
-            }
-        )
-        .subscribe((status) => {
-            if (status === 'CHANNEL_ERROR') {
-                console.error('❌ Erreur Realtime - Désactivation');
-                window.chatRealtimeDisabled = true;
-                if (window.chatChannel) {
-                    window.chatChannel.unsubscribe();
-                }
-            } else {
-                console.log('Chat subscription status:', status);
-            }
-        });
-};
-
-// ==========================================
 // REALTIME POUR DONORS (DONATEURS)
 // ==========================================
 window.subscribeToDonors = () => {
@@ -2697,6 +2653,66 @@ window.reactToMessage = async (messageId, emoji) => {
 };
 
 // Supprimer un événement (avec médias)
+window.askDeleteEvent = async (eventId, eventTitle, deleteMedia = false) => {
+    window.alsatiaConfirm(
+        "SUPPRIMER L'ÉVÉNEMENT",
+        `Voulez-vous vraiment supprimer "${eventTitle}" ?${deleteMedia ? ' Les photos et documents seront également supprimés.' : ''}`,
+        async () => {
+            // Supprimer les médias si demandé
+            if (deleteMedia) {
+                // Supprimer toutes les photos
+                const { data: photos } = await supabaseClient.storage
+                    .from('event-media')
+                    .list(`${eventId}/photos`);
+                
+                if (photos && photos.length > 0) {
+                    const photoPaths = photos
+                        .filter(f => f.name && f.name !== '.emptyFolderPlaceholder')
+                        .map(f => `${eventId}/photos/${f.name}`);
+                    
+                    if (photoPaths.length > 0) {
+                        await supabaseClient.storage.from('event-media').remove(photoPaths);
+                    }
+                }
+                
+                // Supprimer tous les documents
+                const { data: docs } = await supabaseClient.storage
+                    .from('event-media')
+                    .list(`${eventId}/documents`);
+                
+                if (docs && docs.length > 0) {
+                    const docPaths = docs
+                        .filter(f => f.name && f.name !== '.emptyFolderPlaceholder')
+                        .map(f => `${eventId}/documents/${f.name}`);
+                    
+                    if (docPaths.length > 0) {
+                        await supabaseClient.storage.from('event-media').remove(docPaths);
+                    }
+                }
+            }
+            
+            // Supprimer l'événement
+            const { error } = await supabaseClient
+                .from('events')
+                .delete()
+                .eq('id', eventId);
+            
+            if (error) {
+                window.showNotice("Erreur", "Impossible de supprimer l'événement.", "error");
+                return;
+            }
+            
+            window.showNotice("Supprimé", "Événement supprimé.", "success");
+            closeCustomModal();
+            loadEvents();
+        },
+        true
+    );
+};
+
+// ==========================================
+// SUPPRESSION ÉVÉNEMENT AVEC MÉDIAS
+// ==========================================
 window.askDeleteEvent = async (eventId, eventTitle, deleteMedia = false) => {
     window.alsatiaConfirm(
         "SUPPRIMER L'ÉVÉNEMENT",
