@@ -87,6 +87,17 @@ window.logout = () => {
 window.closeCustomModal = () => { 
     const m = document.getElementById('custom-modal');
     if (m) {
+        // Nettoyer le channel Realtime si ouvert
+        if (window.eventChatChannel) {
+            try {
+                supabaseClient.removeChannel(window.eventChatChannel);
+                console.log('🧹 Channel Realtime nettoyé');
+            } catch (e) {
+                console.log('Erreur cleanup channel:', e);
+            }
+            window.eventChatChannel = null;
+        }
+        
         // Animation de fermeture
         m.style.opacity = '0';
         const card = m.querySelector('.modal-card');
@@ -266,6 +277,17 @@ async function loadHomeStats() {
 // ==========================================
 window.switchTab = (tabId) => {
     console.log("Changement d'onglet vers :", tabId);
+
+    // Nettoyer le channel Realtime des événements si on quitte les événements
+    if (tabId !== 'events' && window.eventChatChannel) {
+        try {
+            supabaseClient.removeChannel(window.eventChatChannel);
+            console.log('🧹 Channel événement nettoyé (changement onglet)');
+        } catch (e) {
+            console.log('Erreur cleanup channel:', e);
+        }
+        window.eventChatChannel = null;
+    }
 
     // 1. Gère l'affichage visuel des onglets
     document.querySelectorAll('.page-content').forEach(p => p.classList.remove('active'));
@@ -2512,14 +2534,24 @@ window.sendEventMessage = async (eventId) => {
  * S'ABONNER AU REALTIME POUR LE CHAT
  */
 window.subscribeToEventChat = (eventId) => {
-    // Désabonner l'ancien
+    // Désabonner l'ancien channel proprement
     if (window.eventChatChannel) {
-        window.eventChatChannel.unsubscribe();
+        try {
+            supabaseClient.removeChannel(window.eventChatChannel);
+        } catch (e) {
+            console.log('Erreur désabonnement:', e);
+        }
+        window.eventChatChannel = null;
     }
     
-    // Nouvel abonnement
-    window.eventChatChannel = supabaseClient
-        .channel(`event-chat-${eventId}`)
+    // Créer le nouveau channel avec gestion d'erreur
+    const channel = supabaseClient
+        .channel(`event-chat-${eventId}`, {
+            config: {
+                broadcast: { self: false },
+                presence: { key: '' }
+            }
+        })
         .on('postgres_changes', {
             event: 'INSERT',
             schema: 'public',
@@ -2551,7 +2583,27 @@ window.subscribeToEventChat = (eventId) => {
                 container.scrollTop = container.scrollHeight;
             }
         })
-        .subscribe();
+        .subscribe((status, err) => {
+            if (status === 'SUBSCRIBED') {
+                console.log('✅ Chat Realtime connecté');
+            }
+            if (status === 'CHANNEL_ERROR') {
+                console.error('❌ Erreur channel Realtime:', err);
+                // Ne pas réessayer automatiquement pour éviter la boucle
+                if (window.eventChatChannel) {
+                    supabaseClient.removeChannel(window.eventChatChannel);
+                    window.eventChatChannel = null;
+                }
+            }
+            if (status === 'TIMED_OUT') {
+                console.warn('⏱️ Timeout Realtime');
+            }
+            if (status === 'CLOSED') {
+                console.log('🔌 Channel fermé');
+            }
+        });
+    
+    window.eventChatChannel = channel;
 };
 
 /**
