@@ -390,12 +390,6 @@ function renderContacts(users) {
                     </button>
                 </div>
                 ` : ''}
-                
-                <!-- Bouton message -->
-                <button onclick="window.startPrivateChat('${u.id}', '${u.first_name}', '${u.last_name}')" class="btn-gold-fill" style="width:100%; height:42px; display:flex; align-items:center; justify-content:center; gap:8px; font-size:0.85rem;">
-                    <i data-lucide="message-circle" style="width:18px; height:18px;"></i>
-                    ENVOYER UN MESSAGE
-                </button>
             </div>
         `;
     }).join('');
