@@ -2673,3 +2673,51 @@ window.deleteEvent = async (eventId) => {
         true
     );
 };
+
+
+// =====================================================
+// RESPONSIVE MOBILE - MENU BURGER
+// =====================================================
+
+window.toggleMobileMenu = () => {
+    const nav = document.querySelector(".side-nav");
+    const overlay = document.getElementById("mobile-overlay");
+    const isOpen = nav.classList.contains("mobile-open");
+    
+    if (isOpen) {
+        nav.classList.remove("mobile-open");
+        overlay.classList.remove("active");
+    } else {
+        nav.classList.add("mobile-open");
+        overlay.classList.add("active");
+    }
+};
+
+window.closeMobileMenu = () => {
+    document.querySelector(".side-nav").classList.remove("mobile-open");
+    document.getElementById("mobile-overlay").classList.remove("active");
+};
+
+// Fermer le menu mobile lors du changement donglet
+const originalSwitchTab = window.switchTab;
+window.switchTab = (tabId) => {
+    if (window.innerWidth <= 768) {
+        window.closeMobileMenu();
+    }
+    originalSwitchTab(tabId);
+};
+
+// Toggle chat sidebar mobile
+window.toggleChatSidebar = () => {
+    const sidebar = document.querySelector(".chat-sidebar");
+    sidebar.classList.toggle("mobile-open");
+};
+
+// Ajouter click sur header chat pour ouvrir sidebar mobile
+document.addEventListener("DOMContentLoaded", () => {
+    const chatHeader = document.querySelector(".chat-header");
+    if (chatHeader && window.innerWidth <= 768) {
+        chatHeader.style.cursor = "pointer";
+        chatHeader.addEventListener("click", window.toggleChatSidebar);
+    }
+});
