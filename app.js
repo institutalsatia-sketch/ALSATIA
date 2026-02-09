@@ -2148,7 +2148,10 @@ window.openEventDetails = async (eventId) => {
                     ${(ev.photos || []).map(url => `
                         <div style="position:relative; aspect-ratio:1; border-radius:8px; overflow:hidden; border:2px solid var(--border);">
                             <img src="${url}" style="width:100%; height:100%; object-fit:cover;">
-                            <button onclick="window.deletePhoto('${eventId}', '${url}')" style="position:absolute; top:5px; right:5px; background:rgba(239,68,68,0.9); border:none; border-radius:50%; width:24px; height:24px; cursor:pointer; color:white; font-weight:bold;">×</button>
+                            <div style="position:absolute; top:5px; right:5px; display:flex; gap:4px;">
+                                <button onclick="window.downloadSinglePhoto('${url}')" style="background:rgba(197,160,89,0.9); border:none; border-radius:50%; width:28px; height:28px; cursor:pointer; color:white; display:flex; align-items:center; justify-content:center; font-size:16px;" title="Télécharger">⬇️</button>
+                                <button onclick="window.deletePhoto('${eventId}', '${url}')" style="background:rgba(239,68,68,0.9); border:none; border-radius:50%; width:28px; height:28px; cursor:pointer; color:white; font-weight:bold;" title="Supprimer">×</button>
+                            </div>
                         </div>
                     `).join('') || '<p style="text-align:center; color:var(--text-muted); padding:20px;">Aucune photo</p>'}
                 </div>
@@ -2336,6 +2339,36 @@ window.uploadPhotos = async (eventId) => {
 /**
  * SUPPRIMER UNE PHOTO
  */
+/**
+ * TÉLÉCHARGER UNE PHOTO
+ */
+window.downloadSinglePhoto = async (photoUrl) => {
+    try {
+        // Récupérer l'image
+        const response = await fetch(photoUrl);
+        const blob = await response.blob();
+        
+        // Extraire le nom du fichier depuis l'URL
+        const urlParts = photoUrl.split('/');
+        const fileName = urlParts[urlParts.length - 1];
+        
+        // Créer un lien de téléchargement
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        window.showNotice("Téléchargée", "Photo téléchargée avec succès.", "success");
+    } catch (error) {
+        console.error('Erreur téléchargement:', error);
+        window.showNotice("Erreur", "Impossible de télécharger la photo.", "error");
+    }
+};
+
 window.deletePhoto = async (eventId, photoUrl) => {
     window.alsatiaConfirm(
         "SUPPRIMER LA PHOTO",
