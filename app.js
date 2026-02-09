@@ -2754,32 +2754,35 @@ window.toggleChannelDropdown = () => {
     if (isOpen) {
         menu.style.display = 'none';
         chevron.style.transform = 'rotate(0deg)';
+        document.removeEventListener('click', window.handleClickOutsideDropdown);
     } else {
         menu.style.display = 'block';
         chevron.style.transform = 'rotate(180deg)';
         
-        // Créer overlay pour fermer au click extérieur
-        let overlay = document.getElementById('mobile-dropdown-overlay-chat');
-        if (!overlay) {
-            overlay = document.createElement('div');
-            overlay.id = 'mobile-dropdown-overlay-chat';
-            overlay.className = 'mobile-dropdown-overlay active';
-            overlay.onclick = window.closeChannelDropdown;
-            document.body.appendChild(overlay);
-        } else {
-            overlay.classList.add('active');
-        }
+        // Fermer au click extérieur (après un petit délai pour éviter fermeture immédiate)
+        setTimeout(() => {
+            document.addEventListener('click', window.handleClickOutsideDropdown);
+        }, 100);
+    }
+};
+
+window.handleClickOutsideDropdown = (e) => {
+    const menu = document.getElementById('mobile-channel-menu');
+    const toggle = document.getElementById('mobile-channel-toggle');
+    
+    // Si on clique en dehors du menu ET du bouton toggle
+    if (menu && !menu.contains(e.target) && !toggle.contains(e.target)) {
+        window.closeChannelDropdown();
     }
 };
 
 window.closeChannelDropdown = () => {
     const menu = document.getElementById('mobile-channel-menu');
     const chevron = document.getElementById('mobile-chevron');
-    const overlay = document.getElementById('mobile-dropdown-overlay-chat');
     
     if (menu) menu.style.display = 'none';
     if (chevron) chevron.style.transform = 'rotate(0deg)';
-    if (overlay) overlay.classList.remove('active');
+    document.removeEventListener('click', window.handleClickOutsideDropdown);
 };
 
 // Toggle chat sidebar mobile (ancien système)
