@@ -4,13 +4,13 @@
 
 console.log('🚀 DRIVE.JS CHARGÉ');
 
-// Variables globales
-let currentFolderId = null;
-let currentPath = [];
-let allItems = [];
-let currentView = 'list'; // 'list' ou 'grid'
-let currentEntity = null;
-let currentUser = null;
+// Variables globales DRIVE (préfixées pour éviter conflits)
+let driveCurrentFolderId = null;
+let driveCurrentPath = [];
+let driveAllItems = [];
+let driveCurrentView = 'list'; // 'list' ou 'grid'
+let driveCurrentEntity = null;
+let driveCurrentUser = null;
 
 // =====================================================
 // INITIALISATION
@@ -25,8 +25,8 @@ async function initDrive() {
             return;
         }
         
-        currentUser = JSON.parse(userStr);
-        currentEntity = currentUser.portal;
+        driveCurrentUser = JSON.parse(userStr);
+        driveCurrentEntity = driveCurrentUser.portal;
         
         // Charger la racine de l'entité
         await loadRootFolder();
@@ -47,7 +47,7 @@ async function loadRootFolder() {
         const { data, error } = await supabaseClient
             .from('drive_items')
             .select('*')
-            .eq('entity', currentEntity)
+            .eq('entity', driveCurrentEntity)
             .is('parent_id', null)
             .eq('type', 'folder')
             .single();
@@ -59,22 +59,22 @@ async function loadRootFolder() {
             const { data: newRoot, error: createError } = await supabaseClient
                 .from('drive_items')
                 .insert([{
-                    name: currentEntity,
+                    name: driveCurrentEntity,
                     type: 'folder',
-                    entity: currentEntity,
+                    entity: driveCurrentEntity,
                     parent_id: null
                 }])
                 .select()
                 .single();
             
             if (createError) throw createError;
-            currentFolderId = newRoot.id;
+            driveCurrentFolderId = newRoot.id;
         } else {
-            currentFolderId = data.id;
+            driveCurrentFolderId = data.id;
         }
         
-        currentPath = [{ id: currentFolderId, name: currentEntity }];
-        await loadFolder(currentFolderId);
+        driveCurrentPath = [{ id: driveCurrentFolderId, name: driveCurrentEntity }];
+        await loadFolder(driveCurrentFolderId);
         
     } catch (error) {
         console.error('❌ Erreur loadRootFolder:', error);
@@ -99,8 +99,8 @@ async function loadFolder(folderId) {
         
         if (error) throw error;
         
-        allItems = data || [];
-        currentFolderId = folderId;
+        driveAllItems = data || [];
+        driveCurrentFolderId = folderId;
         
         renderDrive();
         
@@ -118,7 +118,7 @@ function renderDrive() {
     renderBreadcrumb();
     renderToolbar();
     
-    if (currentView === 'list') {
+    if (driveCurrentView === 'list') {
         renderListView();
     } else {
         renderGridView();
@@ -129,12 +129,12 @@ function renderBreadcrumb() {
     const breadcrumb = document.getElementById('drive-breadcrumb');
     if (!breadcrumb) return;
     
-    breadcrumb.innerHTML = currentPath.map((folder, index) => `
-        <span class="breadcrumb-item ${index === currentPath.length - 1 ? 'active' : ''}" 
-              onclick="${index < currentPath.length - 1 ? `navigateToFolder('${folder.id}', ${index})` : ''}">
+    breadcrumb.innerHTML = driveCurrentPath.map((folder, index) => `
+        <span class="breadcrumb-item ${index === driveCurrentPath.length - 1 ? 'active' : ''}" 
+              onclick="${index < driveCurrentPath.length - 1 ? `navigateToFolder('${folder.id}', ${index})` : ''}">
             ${index === 0 ? '🏠' : ''} ${folder.name}
         </span>
-        ${index < currentPath.length - 1 ? '<span class="breadcrumb-separator">›</span>' : ''}
+        ${index < driveCurrentPath.length - 1 ? '<span class="breadcrumb-separator">›</span>' : ''}
     `).join('');
 }
 
@@ -162,7 +162,7 @@ function renderToolbar() {
                    oninput="handleSearch(event)">
             
             <button onclick="toggleView()" class="drive-btn-secondary" title="Changer la vue">
-                <i data-lucide="${currentView === 'list' ? 'grid-3x3' : 'list'}" style="width:16px; height:16px;"></i>
+                <i data-lucide="${driveCurrentView === 'list' ? 'grid-3x3' : 'list'}" style="width:16px; height:16px;"></i>
             </button>
         </div>
     `;
@@ -174,7 +174,7 @@ function renderListView() {
     const container = document.getElementById('drive-content');
     if (!container) return;
     
-    if (allItems.length === 0) {
+    if (driveAllItems.length === 0) {
         container.innerHTML = `
             <div style="text-align:center; padding:60px; color:var(--text-muted);">
                 <i data-lucide="folder-open" style="width:64px; height:64px; margin-bottom:20px; opacity:0.3;"></i>
@@ -198,7 +198,7 @@ function renderListView() {
                 </tr>
             </thead>
             <tbody>
-                ${allItems.map(item => renderListItem(item)).join('')}
+                ${driveAllItems.map(item => renderListItem(item)).join('')}
             </tbody>
         </table>
     `;
@@ -247,7 +247,7 @@ function renderGridView() {
     const container = document.getElementById('drive-content');
     if (!container) return;
     
-    if (allItems.length === 0) {
+    if (driveAllItems.length === 0) {
         container.innerHTML = `
             <div style="text-align:center; padding:60px; color:var(--text-muted);">
                 <i data-lucide="folder-open" style="width:64px; height:64px; margin-bottom:20px; opacity:0.3;"></i>
@@ -261,7 +261,7 @@ function renderGridView() {
     
     container.innerHTML = `
         <div class="drive-grid">
-            ${allItems.map(item => renderGridItem(item)).join('')}
+            ${driveAllItems.map(item => renderGridItem(item)).join('')}
         </div>
     `;
     
@@ -298,17 +298,17 @@ function renderGridItem(item) {
 // =====================================================
 
 window.navigateToFolder = async (folderId, pathIndex) => {
-    currentPath = currentPath.slice(0, pathIndex + 1);
+    driveCurrentPath = driveCurrentPath.slice(0, pathIndex + 1);
     await loadFolder(folderId);
 };
 
 window.openFolder = async (folderId, folderName) => {
-    currentPath.push({ id: folderId, name: folderName });
+    driveCurrentPath.push({ id: folderId, name: folderName });
     await loadFolder(folderId);
 };
 
 window.toggleView = () => {
-    currentView = currentView === 'list' ? 'grid' : 'list';
+    driveCurrentView = driveCurrentView === 'list' ? 'grid' : 'list';
     renderDrive();
 };
 
@@ -326,9 +326,9 @@ window.createNewFolder = async () => {
             .insert([{
                 name: folderName.trim(),
                 type: 'folder',
-                entity: currentEntity,
-                parent_id: currentFolderId,
-                uploaded_by: currentUser.id
+                entity: driveCurrentEntity,
+                parent_id: driveCurrentFolderId,
+                uploaded_by: driveCurrentUser.id
             }])
             .select()
             .single();
@@ -336,7 +336,7 @@ window.createNewFolder = async () => {
         if (error) throw error;
         
         showDriveSuccess(`Dossier "${folderName}" créé`);
-        await loadFolder(currentFolderId);
+        await loadFolder(driveCurrentFolderId);
         
     } catch (error) {
         console.error('❌ Erreur création dossier:', error);
@@ -368,7 +368,7 @@ window.handleFileUpload = async (event) => {
     // Reset input
     event.target.value = '';
     
-    await loadFolder(currentFolderId);
+    await loadFolder(driveCurrentFolderId);
 };
 
 async function uploadFile(file, current, total) {
@@ -384,7 +384,7 @@ async function uploadFile(file, current, total) {
         // Générer nom de fichier unique
         const timestamp = Date.now();
         const fileName = `${timestamp}_${file.name}`;
-        const filePath = `${currentEntity}/${currentFolderId}/${fileName}`;
+        const filePath = `${driveCurrentEntity}/${driveCurrentFolderId}/${fileName}`;
         
         // Upload vers Supabase Storage
         const { data: uploadData, error: uploadError } = await supabaseClient.storage
@@ -404,12 +404,12 @@ async function uploadFile(file, current, total) {
             .insert([{
                 name: file.name,
                 type: 'file',
-                entity: currentEntity,
-                parent_id: currentFolderId,
+                entity: driveCurrentEntity,
+                parent_id: driveCurrentFolderId,
                 file_url: urlData.publicUrl,
                 file_size: file.size,
                 mime_type: file.type,
-                uploaded_by: currentUser.id
+                uploaded_by: driveCurrentUser.id
             }])
             .select()
             .single();
@@ -424,7 +424,7 @@ async function uploadFile(file, current, total) {
                 version: 1,
                 file_url: urlData.publicUrl,
                 file_size: file.size,
-                uploaded_by: currentUser.id
+                uploaded_by: driveCurrentUser.id
             }]);
         
         showDriveSuccess(`${file.name} uploadé`);
@@ -449,7 +449,7 @@ function updateUploadProgress(message, percent) {
 
 window.downloadFile = async (itemId) => {
     try {
-        const item = allItems.find(i => i.id === itemId);
+        const item = driveAllItems.find(i => i.id === itemId);
         if (!item || !item.file_url) return;
         
         const response = await fetch(item.file_url);
@@ -483,13 +483,13 @@ window.deleteItem = async (itemId, itemName, itemType) => {
     if (!confirm(confirmMsg)) return;
     
     try {
-        const item = allItems.find(i => i.id === itemId);
+        const item = driveAllItems.find(i => i.id === itemId);
         
         // Si fichier, supprimer du storage
         if (itemType === 'file' && item.file_url) {
             const urlParts = item.file_url.split('/');
             const fileName = urlParts[urlParts.length - 1];
-            const filePath = `${currentEntity}/${currentFolderId}/${fileName}`;
+            const filePath = `${driveCurrentEntity}/${driveCurrentFolderId}/${fileName}`;
             
             await supabaseClient.storage
                 .from('drive-files')
@@ -505,7 +505,7 @@ window.deleteItem = async (itemId, itemName, itemType) => {
         if (error) throw error;
         
         showDriveSuccess(`${itemName} supprimé`);
-        await loadFolder(currentFolderId);
+        await loadFolder(driveCurrentFolderId);
         
     } catch (error) {
         console.error('❌ Erreur suppression:', error);
@@ -519,7 +519,7 @@ window.deleteItem = async (itemId, itemName, itemType) => {
 
 window.previewFile = async (itemId) => {
     try {
-        const item = allItems.find(i => i.id === itemId);
+        const item = driveAllItems.find(i => i.id === itemId);
         if (!item) return;
         
         const modal = document.getElementById('drive-preview-modal');
@@ -618,7 +618,7 @@ window.addComment = async () => {
             .from('drive_comments')
             .insert([{
                 item_id: currentPreviewItemId,
-                user_id: currentUser.id,
+                user_id: driveCurrentUser.id,
                 comment: input.value.trim()
             }]);
         
@@ -645,14 +645,14 @@ window.handleSearch = (event) => {
         return;
     }
     
-    const filtered = allItems.filter(item => 
+    const filtered = driveAllItems.filter(item => 
         item.name.toLowerCase().includes(query)
     );
     
-    const temp = allItems;
-    allItems = filtered;
+    const temp = driveAllItems;
+    driveAllItems = filtered;
     renderDrive();
-    allItems = temp;
+    driveAllItems = temp;
 };
 
 // =====================================================
