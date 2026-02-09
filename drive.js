@@ -232,9 +232,6 @@ function renderListItem(item) {
                             <i data-lucide="download" style="width:14px; height:14px;"></i>
                         </button>
                     ` : ''}
-                    <button onclick="showItemMenu('${item.id}', event)" class="drive-action-btn" title="Plus d'options">
-                        <i data-lucide="more-vertical" style="width:14px; height:14px;"></i>
-                    </button>
                     <button onclick="deleteItem('${item.id}', '${item.name}', '${item.type}')" class="drive-action-btn" title="Supprimer">
                         <i data-lucide="trash-2" style="width:14px; height:14px; color:#ef4444;"></i>
                     </button>
@@ -527,10 +524,8 @@ window.deleteItem = (itemId, itemName, itemType) => {
             true
         );
     } else {
-        // Fallback si alsatiaConfirm n'existe pas
-        if (confirm(confirmMsg)) {
-            performDelete(itemId, itemName, itemType);
-        }
+        // Si alsatiaConfirm n'existe pas, on ne peut pas supprimer
+        showDriveError('Fonction de confirmation non disponible');
     }
 };
 
@@ -748,7 +743,7 @@ function showDriveSuccess(message) {
     if (window.showNotice) {
         window.showNotice('Succès', message, 'success');
     } else {
-        alert(message);
+        console.log('✅', message);
     }
 }
 
@@ -756,7 +751,7 @@ function showDriveError(message) {
     if (window.showNotice) {
         window.showNotice('Erreur', message, 'error');
     } else {
-        alert('Erreur : ' + message);
+        console.error('❌', message);
     }
 }
 
