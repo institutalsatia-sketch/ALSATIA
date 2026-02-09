@@ -1320,396 +1320,435 @@ window.saveAccountChanges = async () => {
 // ==========================================
 
 // 1. DASHBOARD : LISTE GLOBALE AVEC INDICATEUR DE STATUT
+// =====================================================
+// ÉVÉNEMENTS - VERSION REFONTE COMPLÈTE
+// =====================================================
+
+/**
+ * CHARGEMENT ET AFFICHAGE DES ÉVÉNEMENTS
+ * Groupés par mois avec compte à rebours
+ */
 async function loadEvents() {
-    const { data, error } = await supabaseClient
-        .from('events')
+    const container = document.getElementById('events-container');
+    if (!container) return;
+    
+    container.innerHTML = '<div style="text-align:center; padding:40px;"><div class="spinner"></div><p>Chargement...</p></div>';
+    
+    const { data: events, error } = await supabaseClient
+        .from('events_v2')
         .select('*')
         .order('event_date', { ascending: true });
-
-    const container = document.getElementById('events-container');
-    if (!container || error) return;
-
-    if (data.length === 0) {
-        container.innerHTML = `<p style="text-align:center; padding:40px; opacity:0.6;">Aucun événement planifié.</p>`;
+    
+    if (error) {
+        container.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-muted);">Erreur de chargement</div>';
         return;
     }
-
-    container.innerHTML = data.map(ev => {
-        // Un événement est prêt si marqué "Complet" OU si les 3 champs clés sont remplis
-        const isReady = ev.status === 'Complet' || (ev.event_time && ev.location && ev.description && ev.description.length > 10);
-        return `
-            <div class="event-card" onclick="window.openEventDetails('${ev.id}')" 
-                 style="background:white; border-radius:12px; border:1px solid #e2e8f0; border-left: 6px solid ${isReady ? '#22c55e' : '#f59e0b'}; cursor:pointer; padding:15px; transition:all 0.3s ease;">
-                <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-                    <span class="mini-label" style="color:var(--gold);">${ev.entity}</span>
-                    <span style="font-size:0.6rem; font-weight:800; color:${isReady ? '#166534' : '#9a3412'}; background:${isReady ? '#f0fdf4' : '#fff7ed'}; padding:2px 6px; border-radius:4px;">
-                        ${isReady ? '✅ PRÊT' : '⏳ EN COURS'}
-                    </span>
-                </div>
-                <h3 style="margin:5px 0; font-family:'Playfair Display'; font-size:1.1rem; color:#1e293b;">${ev.title}</h3>
-                <div style="font-size:0.8rem; color:#64748b;">
-                    <i data-lucide="calendar" style="width:12px; vertical-align:middle;"></i> ${new Date(ev.event_date).toLocaleDateString()}
-                </div>
+    
+    if (!events || events.length === 0) {
+        container.innerHTML = `
+            <div style="text-align:center; padding:60px;">
+                <i data-lucide="calendar-x" style="width:64px; height:64px; color:var(--text-muted); margin-bottom:20px;"></i>
+                <p style="color:var(--text-muted); font-size:1.1rem;">Aucun événement planifié</p>
             </div>
         `;
-    }).join('');
+        lucide.createIcons();
+        return;
+    }
+    
+    // Grouper les événements par mois
+    const now = new Date();
+    const groupedEvents = {
+        upcoming: {},
+        past: []
+    };
+    
+    events.forEach(ev => {
+        const eventDate = new Date(ev.event_date);
+        const isPast = eventDate < now;
+        
+        if (isPast) {
+            groupedEvents.past.push(ev);
+        } else {
+            const monthKey = eventDate.toLocaleDateString('fr-FR', { year: 'numeric', month: 'long' });
+            if (!groupedEvents.upcoming[monthKey]) {
+                groupedEvents.upcoming[monthKey] = [];
+            }
+            groupedEvents.upcoming[monthKey].push(ev);
+        }
+    });
+    
+    let html = '';
+    
+    // Événements à venir (groupés par mois)
+    Object.keys(groupedEvents.upcoming).forEach(monthKey => {
+        html += `
+            <div class="month-separator">
+                <i data-lucide="calendar" style="width:20px; height:20px;"></i>
+                ${monthKey.toUpperCase()}
+            </div>
+        `;
+        
+        groupedEvents.upcoming[monthKey].forEach(ev => {
+            html += renderEventCard(ev, false);
+        });
+    });
+    
+    // Événements passés
+    if (groupedEvents.past.length > 0) {
+        html += `
+            <div class="month-separator" style="margin-top:40px;">
+                <i data-lucide="archive" style="width:20px; height:20px;"></i>
+                ÉVÉNEMENTS PASSÉS
+            </div>
+        `;
+        
+        groupedEvents.past.forEach(ev => {
+            html += renderEventCard(ev, true);
+        });
+    }
+    
+    container.innerHTML = html;
     lucide.createIcons();
 }
 
-// 2. CRÉATION (ÉTAPE 1)
-window.showAddEventModal = () => {
-    const userPortal = currentUser.portal;
-    showCustomModal(`
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-            <h3 class="luxe-title" style="margin:0;">PLANIFIER UN ÉVÉNEMENT</h3>
-            <button onclick="closeCustomModal()" style="border:none; background:none; cursor:pointer; font-size:1.5rem; color:#94a3b8;">&times;</button>
+/**
+ * RENDER UNE CARTE D'ÉVÉNEMENT
+ */
+function renderEventCard(ev, isPast) {
+    const eventDate = new Date(ev.event_date);
+    const now = new Date();
+    const diffTime = eventDate - now;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    // Texte compte à rebours
+    let countdownText = '';
+    if (isPast) {
+        const daysSince = Math.abs(diffDays);
+        countdownText = daysSince === 0 ? "Aujourd'hui" : `Il y a ${daysSince} jour${daysSince > 1 ? 's' : ''}`;
+    } else {
+        countdownText = diffDays === 0 ? "Aujourd'hui" : 
+                       diffDays === 1 ? "Demain" : 
+                       `Dans ${diffDays} jours`;
+    }
+    
+    // Couleur du badge statut
+    const statusColors = {
+        'draft': { bg: '#fef3c7', color: '#92400e', icon: '⏳', text: 'EN PRÉPARATION' },
+        'ready': { bg: '#d1fae5', color: '#065f46', icon: '✅', text: 'PRÊT' },
+        'published': { bg: '#dbeafe', color: '#1e40af', icon: '📱', text: 'PUBLIÉ' }
+    };
+    
+    const statusStyle = statusColors[ev.status] || statusColors.draft;
+    
+    // Couleur de la bordure
+    const borderColor = isPast ? '#e5e7eb' : 
+                       ev.status === 'ready' ? '#10b981' : 
+                       ev.status === 'published' ? '#3b82f6' : '#f59e0b';
+    
+    return `
+        <div class="event-card" onclick="window.openEventDetails('${ev.id}')" style="
+            border-left: 4px solid ${borderColor};
+            opacity: ${isPast ? '0.7' : '1'};
+        ">
+            <div style="display:flex; justify-content:space-between; align-items:start; margin-bottom:12px;">
+                <h3 style="margin:0; font-size:1.1rem; color:var(--text-main);">${escapeHTML(ev.title)}</h3>
+                <span style="
+                    background:${statusStyle.bg}; 
+                    color:${statusStyle.color}; 
+                    padding:4px 12px; 
+                    border-radius:20px; 
+                    font-size:0.75rem; 
+                    font-weight:700;
+                    white-space:nowrap;
+                ">
+                    ${statusStyle.icon} ${statusStyle.text}
+                </span>
+            </div>
+            
+            <div style="display:flex; flex-direction:column; gap:8px; color:var(--text-muted); font-size:0.9rem;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <i data-lucide="calendar" style="width:16px; height:16px;"></i>
+                    ${eventDate.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    <span style="color:${isPast ? '#ef4444' : '#10b981'}; font-weight:600;">• ${countdownText}</span>
+                </div>
+                
+                ${ev.location ? `
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <i data-lucide="map-pin" style="width:16px; height:16px;"></i>
+                        ${escapeHTML(ev.location)}
+                    </div>
+                ` : ''}
+                
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <i data-lucide="building" style="width:16px; height:16px;"></i>
+                    ${escapeHTML(ev.entity)}
+                </div>
+            </div>
         </div>
-        <p class="mini-label">TITRE DE L'ÉVÉNEMENT *</p>
-        <input type="text" id="ev-title" class="luxe-input" placeholder="Ex: Gala de Charité...">
-        <p class="mini-label" style="margin-top:15px;">ENTITÉ CONCERNÉE *</p>
-        <select id="ev-entity" class="luxe-input" style="width:100%;">
-            <option ${userPortal === 'Institut Alsatia' ? 'selected' : ''}>Institut Alsatia</option>
-            <option ${userPortal === 'Academia Alsatia' ? 'selected' : ''}>Academia Alsatia</option>
-            <option ${userPortal === 'Cours Herrade de Landsberg' ? 'selected' : ''}>Cours Herrade de Landsberg</option>
-            <option ${userPortal === 'Collège Saints Louis et Zélie Martin' ? 'selected' : ''}>Collège Saints Louis et Zélie Martin</option>
-        </select>
-        <p class="mini-label" style="margin-top:15px;">DATE PRÉVUE *</p>
-        <input type="date" id="ev-date" class="luxe-input">
-        <button onclick="window.execCreateEvent()" class="btn-gold" style="width:100%; margin-top:25px; height:45px; font-weight:bold;">CRÉER ET ATTENDRE LES INFOS</button>
+    `;
+}
+
+/**
+ * MODAL : CRÉER UN NOUVEL ÉVÉNEMENT
+ */
+window.showAddEventModal = () => {
+    const isInstitut = currentUser.portal === 'Institut Alsatia';
+    
+    showCustomModal(`
+        <h3 class="luxe-title">PLANIFIER UN ÉVÉNEMENT</h3>
+        
+        <div style="display:flex; flex-direction:column; gap:15px; margin-top:20px;">
+            <div>
+                <label class="mini-label">TITRE DE L'ÉVÉNEMENT</label>
+                <input type="text" id="new-event-title" class="luxe-input" placeholder="Gala de Charité 2026">
+            </div>
+            
+            <div>
+                <label class="mini-label">ENTITÉ CONCERNÉE</label>
+                <select id="new-event-entity" class="luxe-input">
+                    <option value="Institut Alsatia" ${!isInstitut ? 'disabled' : ''}>Institut Alsatia</option>
+                    <option value="Academia Alsatia">Academia Alsatia</option>
+                    <option value="Cours Herrade de Landsberg">Cours Herrade de Landsberg</option>
+                    <option value="Collège Saints Louis et Zélie Martin">Collège Saints Louis et Zélie Martin</option>
+                </select>
+            </div>
+            
+            <div>
+                <label class="mini-label">DATE PRÉVUE</label>
+                <input type="date" id="new-event-date" class="luxe-input">
+            </div>
+            
+            <div style="display:flex; gap:10px; margin-top:10px;">
+                <button onclick="window.closeCustomModal()" class="btn-outline" style="flex:1;">Annuler</button>
+                <button onclick="window.createEvent()" class="btn-gold" style="flex:1;">Créer</button>
+            </div>
+        </div>
     `);
 };
 
-window.execCreateEvent = async () => {
-    const title = document.getElementById('ev-title').value.trim();
-    const event_date = document.getElementById('ev-date').value;
-    const entity = document.getElementById('ev-entity').value;
-    if(!title || !event_date) return window.showNotice("Champs requis", "Titre et Date obligatoires.");
-
-    const { error } = await supabaseClient.from('events').insert([{
-        title, event_date, entity,
-        status: 'En cours',
-        created_by: `${currentUser.first_name} ${currentUser.last_name}`
-    }]);
-
-    if(error) return window.showNotice("Erreur", error.message);
-    closeCustomModal();
+/**
+ * CRÉER UN ÉVÉNEMENT
+ */
+window.createEvent = async () => {
+    const title = document.getElementById('new-event-title')?.value?.trim();
+    const entity = document.getElementById('new-event-entity')?.value;
+    const date = document.getElementById('new-event-date')?.value;
+    
+    if (!title || !entity || !date) {
+        window.showNotice("Erreur", "Tous les champs sont requis.", "error");
+        return;
+    }
+    
+    const { data, error } = await supabaseClient
+        .from('events_v2')
+        .insert([{
+            title: title,
+            entity: entity,
+            event_date: date,
+            status: 'draft',
+            created_by: `${currentUser.first_name} ${currentUser.last_name}`
+        }])
+        .select()
+        .single();
+    
+    if (error) {
+        console.error('Erreur création:', error);
+        window.showNotice("Erreur", "Impossible de créer l'événement.", "error");
+        return;
+    }
+    
+    window.showNotice("Créé !", "Événement créé avec succès.", "success");
+    window.closeCustomModal();
     loadEvents();
+    
+    // Ouvrir directement la fiche
+    setTimeout(() => window.openEventDetails(data.id), 300);
 };
 
-// 3. DOSSIER LOGISTIQUE & ACTIONS RÉSEAUX (ÉTAPE 2 & 3)
-// ==========================================
-// ÉVÉNEMENTS - VERSION FINALE V3 (ULTRA-CORRIGÉE)
-// ==========================================
-
-// ==========================================
-// ÉVÉNEMENTS - VERSION FINALE V3 (ULTRA-CORRIGÉE)
-// ==========================================
-
-window.openEventDetails = async (id) => {
-    const { data: ev } = await supabaseClient.from('events').select('*').eq('id', id).single();
-    if(!ev) return;
-
-    // Charger les médias depuis le bucket
-    const { data: mediaList } = await supabaseClient.storage
-        .from('event-media')
-        .list(`${id}/photos`);
-    
-    const { data: docsList } = await supabaseClient.storage
-        .from('event-media')
-        .list(`${id}/documents`);
-    
-    const photos = (mediaList || []).filter(f => f.name && f.name !== '.emptyFolderPlaceholder');
-    const documents = (docsList || []).filter(f => f.name && f.name !== '.emptyFolderPlaceholder');
-    
-    // Charger la liste des utilisateurs pour notification
-    const { data: users } = await supabaseClient.from('profiles').select('id, first_name, last_name').order('last_name');
-    
-    const isCompleted = ev.status === 'Complet' || ev.status === 'Terminé';
-
-    // Créer le canal de discussion pour cet événement (slug simplifié)
-    const channelSlug = 'evt_' + id.replace(/-/g, '');
-    const channelDisplayName = `Événement : ${ev.title}`;
-    const { data: existingChannel } = await supabaseClient
-        .from('chat_subjects')
+/**
+ * OUVRIR LA FICHE DÉTAILLÉE D'UN ÉVÉNEMENT
+ */
+window.openEventDetails = async (eventId) => {
+    // Charger l'événement
+    const { data: ev, error } = await supabaseClient
+        .from('events_v2')
         .select('*')
-        .eq('name', channelSlug)
-        .maybeSingle();
+        .eq('id', eventId)
+        .single();
     
-    if (!existingChannel) {
-        await supabaseClient.from('chat_subjects').insert([{
-            name: channelSlug,
-            entity: 'Privé'
-        }]);
+    if (error || !ev) {
+        window.showNotice("Erreur", "Événement introuvable.", "error");
+        return;
     }
-
+    
+    // Charger les messages du chat
+    const { data: messages } = await supabaseClient
+        .from('event_messages')
+        .select('*')
+        .eq('event_id', eventId)
+        .order('created_at', { ascending: true });
+    
+    const isReady = ev.status === 'ready' || ev.status === 'published';
+    const statusBg = ev.status === 'ready' || ev.status === 'published' ? '#d1fae5' : '#fef3c7';
+    const statusColor = ev.status === 'ready' || ev.status === 'published' ? '#065f46' : '#92400e';
+    const statusText = ev.status === 'ready' || ev.status === 'published' ? '✅ PRÊT POUR PUBLICATION' : '⏳ EN PRÉPARATION';
+    
     showCustomModal(`
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-            <h2 class="luxe-title" style="margin:0;">${ev.title}</h2>
-            <button onclick="window.closeCustomModal()" style="border:none; background:none; cursor:pointer; font-size:1.5rem;">&times;</button>
-        </div>
-
-        <!-- Badge statut -->
-        <div style="text-align:center; margin-bottom:20px; padding:15px; background:${isCompleted ? 'linear-gradient(135deg, #dcfce7, #bbf7d0)' : 'linear-gradient(135deg, #fef3c7, #fde68a)'}; border-radius:12px; border:2px solid ${isCompleted ? '#22c55e' : '#f59e0b'};">
-            <div style="font-size:1.5rem; margin-bottom:5px;">${isCompleted ? '✅' : '⏳'}</div>
-            <div style="font-weight:800; color:${isCompleted ? '#166534' : '#92400e'}; font-size:1.1rem;">
-                ${isCompleted ? 'PRÊT POUR LES RÉSEAUX' : 'EN COURS DE PRÉPARATION'}
+        <div style="max-height:80vh; overflow-y:auto; padding:10px;">
+            <!-- En-tête -->
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; position:sticky; top:0; background:white; padding-bottom:10px; z-index:10;">
+                <h2 class="luxe-title" style="margin:0;">${escapeHTML(ev.title)}</h2>
+                <button onclick="window.closeCustomModal()" style="border:none; background:none; font-size:1.5rem; cursor:pointer;">&times;</button>
             </div>
-        </div>
-
-        <div style="max-height:70vh; overflow-y:auto; padding-right:10px;">
             
-            <!-- Description de l'événement -->
-            <div style="background:#f8fafc; padding:20px; border-radius:12px; margin-bottom:20px;">
-                <p class="mini-label">📝 DESCRIPTION DE L'ÉVÉNEMENT</p>
-                <textarea id="ev-description-${id}" class="luxe-input" style="min-height:100px; font-size:0.9rem; line-height:1.6;">${ev.description || ''}</textarea>
+            <!-- Badge statut -->
+            <div style="background:${statusBg}; color:${statusColor}; padding:12px 20px; border-radius:12px; text-align:center; font-weight:700; margin-bottom:20px;">
+                ${statusText}
             </div>
-
-            <!-- Informations de base -->
-            <div style="background:#f8fafc; padding:20px; border-radius:12px; margin-bottom:20px;">
-                <p class="mini-label">📅 INFORMATIONS PRATIQUES</p>
-                
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:15px;">
+            
+            <!-- Description -->
+            <div class="luxe-section">
+                <label class="mini-label">DESCRIPTION</label>
+                <textarea id="ev-description" class="luxe-input" rows="4" placeholder="Décrivez l'événement...">${escapeHTML(ev.description || '')}</textarea>
+            </div>
+            
+            <!-- Informations pratiques -->
+            <div class="luxe-section">
+                <h4 style="margin:0 0 15px 0; color:var(--gold);">📅 INFORMATIONS PRATIQUES</h4>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
                     <div>
-                        <p style="font-size:0.75rem; color:#64748b; margin-bottom:5px;">DATE</p>
-                        <input type="date" id="ev-date-${id}" class="luxe-input" value="${ev.event_date || ''}">
+                        <label class="mini-label">DATE</label>
+                        <input type="date" id="ev-date" class="luxe-input" value="${ev.event_date || ''}">
                     </div>
                     <div>
-                        <p style="font-size:0.75rem; color:#64748b; margin-bottom:5px;">HEURE</p>
-                        <input type="time" id="ev-time-${id}" class="luxe-input" value="${ev.event_time || ''}">
+                        <label class="mini-label">HEURE</label>
+                        <input type="time" id="ev-time" class="luxe-input" value="${ev.event_time || ''}">
                     </div>
                 </div>
-                
-                <div>
-                    <p style="font-size:0.75rem; color:#64748b; margin-bottom:5px;">LIEU</p>
-                    <input type="text" id="ev-location-${id}" class="luxe-input" value="${ev.location || ''}" placeholder="Ex: Salle des fêtes...">
+                <div style="margin-top:15px;">
+                    <label class="mini-label">LIEU</label>
+                    <input type="text" id="ev-location" class="luxe-input" placeholder="Salle des fêtes" value="${escapeHTML(ev.location || '')}">
                 </div>
-
-                <button onclick="window.saveEventInfos('${id}')" class="btn-gold-fill" style="width:100%; margin-top:15px; height:45px;">
-                    <i data-lucide="save" style="width:18px; height:18px; vertical-align:middle; margin-right:8px;"></i>
-                    ENREGISTRER LES INFORMATIONS
+                <button onclick="window.saveEventInfos('${eventId}')" class="btn-gold" style="width:100%; margin-top:15px;">
+                    <i data-lucide="save"></i> ENREGISTRER LES INFORMATIONS
                 </button>
             </div>
-
-            <!-- Texte pour les réseaux -->
-            <div style="background:white; border:2px solid var(--gold); padding:20px; border-radius:12px; margin-bottom:20px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                    <p class="mini-label" style="margin:0; color:var(--gold);">📱 TEXTE POUR LES RÉSEAUX SOCIAUX</p>
-                    ${ev.social_media_text ? `
-                        <button onclick="window.deleteSocialText('${id}')" style="background:#fee2e2; color:#ef4444; border:none; padding:6px 12px; border-radius:6px; font-size:0.75rem; cursor:pointer; font-weight:700;">
-                            <i data-lucide="trash-2" style="width:12px; height:12px; vertical-align:middle; margin-right:4px;"></i>SUPPRIMER
-                        </button>
-                    ` : ''}
-                </div>
-                
-                <textarea id="social-text-${id}" class="luxe-input" placeholder="Rédigez votre post pour Instagram, Facebook, LinkedIn..." style="min-height:150px; font-size:0.9rem; line-height:1.6; background:#fffbeb;">${ev.social_media_text || ''}</textarea>
-                <button onclick="window.saveSocialText('${id}')" class="btn-gold-fill" style="width:100%; margin-top:10px; height:45px;">
-                    <i data-lucide="check" style="width:16px; height:16px; vertical-align:middle; margin-right:6px;"></i>
-                    ${ev.social_media_text ? 'METTRE À JOUR' : 'ENREGISTRER'} LE TEXTE
+            
+            <!-- Photos -->
+            <div class="luxe-section">
+                <h4 style="margin:0 0 15px 0; color:var(--gold);">📸 PHOTOS</h4>
+                <input type="file" id="photo-input-${eventId}" accept="image/*" multiple style="display:none;" onchange="window.uploadPhotos('${eventId}')">
+                <button onclick="document.getElementById('photo-input-${eventId}').click()" class="btn-outline" style="width:100%; margin-bottom:15px;">
+                    <i data-lucide="upload"></i> AJOUTER DES PHOTOS
                 </button>
-            </div>
-
-            <!-- Photos & Documents -->
-            <div style="background:white; border:2px solid #e2e8f0; padding:20px; border-radius:12px; margin-bottom:20px;">
-                <p class="mini-label" style="margin-bottom:15px;">📸 PHOTOS & 📄 DOCUMENTS</p>
-                
-                <!-- Upload photos -->
-                <div style="margin-bottom:20px;">
-                    <label style="display:block; background:linear-gradient(135deg, #fef3c7, #fde68a); padding:15px; border-radius:8px; text-align:center; cursor:pointer; border:2px dashed var(--gold);">
-                        <i data-lucide="image-plus" style="width:24px; height:24px; color:var(--gold); margin-bottom:8px;"></i>
-                        <div style="font-weight:700; color:#92400e; font-size:0.85rem;">AJOUTER DES PHOTOS</div>
-                        <div style="font-size:0.7rem; color:#92400e; margin-top:4px;">Max 10MB par photo</div>
-                        <input type="file" id="photo-upload-${id}" accept="image/jpeg,image/png,image/webp" multiple onchange="window.uploadPhotos('${id}')" style="display:none;">
-                    </label>
-                </div>
-                
-                <!-- Liste photos -->
-                <div id="photos-list-${id}" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(100px, 1fr)); gap:10px; margin-bottom:20px;">
-                    ${photos.length === 0 ? '<p style="grid-column:1/-1; text-align:center; color:#64748b; padding:20px; font-size:0.85rem;">Aucune photo</p>' : ''}
-                    ${photos.slice(0, 20).map(photo => {
-                        const { data: urlData } = supabaseClient.storage.from('event-media').getPublicUrl(`${id}/photos/${photo.name}`);
-                        const photoUrl = urlData.publicUrl;
-                        return `
-                            <div style="position:relative; border-radius:8px; overflow:hidden; aspect-ratio:1; border:2px solid #e2e8f0;">
-                                <img src="${photoUrl}" style="width:100%; height:100%; object-fit:cover;" onerror="this.parentElement.innerHTML='<div style=\\'display:flex;align-items:center;justify-content:center;height:100%;background:#f8fafc;color:#94a3b8;font-size:0.7rem;\\'>Erreur</div>'">
-                                <button onclick="window.deleteMedia('${id}', 'photos', '${photo.name.replace(/'/g, "\\'")}') style="position:absolute; top:4px; right:4px; background:rgba(239,68,68,0.9); border:none; color:white; width:24px; height:24px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;">
-                                    <i data-lucide="x" style="width:14px; height:14px;"></i>
-                                </button>
-                            </div>
-                        `;
-                    }).join('')}
-                    ${photos.length > 20 ? `<p style="grid-column:1/-1; text-align:center; color:#64748b; font-size:0.8rem;">+${photos.length - 20} photos supplémentaires</p>` : ''}
-                </div>
-                
-                <!-- Upload documents -->
-                <div style="margin-bottom:20px;">
-                    <label style="display:block; background:#f8fafc; padding:15px; border-radius:8px; text-align:center; cursor:pointer; border:2px dashed #cbd5e1;">
-                        <i data-lucide="file-plus" style="width:24px; height:24px; color:#64748b; margin-bottom:8px;"></i>
-                        <div style="font-weight:700; color:#475569; font-size:0.85rem;">AJOUTER DES DOCUMENTS</div>
-                        <div style="font-size:0.7rem; color:#64748b; margin-top:4px;">PDF, DOC, XLS - Max 10MB</div>
-                        <input type="file" id="doc-upload-${id}" accept=".pdf,.doc,.docx,.xls,.xlsx" multiple onchange="window.uploadDocuments('${id}')" style="display:none;">
-                    </label>
-                </div>
-                
-                <!-- Liste documents -->
-                <div id="docs-list-${id}">
-                    ${documents.length === 0 ? '<p style="text-align:center; color:#64748b; padding:10px; font-size:0.85rem;">Aucun document</p>' : ''}
-                    ${documents.map(doc => `
-                        <div style="display:flex; align-items:center; justify-content:space-between; background:#f8fafc; padding:10px 15px; border-radius:8px; margin-bottom:8px;">
-                            <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
-                                <i data-lucide="file-text" style="width:18px; height:18px; color:#64748b; flex-shrink:0;"></i>
-                                <span style="font-size:0.85rem; color:#1e293b; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${doc.name}</span>
-                            </div>
-                            <button onclick="window.deleteMedia('${id}', 'documents', '${doc.name.replace(/'/g, "\\'")}'))" style="background:#fee2e2; color:#ef4444; border:none; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:0.75rem; font-weight:700; flex-shrink:0;">
-                                <i data-lucide="trash-2" style="width:12px; height:12px; vertical-align:middle;"></i>
-                            </button>
+                <div id="photos-grid-${eventId}" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(120px, 1fr)); gap:10px;">
+                    ${(ev.photos || []).map(url => `
+                        <div style="position:relative; aspect-ratio:1; border-radius:8px; overflow:hidden; border:2px solid var(--border);">
+                            <img src="${url}" style="width:100%; height:100%; object-fit:cover;">
+                            <button onclick="window.deletePhoto('${eventId}', '${url}')" style="position:absolute; top:5px; right:5px; background:rgba(239,68,68,0.9); border:none; border-radius:50%; width:24px; height:24px; cursor:pointer; color:white; font-weight:bold;">×</button>
                         </div>
-                    `).join('')}
+                    `).join('') || '<p style="text-align:center; color:var(--text-muted); padding:20px;">Aucune photo</p>'}
                 </div>
             </div>
-
-            <!-- Discussion privée événement -->
-            <div style="background:#e0f2fe; border:2px solid #0ea5e9; padding:20px; border-radius:12px; margin-bottom:20px;">
-                <p class="mini-label" style="color:#075985; margin-bottom:15px;">💬 DISCUSSION PRIVÉE DE L'ÉVÉNEMENT</p>
-                
-                <!-- Zone messages -->
-                <div id="event-chat-${id}" style="background:white; border-radius:8px; padding:15px; min-height:200px; max-height:300px; overflow-y:auto; margin-bottom:10px;">
-                    <p style="text-align:center; color:#64748b; font-size:0.85rem;">Chargement...</p>
+            
+            <!-- Texte réseaux sociaux -->
+            <div class="luxe-section" style="background:linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); padding:20px; border-radius:12px;">
+                <h4 style="margin:0 0 15px 0; color:#92400e;">📱 TEXTE POUR LES RÉSEAUX SOCIAUX</h4>
+                <textarea id="ev-social-text" class="luxe-input" rows="6" placeholder="Rédigez le post pour Instagram, Facebook, LinkedIn...">${escapeHTML(ev.social_media_text || '')}</textarea>
+                <button onclick="window.saveSocialText('${eventId}')" class="btn-gold" style="width:100%; margin-top:10px;">
+                    <i data-lucide="save"></i> ${ev.social_media_text ? 'METTRE À JOUR' : 'ENREGISTRER'} LE TEXTE
+                </button>
+                ${ev.social_media_text ? `<button onclick="window.deleteSocialText('${eventId}')" class="btn-outline" style="width:100%; margin-top:10px; color:#ef4444; border-color:#ef4444;">SUPPRIMER</button>` : ''}
+            </div>
+            
+            <!-- Chat privé -->
+            <div class="luxe-section">
+                <h4 style="margin:0 0 15px 0; color:var(--gold);">💬 DISCUSSION INTERNE</h4>
+                <div id="event-chat-${eventId}" style="background:white; border-radius:8px; padding:15px; max-height:300px; overflow-y:auto; margin-bottom:10px; border:2px solid var(--border);">
+                    ${renderEventMessages(messages || [])}
                 </div>
-                
-                <!-- Input message -->
                 <div style="display:flex; gap:10px;">
-                    <input type="text" id="event-chat-input-${id}" class="luxe-input" placeholder="Écrire un message..." style="flex:1;" onkeypress="if(event.key==='Enter') window.sendEventMessage('${id}', '${channelSlug}')">
-                    <button onclick="window.sendEventMessage('${id}', '${channelSlug}')" class="btn-gold" style="white-space:nowrap;">
-                        <i data-lucide="send" style="width:16px; height:16px; vertical-align:middle;"></i>
+                    <input type="text" id="event-msg-input-${eventId}" class="luxe-input" placeholder="Écrire un message..." style="flex:1;" onkeypress="if(event.key==='Enter') window.sendEventMessage('${eventId}')">
+                    <button onclick="window.sendEventMessage('${eventId}')" class="btn-gold">
+                        <i data-lucide="send"></i>
                     </button>
                 </div>
             </div>
-
-            <!-- Notifier un utilisateur -->
-            <div style="background:#fef3c7; border:2px solid #fbbf24; padding:20px; border-radius:12px; margin-bottom:20px;">
-                <p class="mini-label" style="color:#92400e; margin-bottom:10px;">🔔 NOTIFIER UN UTILISATEUR</p>
-                <div style="display:flex; gap:10px;">
-                    <select id="notify-user-${id}" class="luxe-input" style="flex:1;">
-                        <option value="">Sélectionner un utilisateur...</option>
-                        ${(users || []).map(u => `<option value="${u.id}">${u.first_name} ${u.last_name}</option>`).join('')}
-                    </select>
-                    <button onclick="window.notifyUserForEvent('${id}')" class="btn-gold" style="white-space:nowrap;">
-                        <i data-lucide="send" style="width:16px; height:16px; vertical-align:middle; margin-right:6px;"></i>
-                        NOTIFIER
-                    </button>
-                </div>
-            </div>
-
-            <!-- Actions si terminé -->
-            ${isCompleted ? `
-                <div style="background:linear-gradient(135deg, #dcfce7, #bbf7d0); padding:20px; border-radius:12px; border:2px solid #22c55e; margin-bottom:20px;">
-                    <p style="font-weight:800; color:#166534; margin-bottom:15px; font-size:1rem;">🎉 ACTIONS DISPONIBLES</p>
-                    
-                    <button onclick="window.downloadAllPhotos('${id}')" class="btn-gold-fill" style="width:100%; margin-bottom:10px; background:#22c55e; height:50px;">
-                        <i data-lucide="download" style="width:18px; height:18px; vertical-align:middle; margin-right:8px;"></i>
-                        TÉLÉCHARGER TOUTES LES PHOTOS
-                    </button>
-                    
-                    <button onclick="window.copyTextToClipboard('${id}')" class="btn-gold-fill" style="width:100%; background:#3b82f6; height:50px;">
-                        <i data-lucide="copy" style="width:18px; height:18px; vertical-align:middle; margin-right:8px;"></i>
-                        COPIER LE TEXTE
-                    </button>
+            
+            <!-- Actions si prêt -->
+            ${isReady ? `
+                <div class="luxe-section" style="background:#d1fae5; padding:20px; border-radius:12px;">
+                    <h4 style="margin:0 0 15px 0; color:#065f46;">✅ ACTIONS DISPONIBLES</h4>
+                    <div style="display:flex; gap:10px;">
+                        <button onclick="window.downloadAllPhotos('${eventId}')" class="btn-gold" style="flex:1;">
+                            <i data-lucide="download"></i> TÉLÉCHARGER LES PHOTOS
+                        </button>
+                        <button onclick="window.copySocialText('${eventId}')" class="btn-gold" style="flex:1;">
+                            <i data-lucide="copy"></i> COPIER LE TEXTE
+                        </button>
+                    </div>
                 </div>
             ` : ''}
-
-            <!-- Bouton marquer comme terminé -->
-            <button onclick="window.toggleEventComplete('${id}', ${isCompleted})" class="btn-gold-fill" style="width:100%; height:55px; background:${isCompleted ? '#ef4444' : '#22c55e'}; margin-bottom:15px;">
-                <i data-lucide="${isCompleted ? 'rotate-ccw' : 'check-circle'}" style="width:20px; height:20px; vertical-align:middle; margin-right:8px;"></i>
-                ${isCompleted ? 'REPASSER EN COURS' : 'MARQUER COMME TERMINÉ'}
+            
+            <!-- Bouton statut -->
+            <button onclick="window.toggleEventStatus('${eventId}', '${ev.status}')" class="btn-gold" style="width:100%; margin-top:15px; ${isReady ? 'background:#f59e0b;' : ''}">
+                ${isReady ? '⏳ REPASSER EN PRÉPARATION' : '✅ MARQUER COMME PRÊT'}
             </button>
-
+            
             <!-- Bouton supprimer -->
-            <button onclick="window.askDeleteEvent('${id}', '${ev.title.replace(/'/g, "\\'")}', true)" style="width:100%; background:#fee2e2; color:#ef4444; border:2px solid #ef4444; padding:12px; border-radius:8px; cursor:pointer; font-weight:700; font-size:0.85rem;">
-                <i data-lucide="trash-2" style="width:16px; height:16px; vertical-align:middle; margin-right:6px;"></i>
-                SUPPRIMER L'ÉVÉNEMENT (+ médias)
+            <button onclick="window.deleteEvent('${eventId}')" class="btn-outline" style="width:100%; margin-top:10px; color:#ef4444; border-color:#ef4444;">
+                <i data-lucide="trash-2"></i> SUPPRIMER L'ÉVÉNEMENT
             </button>
         </div>
     `);
     
     lucide.createIcons();
     
-    // Charger les messages du canal
-    window.loadEventChat(id, channelSlug);
+    // Scroll vers le bas du chat
+    const chatContainer = document.getElementById(`event-chat-${eventId}`);
+    if (chatContainer) chatContainer.scrollTop = chatContainer.scrollHeight;
+    
+    // S'abonner au realtime pour les messages
+    window.subscribeToEventChat(eventId);
 };
 
-// Charger les messages du canal événement
-window.loadEventChat = async (eventId, channelName) => {
-    const { data: messages } = await supabaseClient
-        .from('chat_global')
-        .select('*')
-        .eq('subject', channelName)
-        .order('created_at', { ascending: true });
-    
-    const container = document.getElementById(`event-chat-${eventId}`);
-    if (!container) return;
-    
+/**
+ * RENDER MESSAGES DU CHAT
+ */
+function renderEventMessages(messages) {
     if (!messages || messages.length === 0) {
-        container.innerHTML = '<p style="text-align:center; color:#64748b; font-size:0.85rem; padding:20px;">Aucun message. Soyez le premier à écrire !</p>';
-        return;
+        return '<p style="text-align:center; color:var(--text-muted); padding:20px;">Aucun message</p>';
     }
     
-    container.innerHTML = messages.map(msg => {
-        const isMe = msg.author_full_name === `${currentUser.first_name} ${currentUser.last_name}`;
-        const date = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        
-        return `
-            <div style="margin-bottom:12px; ${isMe ? 'text-align:right;' : ''}">
-                <div style="display:inline-block; max-width:70%; text-align:left; background:${isMe ? 'var(--gold)' : '#f1f5f9'}; color:${isMe ? 'white' : '#1e293b'}; padding:10px 15px; border-radius:12px;">
-                    <div style="font-weight:700; font-size:0.8rem; margin-bottom:4px; opacity:0.9;">${msg.author_full_name}</div>
-                    <div style="font-size:0.9rem; line-height:1.4;">${msg.content}</div>
-                    <div style="font-size:0.7rem; opacity:0.7; margin-top:4px;">${date}</div>
-                </div>
+    return messages.map(m => `
+        <div style="margin-bottom:15px; padding:10px; background:var(--bg); border-radius:8px;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                <strong style="color:var(--gold);">${escapeHTML(m.author_name)}</strong>
+                <span style="color:var(--text-muted); font-size:0.85rem;">${new Date(m.created_at).toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'})}</span>
             </div>
-        `;
-    }).join('');
-    
-    container.scrollTop = container.scrollHeight;
-};
+            <p style="margin:0; color:var(--text-main);">${escapeHTML(m.message)}</p>
+        </div>
+    `).join('');
+}
 
-// Envoyer un message dans le canal événement
-window.sendEventMessage = async (eventId, channelName) => {
-    const input = document.getElementById(`event-chat-input-${eventId}`);
-    if (!input || !input.value.trim()) return;
-    
-    const content = input.value.trim();
-    
-    const { error } = await supabaseClient.from('chat_global').insert([{
-        subject: channelName,
-        content: content,
-        author_full_name: `${currentUser.first_name} ${currentUser.last_name}`,
-        portal: currentUser.portal
-    }]);
-    
-    if (error) {
-        window.showNotice("Erreur", "Impossible d'envoyer le message.", "error");
-        return;
-    }
-    
-    input.value = '';
-    window.loadEventChat(eventId, channelName);
-};
-
-// Sauvegarder les informations (avec bouton explicite)
+/**
+ * SAUVEGARDER LES INFORMATIONS
+ */
 window.saveEventInfos = async (eventId) => {
-    const description = document.getElementById(`ev-description-${eventId}`)?.value || null;
-    const date = document.getElementById(`ev-date-${eventId}`)?.value || null;
-    const time = document.getElementById(`ev-time-${eventId}`)?.value || null;
-    const location = document.getElementById(`ev-location-${eventId}`)?.value || null;
+    const description = document.getElementById('ev-description')?.value?.trim() || null;
+    const date = document.getElementById('ev-date')?.value || null;
+    const time = document.getElementById('ev-time')?.value || null;
+    const location = document.getElementById('ev-location')?.value?.trim() || null;
     
     console.log('💾 Sauvegarde:', { eventId, description, date, time, location });
     
     const { error } = await supabaseClient
-        .from('events')
+        .from('events_v2')
         .update({
-            description: description,
+            description,
             event_date: date,
             event_time: time,
-            location: location
+            location
         })
         .eq('id', eventId);
     
@@ -1719,47 +1758,149 @@ window.saveEventInfos = async (eventId) => {
         return;
     }
     
-    console.log('✅ Sauvegardé !');
-    window.showNotice("Enregistré !", "Informations sauvegardées.", "success");
+    console.log('✅ Sauvegardé');
+    window.showNotice("Enregistré !", "Informations mises à jour.", "success");
     loadEvents();
 };
 
-// Sauvegarder le texte réseaux sociaux
-window.saveSocialText = async (eventId) => {
-    const textArea = document.getElementById(`social-text-${eventId}`);
-    if (!textArea) return;
+/**
+ * UPLOADER DES PHOTOS
+ */
+window.uploadPhotos = async (eventId) => {
+    const input = document.getElementById(`photo-input-${eventId}`);
+    const files = input.files;
     
-    const text = textArea.value.trim() || null;
+    if (!files || files.length === 0) return;
+    
+    const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+    let uploaded = 0;
+    let failed = 0;
+    
+    for (const file of files) {
+        if (file.size > MAX_SIZE) {
+            console.warn('Fichier trop lourd:', file.name);
+            failed++;
+            continue;
+        }
+        
+        const timestamp = Date.now();
+        const fileName = `${timestamp}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+        const filePath = `${eventId}/${fileName}`;
+        
+        const { data, error } = await supabaseClient.storage
+            .from('event-files')
+            .upload(filePath, file);
+        
+        if (error) {
+            console.error('Erreur upload:', error);
+            failed++;
+            continue;
+        }
+        
+        // Récupérer l'URL publique
+        const { data: urlData } = supabaseClient.storage
+            .from('event-files')
+            .getPublicUrl(filePath);
+        
+        // Ajouter l'URL au tableau photos
+        const { data: ev } = await supabaseClient
+            .from('events_v2')
+            .select('photos')
+            .eq('id', eventId)
+            .single();
+        
+        const photos = ev.photos || [];
+        photos.push(urlData.publicUrl);
+        
+        await supabaseClient
+            .from('events_v2')
+            .update({ photos })
+            .eq('id', eventId);
+        
+        uploaded++;
+    }
+    
+    if (uploaded > 0) {
+        window.showNotice("Uploadé !", `${uploaded} photo(s) ajoutée(s).`, "success");
+        window.openEventDetails(eventId); // Recharger la fiche
+    }
+    
+    if (failed > 0) {
+        window.showNotice("Attention", `${failed} fichier(s) non uploadé(s).`, "error");
+    }
+};
+
+/**
+ * SUPPRIMER UNE PHOTO
+ */
+window.deletePhoto = async (eventId, photoUrl) => {
+    window.alsatiaConfirm(
+        "SUPPRIMER LA PHOTO",
+        "Voulez-vous vraiment supprimer cette photo ?",
+        async () => {
+            // Récupérer le chemin du fichier depuis l'URL
+            const urlParts = photoUrl.split('/');
+            const fileName = urlParts[urlParts.length - 1];
+            const filePath = `${eventId}/${fileName}`;
+            
+            // Supprimer du storage
+            await supabaseClient.storage
+                .from('event-files')
+                .remove([filePath]);
+            
+            // Retirer l'URL du tableau
+            const { data: ev } = await supabaseClient
+                .from('events_v2')
+                .select('photos')
+                .eq('id', eventId)
+                .single();
+            
+            const photos = (ev.photos || []).filter(url => url !== photoUrl);
+            
+            await supabaseClient
+                .from('events_v2')
+                .update({ photos })
+                .eq('id', eventId);
+            
+            window.showNotice("Supprimée", "Photo supprimée.", "success");
+            window.openEventDetails(eventId);
+        },
+        true
+    );
+};
+
+/**
+ * SAUVEGARDER TEXTE RÉSEAUX SOCIAUX
+ */
+window.saveSocialText = async (eventId) => {
+    const text = document.getElementById('ev-social-text')?.value?.trim() || null;
     
     const { error } = await supabaseClient
-        .from('events')
+        .from('events_v2')
         .update({ social_media_text: text })
         .eq('id', eventId);
     
     if (error) {
-        window.showNotice("Erreur", "Impossible de sauvegarder le texte.", "error");
+        window.showNotice("Erreur", "Impossible de sauvegarder.", "error");
         return;
     }
     
-    window.showNotice("Enregistré !", "Texte sauvegardé avec succès.", "success");
-    loadEvents();
+    window.showNotice("Enregistré !", "Texte sauvegardé.", "success");
+    window.openEventDetails(eventId);
 };
 
-// Supprimer le texte
+/**
+ * SUPPRIMER TEXTE RÉSEAUX SOCIAUX
+ */
 window.deleteSocialText = async (eventId) => {
     window.alsatiaConfirm(
         "SUPPRIMER LE TEXTE",
-        "Voulez-vous vraiment supprimer le texte pour les réseaux sociaux ?",
+        "Voulez-vous vraiment supprimer le texte ?",
         async () => {
-            const { error } = await supabaseClient
-                .from('events')
+            await supabaseClient
+                .from('events_v2')
                 .update({ social_media_text: null })
                 .eq('id', eventId);
-            
-            if (error) {
-                window.showNotice("Erreur", "Impossible de supprimer le texte.", "error");
-                return;
-            }
             
             window.showNotice("Supprimé", "Texte supprimé.", "success");
             window.openEventDetails(eventId);
@@ -1768,122 +1909,79 @@ window.deleteSocialText = async (eventId) => {
     );
 };
 
-// Upload photos avec limite de taille
-window.uploadPhotos = async (eventId) => {
-    const input = document.getElementById(`photo-upload-${eventId}`);
-    const files = input.files;
+/**
+ * ENVOYER UN MESSAGE DANS LE CHAT
+ */
+window.sendEventMessage = async (eventId) => {
+    const input = document.getElementById(`event-msg-input-${eventId}`);
+    const message = input?.value?.trim();
     
-    if (!files || files.length === 0) return;
-    
-    const MAX_SIZE = 10 * 1024 * 1024; // 10MB
-    let uploadCount = 0;
-    let errorCount = 0;
-    
-    for (let file of files) {
-        if (file.size > MAX_SIZE) {
-            window.showNotice("Fichier trop lourd", `${file.name} dépasse 10MB`, "warning");
-            errorCount++;
-            continue;
-        }
-        
-        const filePath = `${eventId}/photos/${Date.now()}_${file.name}`;
-        
-        const { error } = await supabaseClient.storage
-            .from('event-media')
-            .upload(filePath, file);
-        
-        if (!error) {
-            uploadCount++;
-        } else {
-            console.error("Erreur upload:", error);
-            errorCount++;
-        }
-    }
-    
-    if (uploadCount > 0) {
-        window.showNotice("Uploadé !", `${uploadCount} photo(s) ajoutée(s).`, "success");
-        window.openEventDetails(eventId);
-    }
-    
-    if (errorCount > 0) {
-        window.showNotice("Attention", `${errorCount} fichier(s) n'ont pas pu être uploadés.`, "warning");
-    }
-};
-
-// Upload documents avec limite de taille
-window.uploadDocuments = async (eventId) => {
-    const input = document.getElementById(`doc-upload-${eventId}`);
-    const files = input.files;
-    
-    if (!files || files.length === 0) return;
-    
-    const MAX_SIZE = 10 * 1024 * 1024; // 10MB
-    let uploadCount = 0;
-    let errorCount = 0;
-    
-    for (let file of files) {
-        if (file.size > MAX_SIZE) {
-            window.showNotice("Fichier trop lourd", `${file.name} dépasse 10MB`, "warning");
-            errorCount++;
-            continue;
-        }
-        
-        const filePath = `${eventId}/documents/${Date.now()}_${file.name}`;
-        
-        const { error } = await supabaseClient.storage
-            .from('event-media')
-            .upload(filePath, file);
-        
-        if (!error) {
-            uploadCount++;
-        } else {
-            console.error("Erreur upload:", error);
-            errorCount++;
-        }
-    }
-    
-    if (uploadCount > 0) {
-        window.showNotice("Uploadé !", `${uploadCount} document(s) ajouté(s).`, "success");
-        window.openEventDetails(eventId);
-    }
-    
-    if (errorCount > 0) {
-        window.showNotice("Attention", `${errorCount} fichier(s) n'ont pas pu être uploadés.`, "warning");
-    }
-};
-
-// Supprimer un média
-window.deleteMedia = async (eventId, type, fileName) => {
-    window.alsatiaConfirm(
-        "SUPPRIMER",
-        `Voulez-vous vraiment supprimer ce fichier ?`,
-        async () => {
-            const filePath = `${eventId}/${type}/${fileName}`;
-            
-            const { error } = await supabaseClient.storage
-                .from('event-media')
-                .remove([filePath]);
-            
-            if (error) {
-                window.showNotice("Erreur", "Impossible de supprimer le fichier.", "error");
-                return;
-            }
-            
-            window.showNotice("Supprimé", "Fichier supprimé.", "success");
-            window.openEventDetails(eventId);
-        },
-        true
-    );
-};
-
-// Marquer comme terminé / repasser en cours
-window.toggleEventComplete = async (eventId, isCurrentlyCompleted) => {
-    const newStatus = isCurrentlyCompleted ? 'En cours' : 'Terminé';
-    
-    console.log('🔄 Toggle:', { eventId, was: isCurrentlyCompleted, now: newStatus });
+    if (!message) return;
     
     const { error } = await supabaseClient
-        .from('events')
+        .from('event_messages')
+        .insert([{
+            event_id: eventId,
+            author_id: currentUser.id,
+            author_name: `${currentUser.first_name} ${currentUser.last_name}`,
+            message: message
+        }]);
+    
+    if (error) {
+        console.error('Erreur message:', error);
+        window.showNotice("Erreur", "Message non envoyé.", "error");
+        return;
+    }
+    
+    input.value = '';
+};
+
+/**
+ * S'ABONNER AU REALTIME POUR LE CHAT
+ */
+window.subscribeToEventChat = (eventId) => {
+    // Désabonner l'ancien
+    if (window.eventChatChannel) {
+        window.eventChatChannel.unsubscribe();
+    }
+    
+    // Nouvel abonnement
+    window.eventChatChannel = supabaseClient
+        .channel(`event-chat-${eventId}`)
+        .on('postgres_changes', {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'event_messages',
+            filter: `event_id=eq.${eventId}`
+        }, async (payload) => {
+            console.log('Nouveau message:', payload.new);
+            
+            // Recharger tous les messages
+            const { data: messages } = await supabaseClient
+                .from('event_messages')
+                .select('*')
+                .eq('event_id', eventId)
+                .order('created_at', { ascending: true });
+            
+            const container = document.getElementById(`event-chat-${eventId}`);
+            if (container) {
+                container.innerHTML = renderEventMessages(messages || []);
+                container.scrollTop = container.scrollHeight;
+            }
+        })
+        .subscribe();
+};
+
+/**
+ * CHANGER LE STATUT
+ */
+window.toggleEventStatus = async (eventId, currentStatus) => {
+    const newStatus = (currentStatus === 'ready' || currentStatus === 'published') ? 'draft' : 'ready';
+    
+    console.log('🔄 Toggle statut:', { eventId, currentStatus, newStatus });
+    
+    const { error } = await supabaseClient
+        .from('events_v2')
         .update({ status: newStatus })
         .eq('id', eventId);
     
@@ -1894,899 +1992,99 @@ window.toggleEventComplete = async (eventId, isCurrentlyCompleted) => {
     }
     
     console.log('✅ Statut:', newStatus);
-    window.showNotice("Statut modifié", `Événement marqué comme "${newStatus}".`, "success");
-    window.openEventDetails(eventId);
+    window.showNotice("Modifié", `Événement ${newStatus === 'ready' ? 'prêt' : 'en préparation'}.`, "success");
     loadEvents();
+    window.openEventDetails(eventId);
 };
 
-// Télécharger toutes les photos
+/**
+ * TÉLÉCHARGER TOUTES LES PHOTOS
+ */
 window.downloadAllPhotos = async (eventId) => {
-    const { data: files } = await supabaseClient.storage
-        .from('event-media')
-        .list(`${eventId}/photos`);
+    const { data: ev } = await supabaseClient
+        .from('events_v2')
+        .select('photos')
+        .eq('id', eventId)
+        .single();
     
-    const photos = (files || []).filter(f => f.name && f.name !== '.emptyFolderPlaceholder');
-    
-    if (photos.length === 0) {
-        window.showNotice("Aucune photo", "Aucune photo à télécharger.", "warning");
+    if (!ev || !ev.photos || ev.photos.length === 0) {
+        window.showNotice("Aucune photo", "Pas de photos à télécharger.", "info");
         return;
     }
     
-    for (let file of photos) {
-        const { data } = await supabaseClient.storage
-            .from('event-media')
-            .download(`${eventId}/photos/${file.name}`);
-        
-        if (data) {
-            const url = URL.createObjectURL(data);
+    ev.photos.forEach((url, index) => {
+        setTimeout(() => {
             const a = document.createElement('a');
             a.href = url;
-            a.download = file.name;
+            a.download = `photo_${index + 1}.jpg`;
             a.click();
-            URL.revokeObjectURL(url);
-        }
-    }
+        }, index * 500);
+    });
     
-    window.showNotice("Téléchargement", `${photos.length} photo(s) téléchargée(s).`, "success");
+    window.showNotice("Téléchargement", `${ev.photos.length} photo(s) en cours...`, "success");
 };
 
-// Copier le texte dans le presse-papier
-window.copyTextToClipboard = async (eventId) => {
-    const { data: ev } = await supabaseClient.from('events').select('social_media_text').eq('id', eventId).single();
+/**
+ * COPIER LE TEXTE DANS LE PRESSE-PAPIER
+ */
+window.copySocialText = async (eventId) => {
+    const { data: ev } = await supabaseClient
+        .from('events_v2')
+        .select('social_media_text')
+        .eq('id', eventId)
+        .single();
     
     if (!ev || !ev.social_media_text) {
-        window.showNotice("Aucun texte", "Aucun texte à copier.", "warning");
+        window.showNotice("Aucun texte", "Pas de texte à copier.", "info");
         return;
     }
     
-    navigator.clipboard.writeText(ev.social_media_text).then(() => {
-        window.showNotice("Copié !", "Texte copié dans le presse-papier.", "success");
-    });
-};
-
-// Notifier un utilisateur
-window.notifyUserForEvent = async (eventId) => {
-    const select = document.getElementById(`notify-user-${eventId}`);
-    if (!select || !select.value) {
-        window.showNotice("Erreur", "Veuillez sélectionner un utilisateur.", "error");
-        return;
-    }
-    
-    const userId = select.value;
-    const { data: user } = await supabaseClient.from('profiles').select('first_name, last_name').eq('id', userId).single();
-    const { data: event } = await supabaseClient.from('events').select('title').eq('id', eventId).single();
-    
-    if (!user || !event) return;
-    
-    // Créer un message dans le canal général
-    const message = `@${user.first_name} ${user.last_name} - Vous devez intervenir sur l'événement "${event.title}"`;
-    
-    const { error } = await supabaseClient.from('chat_global').insert([{
-        subject: 'Général',
-        content: message,
-        author_full_name: `${currentUser.first_name} ${currentUser.last_name}`,
-        portal: currentUser.portal
-    }]);
-    
-    if (error) {
-        window.showNotice("Erreur", "Impossible d'envoyer la notification.", "error");
-        return;
-    }
-    
-    window.showNotice("Notifié !", `${user.first_name} ${user.last_name} a été notifié(e).`, "success");
-    select.value = '';
-};
-// REALTIME POUR DONORS (DONATEURS)
-// ==========================================
-window.subscribeToDonors = () => {
-    if (window.donorsChannel) {
-        window.donorsChannel.unsubscribe();
-    }
-
-    window.donorsChannel = supabaseClient
-        .channel('donors-realtime-' + Date.now())
-        .on('postgres_changes', 
-            { event: 'INSERT', schema: 'public', table: 'donors' }, 
-            payload => {
-                console.log('✅ Nouveau donateur ajouté:', payload.new);
-                // Recharger la liste
-                if (document.getElementById('tab-donors')?.classList.contains('active')) {
-                    loadDonors();
-                }
-            }
-        )
-        .on('postgres_changes', 
-            { event: 'UPDATE', schema: 'public', table: 'donors' }, 
-            payload => {
-                console.log('📝 Donateur modifié:', payload.new);
-                if (document.getElementById('tab-donors')?.classList.contains('active')) {
-                    loadDonors();
-                }
-            }
-        )
-        .on('postgres_changes', 
-            { event: 'DELETE', schema: 'public', table: 'donors' }, 
-            payload => {
-                console.log('🗑️ Donateur supprimé:', payload.old.id);
-                if (document.getElementById('tab-donors')?.classList.contains('active')) {
-                    loadDonors();
-                }
-            }
-        )
-        .subscribe((status) => {
-            console.log('Donors subscription status:', status);
-        });
-};
-
-// ==========================================
-// REALTIME POUR DONATIONS (DONS)
-// ==========================================
-window.subscribeToDonations = () => {
-    if (window.donationsChannel) {
-        window.donationsChannel.unsubscribe();
-    }
-
-    window.donationsChannel = supabaseClient
-        .channel('donations-realtime-' + Date.now())
-        .on('postgres_changes', 
-            { event: 'INSERT', schema: 'public', table: 'donations' }, 
-            payload => {
-                console.log('💰 Nouveau don ajouté:', payload.new);
-                // Recharger la liste des donateurs pour mettre à jour les totaux
-                if (document.getElementById('tab-donors')?.classList.contains('active')) {
-                    loadDonors();
-                }
-            }
-        )
-        .on('postgres_changes', 
-            { event: 'UPDATE', schema: 'public', table: 'donations' }, 
-            payload => {
-                console.log('📝 Don modifié:', payload.new);
-                if (document.getElementById('tab-donors')?.classList.contains('active')) {
-                    loadDonors();
-                }
-            }
-        )
-        .on('postgres_changes', 
-            { event: 'DELETE', schema: 'public', table: 'donations' }, 
-            payload => {
-                console.log('🗑️ Don supprimé:', payload.old.id);
-                if (document.getElementById('tab-donors')?.classList.contains('active')) {
-                    loadDonors();
-                }
-            }
-        )
-        .subscribe((status) => {
-            console.log('Donations subscription status:', status);
-        });
-};
-
-// ==========================================
-// REALTIME POUR EVENTS (ÉVÉNEMENTS)
-// ==========================================
-window.subscribeToEvents = () => {
-    if (window.eventsChannel) {
-        window.eventsChannel.unsubscribe();
-    }
-
-    window.eventsChannel = supabaseClient
-        .channel('events-realtime-' + Date.now())
-        .on('postgres_changes', 
-            { event: 'INSERT', schema: 'public', table: 'events' }, 
-            payload => {
-                console.log('📅 Nouvel événement ajouté:', payload.new);
-                if (document.getElementById('tab-events')?.classList.contains('active')) {
-                    loadEvents();
-                }
-            }
-        )
-        .on('postgres_changes', 
-            { event: 'UPDATE', schema: 'public', table: 'events' }, 
-            payload => {
-                console.log('📝 Événement modifié:', payload.new);
-                if (document.getElementById('tab-events')?.classList.contains('active')) {
-                    loadEvents();
-                }
-            }
-        )
-        .on('postgres_changes', 
-            { event: 'DELETE', schema: 'public', table: 'events' }, 
-            payload => {
-                console.log('🗑️ Événement supprimé:', payload.old.id);
-                if (document.getElementById('tab-events')?.classList.contains('active')) {
-                    loadEvents();
-                }
-            }
-        )
-        .subscribe((status) => {
-            console.log('Events subscription status:', status);
-        });
+    navigator.clipboard.writeText(ev.social_media_text);
+    window.showNotice("Copié !", "Texte copié dans le presse-papier.", "success");
 };
 
 /**
- * 2. GESTION DES SUJETS (DROITS & FILTRAGE)
+ * SUPPRIMER UN ÉVÉNEMENT
  */
-window.loadChatSubjects = async () => {
-    const { data: subjects, error } = await supabaseClient.from('chat_subjects').select('*').order('name');
-    if (error) return;
-
-    const container = document.getElementById('chat-subjects-list');
-    if (!container) return;
-
-    const myName = `${currentUser.first_name} ${currentUser.last_name}`;
+window.deleteEvent = async (eventId) => {
+    const { data: ev } = await supabaseClient
+        .from('events_v2')
+        .select('title, photos')
+        .eq('id', eventId)
+        .single();
     
-    const filtered = subjects.filter(s => {
-        // Si c'est Institut Alsatia, voir tout
-        if (currentUser.portal === 'Institut Alsatia') return true;
-        
-        // Si c'est un canal privé (entity = 'Privé'), vérifier si mon nom est dedans
-        if (s.entity === 'Privé') {
-            return s.name.includes(myName);
-        }
-        
-        // Sinon, filtrer par entité
-        return !s.entity || s.entity === currentUser.portal;
-    });
-
-    container.innerHTML = filtered.map(s => {
-        const isActive = currentChatSubject === s.name;
-        return `
-        <div class="chat-subject-item ${isActive ? 'active-chat-tab' : ''}" 
-             style="display:flex; 
-                    justify-content:space-between; 
-                    align-items:center; 
-                    border-radius:12px; 
-                    margin-bottom:6px; 
-                    padding:14px 16px; 
-                    cursor:pointer; 
-                    background:${isActive ? 'rgba(197, 160, 89, 0.15)' : 'transparent'};
-                    border-left: 3px solid ${isActive ? 'var(--gold)' : 'transparent'};
-                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                    position:relative;"
-             onclick="window.switchChatSubject('${s.name.replace(/'/g, "\\'")}')"
-             onmouseover="if (!this.classList.contains('active-chat-tab')) { this.style.background='rgba(255,255,255,0.05)'; this.style.borderLeftColor='rgba(197,160,89,0.3)'; }"
-             onmouseout="if (!this.classList.contains('active-chat-tab')) { this.style.background='transparent'; this.style.borderLeftColor='transparent'; }">
-            <div style="display:flex; align-items:center; gap:10px; flex:1;">
-                <div style="width:8px; height:8px; border-radius:50%; background:${isActive ? 'var(--gold)' : '#64748b'}; box-shadow:${isActive ? '0 0 8px var(--gold)' : 'none'}; transition:all 0.3s;"></div>
-                <div style="flex:1;">
-                    <div style="font-weight:${isActive ? '800' : '600'}; font-size:0.9rem; color:${isActive ? 'var(--gold)' : 'white'}; transition:all 0.3s;"># ${s.name}</div>
-                    ${s.entity ? `<div style="font-size:0.7rem; opacity:0.6; margin-top:2px; color:white;">${s.entity}</div>` : ''}
-                </div>
-            </div>
-            ${(currentUser.portal === 'Institut Alsatia' || s.entity === currentUser.portal) ? 
-                `<i data-lucide="trash-2" 
-                    style="width:14px; 
-                           color:var(--danger); 
-                           opacity:0; 
-                           transition:all 0.2s; 
-                           cursor:pointer;" 
-                    onclick="event.stopPropagation(); window.deleteSubject('${s.id}', '${s.name}')"
-                    onmouseover="this.style.opacity='1'; this.style.transform='scale(1.2)';"
-                    onmouseout="this.style.opacity='0.5'; this.style.transform='scale(1);"></i>` : ''}
-        </div>
-    `;
-    }).join('');
-    lucide.createIcons();
-};
-
-window.switchChatSubject = (subjectName) => {
-    currentChatSubject = subjectName;
-    const titleEl = document.getElementById('chat-current-title');
-    if(titleEl) titleEl.innerText = `# ${subjectName}`;
-    window.loadChatSubjects(); 
-    window.loadChatMessages();
-};
-
-window.promptCreateSubject = () => {
-    const isInstitut = currentUser.portal === 'Institut Alsatia';
-    showCustomModal(`
-        <h3 class="luxe-title">NOUVEAU CANAL</h3>
-        <p class="mini-label">NOM DU SUJET</p>
-        <input type="text" id="new-sub-name" class="luxe-input" placeholder="ex: Travaux Été">
-        <p class="mini-label" style="margin-top:15px;">AFFECTATION ÉCOLE</p>
-        <select id="new-sub-entity" class="luxe-input">
-            <option value="">Visible par tous (Général)</option>
-            <option value="Institut Alsatia" ${!isInstitut ? 'disabled' : ''}>Institut Alsatia Uniquement</option>
-            <option value="Academia Alsatia">Academia Alsatia</option>
-            <option value="Cours Herrade de Landsberg">Cours Herrade de Landsberg</option>
-            <option value="Collège Saints Louis et Zélie Martin">Collège Saints Louis et Zélie Martin</option>
-        </select>
-        <button onclick="window.execCreateSubject()" class="btn-gold" style="width:100%; margin-top:20px;">CRÉER LE SUJET</button>
-    `);
-};
-
-window.execCreateSubject = async () => {
-    const name = document.getElementById('new-sub-name').value.trim();
-    const entity = document.getElementById('new-sub-entity').value;
-    if(!name) return;
-
-    await supabaseClient.from('chat_subjects').insert([{ name, entity }]);
-    window.showNotice("Succès", "Canal de discussion créé.");
-    closeCustomModal();
-    window.loadChatSubjects();
-};
-
-/**
- * 3. LOGIQUE DES MESSAGES
- */
-window.loadChatMessages = async () => {
-    const container = document.getElementById('chat-messages-container');
-    if (!container) return;
+    if (!ev) return;
     
-    // Indicateur de chargement élégant
-    container.innerHTML = `
-        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; gap:15px;">
-            <div style="width:40px; height:40px; border:3px solid rgba(197,160,89,0.2); border-top-color:var(--gold); border-radius:50%; animation:spin 1s linear infinite;"></div>
-            <p style="color:var(--text-muted); font-size:0.9rem;">Chargement des messages...</p>
-        </div>
-        <style>
-            @keyframes spin {
-                to { transform: rotate(360deg); }
-            }
-        </style>
-    `;
-    
-    const { data, error } = await supabaseClient.from('chat_global')
-        .select('*').eq('subject', currentChatSubject).order('created_at', { ascending: true });
-    
-    if (error) {
-        container.innerHTML = `
-            <div style="text-align:center; padding:40px; color:var(--text-muted);">
-                <i data-lucide="alert-circle" style="width:48px; height:48px; margin-bottom:15px; opacity:0.5;"></i>
-                <p>Erreur lors du chargement des messages</p>
-            </div>
-        `;
-        return;
-    }
-    
-    if (!data || data.length === 0) {
-        container.innerHTML = `
-            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; gap:15px; opacity:0.6;">
-                <i data-lucide="message-circle" style="width:64px; height:64px; color:var(--gold);"></i>
-                <p style="color:var(--text-muted); font-size:1rem; font-weight:600;">Aucun message pour le moment</p>
-                <p style="color:var(--text-muted); font-size:0.85rem;">Soyez le premier à écrire dans ce canal !</p>
-            </div>
-        `;
-        lucide.createIcons();
-        return;
-    }
-    
-    // Organiser les messages en threads (parents + réponses)
-    const parentMessages = data.filter(msg => !msg.reply_to);
-    const replyMessages = data.filter(msg => msg.reply_to);
-    
-    // Construire le HTML avec les threads
-    let html = '';
-    parentMessages.forEach(parent => {
-        html += renderSingleMessage(parent, false);
-        
-        // Ajouter les réponses de ce message
-        const replies = replyMessages.filter(r => r.reply_to === parent.id);
-        if (replies.length > 0) {
-            // Fermer la div du parent, ajouter les réponses dans le container replies-{id}
-            html = html.replace(
-                `<div id="replies-${parent.id}" class="replies-container"></div>`,
-                `<div id="replies-${parent.id}" class="replies-container">
-                    ${replies.map(r => renderSingleMessage(r, true)).join('')}
-                </div>`
-            );
-        }
-    });
-    
-    container.innerHTML = html;
-    container.scrollTop = container.scrollHeight;
-    lucide.createIcons();
-};
-
-function renderSingleMessage(msg, isReply = false) {
-    const isMe = msg.author_full_name === `${currentUser.first_name} ${currentUser.last_name}`;
-    const isMentioned = msg.content.includes(`@${currentUser.last_name}`);
-    const date = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const portalIcon = LOGOS[msg.portal] || 'logo_alsatia.png';
-
-    return `
-        <div class="message-wrapper ${isMe ? 'my-wrapper' : ''}" data-msg-id="${msg.id}" style="display:flex; gap:12px; margin-bottom:${isReply ? '8px' : '20px'}; ${isReply ? 'margin-left:0;' : ''} align-items:flex-start; ${isMe ? 'flex-direction:row-reverse;' : ''} animation: slideIn 0.3s ease-out; width:100%;">
-            
-            <div style="${isMe ? 'text-align:right;' : ''} flex:1; min-width:0;">
-                <div style="display:flex; align-items:center; gap:8px; margin-bottom:5px; ${isMe ? 'justify-content:flex-end;' : ''}">
-                    <img src="${portalIcon}" style="width:${isReply ? '16px' : '20px'}; height:${isReply ? '16px' : '20px'}; object-fit:contain;">
-                    <span style="font-weight:700; font-size:${isReply ? '0.8rem' : '0.9rem'}; color:var(--text-main);">${msg.author_full_name}</span>
-                    <span style="font-size:0.7rem; color:var(--text-muted);">${date}</span>
-                    ${isMe ? `
-                        <i data-lucide="trash-2" 
-                           onclick="window.deleteMessage('${msg.id}')" 
-                           style="width:14px; 
-                                  height:14px; 
-                                  color:var(--danger); 
-                                  cursor:pointer; 
-                                  transition:all 0.2s;
-                                  opacity:0.7;" 
-                           onmouseover="this.style.opacity='1'; this.style.transform='scale(1.2)';" 
-                           onmouseout="this.style.opacity='0.7'; this.style.transform='scale(1)';"></i>
-                    ` : ''}
-                </div>
-                
-                <div class="message ${isMe ? 'my-msg' : ''} ${isMentioned ? 'mentioned-luxe' : ''}" id="msg-${msg.id}" 
-                     style="position:relative; 
-                            padding:${isReply ? '10px 14px' : '14px 18px'}; 
-                            border-radius:${isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px'}; 
-                            background:${isMe ? 'linear-gradient(135deg, var(--primary) 0%, #1e293b 100%)' : isMentioned ? 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)' : 'white'}; 
-                            color:${isMe ? 'white' : 'var(--text-main)'}; 
-                            box-shadow: 0 ${isReply ? '1px 6px' : '2px 12px'} rgba(0,0,0,${isMe ? '0.15' : '0.08'}); 
-                            border:${isMentioned && !isMe ? '2px solid var(--gold)' : 'none'};
-                            line-height:1.6;
-                            word-wrap: break-word;
-                            display:inline-block;
-                            max-width:100%;
-                            font-size:${isReply ? '0.9rem' : '1rem'};
-                            ${isMe ? 'margin-left:auto;' : ''}">
-                    ${msg.content.replace(/@([\w\sàéèêîïôûù]+)/g, `<span class="mention-badge" style="background:${isMe ? 'rgba(197,160,89,0.3)' : 'rgba(197,160,89,0.15)'}; color:${isMe ? '#fbbf24' : 'var(--gold)'}; padding:2px 6px; border-radius:4px; font-weight:700;">@$1</span>`)}
-                    
-                    ${msg.file_url ? (() => {
-                        const fileName = msg.file_url.split('/').pop();
-                        const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName);
-                        const isPDF = /\.pdf$/i.test(fileName);
-                        
-                        if (isImage) {
-                            return `
-                                <div style="margin-top:12px; padding-top:12px; border-top:1px solid ${isMe ? 'rgba(255,255,255,0.2)' : 'var(--border)'};">
-                                    <a href="${msg.file_url}" target="_blank">
-                                        <img src="${msg.file_url}" 
-                                             style="max-width:100%; 
-                                                    max-height:300px; 
-                                                    border-radius:12px; 
-                                                    cursor:pointer;
-                                                    box-shadow:0 2px 8px rgba(0,0,0,0.15);
-                                                    transition:transform 0.2s;"
-                                             onmouseover="this.style.transform='scale(1.02)'"
-                                             onmouseout="this.style.transform='scale(1)'">
-                                    </a>
-                                </div>
-                            `;
-                        } else {
-                            return `
-                                <div style="margin-top:12px; padding-top:12px; border-top:1px solid ${isMe ? 'rgba(255,255,255,0.2)' : 'var(--border)'};">
-                                    <a href="${msg.file_url}" target="_blank" 
-                                       style="color:${isMe ? '#fbbf24' : 'var(--gold)'}; 
-                                              text-decoration:none; 
-                                              font-size:0.85rem; 
-                                              font-weight:600; 
-                                              display:inline-flex; 
-                                              align-items:center; 
-                                              gap:6px;
-                                              padding:8px 12px;
-                                              background:${isMe ? 'rgba(255,255,255,0.1)' : 'rgba(197,160,89,0.1)'};
-                                              border-radius:8px;
-                                              transition: all 0.2s;"
-                                       onmouseover="this.style.transform='translateX(3px)'; this.style.background='${isMe ? 'rgba(255,255,255,0.15)' : 'rgba(197,160,89,0.15)'}'" 
-                                       onmouseout="this.style.transform='translateX(0)'; this.style.background='${isMe ? 'rgba(255,255,255,0.1)' : 'rgba(197,160,89,0.1)'}'">
-                                        <i data-lucide="${isPDF ? 'file-text' : 'paperclip'}" style="width:16px; height:16px;"></i>
-                                        ${fileName.length > 30 ? fileName.substring(0, 30) + '...' : fileName}
-                                    </a>
-                                </div>
-                            `;
-                        }
-                    })() : ''}
-                </div>
-                
-                ${!isReply ? `
-                <!-- Bouton Répondre et conteneur pour les réponses -->
-                <div style="display:flex; gap:4px; margin-top:6px; ${isMe ? 'justify-content:flex-end;' : ''}">
-                    <span onclick="window.replyToMessage('${msg.id}', '${msg.author_full_name}', \`${msg.content.replace(/`/g, '').substring(0, 50)}\`)" style="cursor:pointer; padding:6px 12px; border-radius:12px; background:white; box-shadow:0 1px 3px rgba(0,0,0,0.1); transition:all 0.2s; font-size:0.75rem; font-weight:600; color:var(--gold);" onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)';">↩️ Répondre</span>
-                </div>
-                <div id="replies-${msg.id}" style="margin-top:12px;"></div>
-                ` : ''}
-            </div>
-        </div>
-    `;
-}
-
-function appendSingleMessage(msg) {
-    const container = document.getElementById('chat-messages-container');
-    if (!container) return;
-    
-    // Vérifier si le message existe déjà (éviter les doublons)
-    if (document.getElementById(`msg-${msg.id}`)) {
-        console.log('Message déjà affiché, ignoré:', msg.id);
-        return;
-    }
-    
-    // Si c'est une réponse, l'ajouter sous le message parent
-    if (msg.reply_to) {
-        const repliesContainer = document.getElementById(`replies-${msg.reply_to}`);
-        if (repliesContainer) {
-            const messageHTML = renderSingleMessage(msg, true);
-            repliesContainer.insertAdjacentHTML('beforeend', messageHTML);
-            
-            // Animation d'apparition
-            const lastReply = repliesContainer.lastElementChild;
-            if (lastReply) {
-                lastReply.style.opacity = '0';
-                lastReply.style.transform = 'translateY(10px)';
-                setTimeout(() => {
-                    lastReply.style.transition = 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
-                    lastReply.style.opacity = '1';
-                    lastReply.style.transform = 'translateY(0)';
-                }, 50);
-            }
-            
-            lucide.createIcons();
-            container.scrollTop = container.scrollHeight;
-            return;
-        }
-    }
-    
-    // Sinon, c'est un message principal, l'ajouter à la fin
-    const messageHTML = renderSingleMessage(msg, false);
-    container.insertAdjacentHTML('beforeend', messageHTML);
-    
-    // Récupérer le message qu'on vient d'ajouter
-    const lastMsg = container.lastElementChild;
-    if (!lastMsg) return;
-    
-    // Animation d'apparition
-    lastMsg.style.opacity = '0';
-    lastMsg.style.transform = 'translateY(20px)';
-    
-    container.scrollTop = container.scrollHeight;
-    
-    // Animation fluide
-    setTimeout(() => {
-        lastMsg.style.transition = 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
-        lastMsg.style.opacity = '1';
-        lastMsg.style.transform = 'translateY(0)';
-    }, 50);
-    
-    lucide.createIcons();
-    
-    // Notification sonore discrète pour les nouveaux messages (sauf les siens)
-    if (msg.author_full_name !== `${currentUser.first_name} ${currentUser.last_name}`) {
-        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYHGGS67emnURALT6Lf77BdGAU9kc/ywXIiBS9/y/DdjD4IFme57+ijUhAKTKHd67FeGgU8ktHtw3cmBi6AzvLaiTQGF2K48eylUxAKTJ/d7bdgGgU/k9HuwXMjBCx/zPHejj4HFme64OunVRILSZ3c67RfGQc/k9HuwHIkBC1+y/HejT0GFmi74OynUhAJTKHe67RgGQc/ktLux3QlBSx+zPLgkD0GFWe74eynVBELSZ7d7LNgGQc+ktPvxHMkBCt9y/Hej0AGF2i74O2oVBILSJ7e7LNhGwc+k9TwxnQlBSx8y/PhkUEGFWa64e2oVRIKSZ/e7LVgGQc+ktPvw3QlBCt8y/Ddjj0GF2m74O2nVBEKS57d7LRfGQc/k9Pvw3QmBSt8yO/ejT0HGWm84O6nVBEKS5/d7LReGAc/k9TwxHMkBCt7yO/djT4IHGq94O2oVREJS57e7LNgGAc+ktTwxHMlBCp7x+/ejj8JH2y84O+rVhIJSp7e7LNgGQc9ktTvw3QkBCp7x+/fi0AIH2284e+sWRQLSZ7f7rZjHAk9k9XwxHQlBCl6xu/ejD8JIm+74u+uWhYMSJ3f77RiGwk9lNbvw3YmBSh6xe7cizsIJHG64+6vWhYMSJ3g8LVjGgk8lNbvwnQmBSh5xe7djDsHJHG65O6wWxYLR53h8LRjGgk8lNfvwnUmBSd5xO3djDwHI3G65e6vWxYLSJ7h8bZkGwk7k9fvwXQlBSd4xO3di0AII3K65e6uWxYLSJ/h8bVjGgk7k9fvwHMlBSd4xOzdjj4II3G65e2vWhYKSJ/i8rZjGgk7kszvwHMjBSd3w+3ciz0JJHGz5u2vWRQJR5/j8rVhGQk5ktXwv3IlBCZ3wuzci0AIJHK05+2vWxUJRp7j8rViGQk5kdXwvnEkBCZ2wuvciz8JI3Kz5+2vWxUJRZ3j87RhGQk5kdTvv3IlBCZ2wuvcij4IJHOy5+yuWhQIRZ3j8rNfGAc4kdXvvnIkAyV1werciz4JJHO05+uuWhQIRZvj8rNfFwc4kNPvvXEkAyV0weraij4IJHSx5uuuWRQHRZrj8bJdFgY3j9Puu3AjAyR0wOralD0HJXS06euqWBQHQ5nk8bJcFQY3jtLtuG8iAyNzv+nYkD4HJXa16+qrVxMGQpjk8LJbFAU1jdDts28hAiJyvunXkD8HJ3az6+mpVxMFQZbj8LBaFAU0ks/ts28gAiByvenWjz8HKHW06+ioVRMFQJXi8K9ZEwQzj87ss24fASBwvujWkUAHKXe36+inVBIEP5Th8K5aEgQyjczssmwfAR9tvujVkUEHKne56+imUxEEPpPh8K5YEgQxjMvssWwdAR5svObUkEIHK3e76+imURIDP5Lg765YEQP=');
-        audio.volume = 0.15;
-        audio.play().catch(() => {});
-    }
-}
-
-/**
- * 4. MENTIONS & ENVOI
- */
-window.handleChatKeyUp = async (e) => {
-    const input = e.target;
-    const box = document.getElementById('mention-box');
-
-    if (input.value.includes('@')) {
-        const query = input.value.split('@').pop().toLowerCase();
-        box.style.display = 'block';
-        
-        console.log('@ détecté, requête:', query);
-        
-        // Charger tous les utilisateurs depuis la base de données
-        if (!allUsersForMentions || allUsersForMentions.length === 0) {
-            console.log('Chargement des utilisateurs...');
-            const { data: users, error } = await supabaseClient.from('profiles').select('first_name, last_name, portal');
-            if (users && !error) {
-                allUsersForMentions = users.map(u => ({
-                    name: `${u.first_name} ${u.last_name}`,
-                    portal: u.portal
-                }));
-                console.log('Utilisateurs chargés:', allUsersForMentions.length);
-            } else {
-                console.error('Erreur chargement utilisateurs:', error);
-                allUsersForMentions = [];
-            }
-        }
-        
-        // Liste des entités
-        const entities = [
-            'Institut Alsatia', 
-            'Academia Alsatia', 
-            'Cours Herrade de Landsberg', 
-            'Collège Saints Louis et Zélie Martin'
-        ];
-        
-        // Combiner utilisateurs et entités
-        const userSuggestions = allUsersForMentions.map(u => u.name);
-        const allSuggestions = [...entities, ...userSuggestions];
-        
-        console.log('Total suggestions:', allSuggestions.length);
-        
-        const filtered = allSuggestions.filter(s => s.toLowerCase().includes(query));
-        
-        console.log('Suggestions filtrées:', filtered.length);
-        
-        if (filtered.length === 0) {
-            box.innerHTML = '<div style="padding:10px; color:var(--text-muted); font-size:0.85rem; text-align:center;">Aucune suggestion</div>';
-        } else {
-            box.innerHTML = filtered.slice(0, 8).map(s => {
-                const isEntity = entities.includes(s);
-                return `
-                    <div class="suggest-item" 
-                         onclick="window.insertMention('${s.replace(/'/g, "\\'")}')" 
-                         style="padding:12px 15px; 
-                                cursor:pointer; 
-                                border-bottom:1px solid #f1f5f9; 
-                                transition:all 0.2s;
-                                display:flex;
-                                align-items:center;
-                                gap:10px;"
-                         onmouseover="this.style.background='#fdfaf3'; this.style.borderLeftColor='var(--gold)';"
-                         onmouseout="this.style.background='white'; this.style.borderLeftColor='transparent';">
-                        <div style="width:6px; height:6px; border-radius:50%; background:${isEntity ? 'var(--gold)' : '#64748b'};"></div>
-                        <div style="flex:1;">
-                            <div style="font-weight:600; color:var(--text-main);">@${s}</div>
-                            ${isEntity ? '<div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">Entité</div>' : ''}
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-    } else {
-        box.style.display = 'none';
-    }
-    
-    if (e.key === 'Enter') window.sendChatMessage();
-};
-
-window.insertMention = (name) => {
-    const input = document.getElementById('chat-input');
-    const parts = input.value.split('@');
-    parts.pop();
-    input.value = parts.join('@') + '@' + name + ' ';
-    document.getElementById('mention-box').style.display = 'none';
-    input.focus();
-};
-
-// Variable globale pour stocker le message auquel on répond
-let replyingTo = null;
-
-window.replyToMessage = (messageId, authorName, messagePreview) => {
-    replyingTo = { id: messageId, author: authorName, preview: messagePreview };
-    
-    // Afficher la barre de réponse
-    const replyBar = document.getElementById('reply-bar');
-    if (replyBar) {
-        replyBar.style.display = 'flex';
-        document.getElementById('reply-author').innerText = authorName;
-        document.getElementById('reply-preview').innerText = messagePreview;
-    }
-    
-    // Focus sur l'input
-    document.getElementById('chat-input').focus();
-};
-
-window.cancelReply = () => {
-    replyingTo = null;
-    const replyBar = document.getElementById('reply-bar');
-    if (replyBar) {
-        replyBar.style.display = 'none';
-    }
-};
-
-window.handleChatFile = (input) => {
-    selectedChatFile = input.files[0];
-    if (selectedChatFile) {
-        document.getElementById('file-preview-bar').style.display = 'block';
-        document.getElementById('file-name-preview').innerText = selectedChatFile.name;
-    }
-};
-
-window.clearChatFile = () => {
-    selectedChatFile = null;
-    document.getElementById('chat-file-input').value = "";
-    document.getElementById('file-preview-bar').style.display = 'none';
-};
-
-window.sendChatMessage = async () => {
-    const input = document.getElementById('chat-input');
-    const content = input.value.trim();
-    if(!content && !selectedChatFile) return;
-
-    let fileUrl = null;
-    if (selectedChatFile) {
-        const filePath = `chat/${Date.now()}_${selectedChatFile.name}`;
-        const { error: uploadError } = await supabaseClient.storage.from('chat-attachments').upload(filePath, selectedChatFile);
-        if (!uploadError) {
-            const { data } = supabaseClient.storage.from('chat-attachments').getPublicUrl(filePath);
-            fileUrl = data.publicUrl;
-        }
-    }
-
-    // Préparer les données du message
-    const messageData = {
-        content: content,
-        author_full_name: `${currentUser.first_name} ${currentUser.last_name}`,
-        author_last_name: currentUser.last_name,
-        portal: currentUser.portal,
-        subject: currentChatSubject,
-        file_url: fileUrl
-    };
-
-    // Ajouter reply_to seulement si on répond à un message
-    // (La colonne reply_to doit exister dans Supabase)
-    if (replyingTo) {
-        messageData.reply_to = replyingTo.id;
-    }
-
-    const { data, error } = await supabaseClient.from('chat_global').insert([messageData]).select().single();
-
-    if (error) {
-        console.error('Erreur lors de l\'envoi du message:', error);
-        window.showNotice('Erreur', 'Impossible d\'envoyer le message. Vérifiez que la colonne reply_to existe dans Supabase.', 'error');
-        return;
-    }
-
-    // Affichage optimiste : ajouter le message immédiatement
-    if (data) {
-        appendSingleMessage(data);
-    }
-
-    input.value = '';
-    window.clearChatFile();
-    window.cancelReply();
-};
-
-window.deleteMessage = (id) => {
-    window.alsatiaConfirm("SUPPRIMER", "Voulez-vous supprimer ce message ?", async () => {
-        // Supprimer visuellement IMMÉDIATEMENT
-        const msgWrapper = document.querySelector(`[data-msg-id="${id}"]`);
-        if (msgWrapper) {
-            msgWrapper.style.transition = 'all 0.3s ease';
-            msgWrapper.style.opacity = '0';
-            msgWrapper.style.transform = 'translateX(-20px)';
-            setTimeout(() => {
-                msgWrapper.remove();
-            }, 300);
-        }
-        
-        // Supprimer dans la base de données
-        const { error } = await supabaseClient.from('chat_global').delete().eq('id', id);
-        
-        if (error) {
-            console.error('Erreur suppression:', error);
-            window.showNotice("Erreur", "Impossible de supprimer le message.", "error");
-            // Recharger les messages en cas d'erreur
-            window.loadChatMessages();
-        } else {
-            window.showNotice("Effacé", "Message supprimé.");
-        }
-    }, true);
-};
-
-window.deleteSubject = (id, name) => {
-    window.alsatiaConfirm("SUPPRIMER CANAL", `Supprimer le sujet #${name} et tous ses messages ?`, async () => {
-        await supabaseClient.from('chat_global').delete().eq('subject', name);
-        await supabaseClient.from('chat_subjects').delete().eq('id', id);
-        window.loadChatSubjects();
-        window.switchChatSubject('Général');
-    }, true);
-};
-
-window.reactToMessage = async (messageId, emoji) => {
-    const { data: msg } = await supabaseClient.from('chat_global').select('content').eq('id', messageId).single();
-    if (!msg) return;
-
-    const newContent = msg.content + " " + emoji;
-    
-    const { error } = await supabaseClient
-        .from('chat_global')
-        .update({ content: newContent })
-        .eq('id', messageId);
-
-    if (error) console.error("Erreur réaction:", error);
-};
-
-// Supprimer un événement (avec médias)
-window.askDeleteEvent = async (eventId, eventTitle, deleteMedia = false) => {
     window.alsatiaConfirm(
         "SUPPRIMER L'ÉVÉNEMENT",
-        `Voulez-vous vraiment supprimer "${eventTitle}" ?${deleteMedia ? ' Les photos et documents seront également supprimés.' : ''}`,
+        `Voulez-vous vraiment supprimer "${ev.title}" ?\nLes photos et messages seront également supprimés.`,
         async () => {
-            // Supprimer les médias si demandé
-            if (deleteMedia) {
-                // Supprimer toutes les photos
-                const { data: photos } = await supabaseClient.storage
-                    .from('event-media')
-                    .list(`${eventId}/photos`);
+            // Supprimer les photos du storage
+            if (ev.photos && ev.photos.length > 0) {
+                const filePaths = ev.photos.map(url => {
+                    const parts = url.split('/');
+                    const fileName = parts[parts.length - 1];
+                    return `${eventId}/${fileName}`;
+                });
                 
-                if (photos && photos.length > 0) {
-                    const photoPaths = photos
-                        .filter(f => f.name && f.name !== '.emptyFolderPlaceholder')
-                        .map(f => `${eventId}/photos/${f.name}`);
-                    
-                    if (photoPaths.length > 0) {
-                        await supabaseClient.storage.from('event-media').remove(photoPaths);
-                    }
-                }
-                
-                // Supprimer tous les documents
-                const { data: docs } = await supabaseClient.storage
-                    .from('event-media')
-                    .list(`${eventId}/documents`);
-                
-                if (docs && docs.length > 0) {
-                    const docPaths = docs
-                        .filter(f => f.name && f.name !== '.emptyFolderPlaceholder')
-                        .map(f => `${eventId}/documents/${f.name}`);
-                    
-                    if (docPaths.length > 0) {
-                        await supabaseClient.storage.from('event-media').remove(docPaths);
-                    }
-                }
+                await supabaseClient.storage
+                    .from('event-files')
+                    .remove(filePaths);
             }
             
-            // Supprimer l'événement
+            // Supprimer l'événement (cascade supprime les messages)
             const { error } = await supabaseClient
-                .from('events')
+                .from('events_v2')
                 .delete()
                 .eq('id', eventId);
             
             if (error) {
-                window.showNotice("Erreur", "Impossible de supprimer l'événement.", "error");
+                window.showNotice("Erreur", "Impossible de supprimer.", "error");
                 return;
             }
             
             window.showNotice("Supprimé", "Événement supprimé.", "success");
-            closeCustomModal();
-            loadEvents();
-        },
-        true
-    );
-};
-
-// ==========================================
-// SUPPRESSION ÉVÉNEMENT AVEC MÉDIAS
-// ==========================================
-window.askDeleteEvent = async (eventId, eventTitle, deleteMedia = false) => {
-    window.alsatiaConfirm(
-        "SUPPRIMER L'ÉVÉNEMENT",
-        `Voulez-vous vraiment supprimer "${eventTitle}" ?${deleteMedia ? ' Les photos et documents seront également supprimés.' : ''}`,
-        async () => {
-            // Supprimer les médias si demandé
-            if (deleteMedia) {
-                // Supprimer toutes les photos
-                const { data: photos } = await supabaseClient.storage
-                    .from('event-media')
-                    .list(`${eventId}/photos`);
-                
-                if (photos && photos.length > 0) {
-                    const photoPaths = photos
-                        .filter(f => f.name && f.name !== '.emptyFolderPlaceholder')
-                        .map(f => `${eventId}/photos/${f.name}`);
-                    
-                    if (photoPaths.length > 0) {
-                        await supabaseClient.storage.from('event-media').remove(photoPaths);
-                    }
-                }
-                
-                // Supprimer tous les documents
-                const { data: docs } = await supabaseClient.storage
-                    .from('event-media')
-                    .list(`${eventId}/documents`);
-                
-                if (docs && docs.length > 0) {
-                    const docPaths = docs
-                        .filter(f => f.name && f.name !== '.emptyFolderPlaceholder')
-                        .map(f => `${eventId}/documents/${f.name}`);
-                    
-                    if (docPaths.length > 0) {
-                        await supabaseClient.storage.from('event-media').remove(docPaths);
-                    }
-                }
-            }
-            
-            // Supprimer l'événement
-            const { error } = await supabaseClient
-                .from('events')
-                .delete()
-                .eq('id', eventId);
-            
-            if (error) {
-                window.showNotice("Erreur", "Impossible de supprimer l'événement.", "error");
-                return;
-            }
-            
-            window.showNotice("Supprimé", "Événement supprimé.", "success");
-            closeCustomModal();
+            window.closeCustomModal();
             loadEvents();
         },
         true
