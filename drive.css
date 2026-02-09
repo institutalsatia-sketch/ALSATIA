@@ -1,0 +1,425 @@
+/* =====================================================
+   DRIVE ALSATIA PREMIUM - STYLES
+   ===================================================== */
+
+/* Container principal */
+#drive-container {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: #f8fafc;
+}
+
+/* Header du Drive */
+#drive-header {
+    background: white;
+    padding: 20px 30px;
+    border-bottom: 2px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+/* Breadcrumb */
+#drive-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+.breadcrumb-item {
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    transition: all 0.2s;
+}
+
+.breadcrumb-item:not(.active) {
+    cursor: pointer;
+    color: var(--gold);
+}
+
+.breadcrumb-item:not(.active):hover {
+    text-decoration: underline;
+}
+
+.breadcrumb-item.active {
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.breadcrumb-separator {
+    color: var(--text-muted);
+    font-size: 1.2rem;
+}
+
+/* Toolbar */
+#drive-toolbar {
+    margin-top: 15px;
+}
+
+.drive-btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--gold);
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.drive-btn-primary:hover {
+    background: var(--gold-light);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(197, 160, 89, 0.3);
+}
+
+.drive-btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: white;
+    color: var(--text-main);
+    border: 2px solid var(--border);
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.drive-btn-secondary:hover {
+    border-color: var(--gold);
+    color: var(--gold);
+}
+
+/* Content area */
+#drive-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 30px;
+}
+
+/* VUE LISTE */
+.drive-table {
+    width: 100%;
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.drive-table thead {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+}
+
+.drive-table th {
+    padding: 16px 20px;
+    text-align: left;
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: #92400e;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.drive-table tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: all 0.2s;
+}
+
+.drive-table tbody tr:hover {
+    background: #f8fafc;
+}
+
+.drive-table td {
+    padding: 16px 20px;
+    font-size: 0.9rem;
+    color: var(--text-main);
+}
+
+.drive-item {
+    cursor: pointer;
+}
+
+.drive-actions {
+    display: flex;
+    gap: 6px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.drive-table tbody tr:hover .drive-actions {
+    opacity: 1;
+}
+
+.drive-action-btn {
+    background: transparent;
+    border: none;
+    padding: 6px;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.drive-action-btn:hover {
+    background: var(--border);
+}
+
+/* VUE GRILLE */
+.drive-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 16px;
+}
+
+.drive-grid-item {
+    background: white;
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.drive-grid-item:hover {
+    border-color: var(--gold);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+.drive-grid-icon {
+    margin-bottom: 12px;
+}
+
+.drive-grid-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-main);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-bottom: 8px;
+}
+
+.drive-grid-actions {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.drive-grid-item:hover .drive-grid-actions {
+    opacity: 1;
+}
+
+/* Progress upload */
+#drive-upload-progress {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    min-width: 300px;
+    z-index: 10000;
+    display: none;
+}
+
+#drive-upload-text {
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.drive-progress-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+#drive-upload-bar {
+    height: 100%;
+    background: var(--gold);
+    transition: width 0.3s;
+    width: 0%;
+}
+
+/* Modal de prévisualisation */
+#drive-preview-modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 10000;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.drive-preview-container {
+    background: white;
+    border-radius: 16px;
+    max-width: 1200px;
+    width: 100%;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.drive-preview-header {
+    padding: 20px 30px;
+    border-bottom: 2px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#drive-preview-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.drive-preview-close {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.drive-preview-close:hover {
+    background: var(--border);
+}
+
+.drive-preview-body {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+}
+
+#drive-preview-content {
+    flex: 2;
+    padding: 30px;
+    overflow-y: auto;
+}
+
+.drive-preview-sidebar {
+    flex: 1;
+    border-left: 2px solid var(--border);
+    padding: 20px;
+    overflow-y: auto;
+    max-width: 400px;
+}
+
+.drive-preview-section {
+    margin-bottom: 30px;
+}
+
+.drive-preview-section h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 15px;
+    color: var(--text-main);
+}
+
+#drive-comments-list {
+    margin-bottom: 15px;
+}
+
+#drive-comment-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    resize: vertical;
+    min-height: 80px;
+    margin-bottom: 10px;
+}
+
+#drive-comment-input:focus {
+    outline: none;
+    border-color: var(--gold);
+}
+
+/* Responsive mobile */
+@media (max-width: 768px) {
+    #drive-header {
+        padding: 15px 20px;
+    }
+    
+    #drive-content {
+        padding: 15px 20px;
+    }
+    
+    .drive-table {
+        display: block;
+        overflow-x: auto;
+    }
+    
+    .drive-grid {
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 12px;
+    }
+    
+    .drive-preview-body {
+        flex-direction: column;
+    }
+    
+    .drive-preview-sidebar {
+        border-left: none;
+        border-top: 2px solid var(--border);
+        max-width: 100%;
+    }
+    
+    #drive-toolbar > div {
+        flex-direction: column;
+        align-items: stretch !important;
+    }
+    
+    #drive-toolbar button,
+    #drive-toolbar label {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    #drive-search {
+        width: 100% !important;
+    }
+}
+
+/* Spinner */
+.spinner {
+    border: 3px solid rgba(197, 160, 89, 0.2);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 15px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
