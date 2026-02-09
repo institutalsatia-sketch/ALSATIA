@@ -420,60 +420,6 @@ window.copyToClipboard = (text) => {
 };
 
 // Fonction pour démarrer une discussion privée
-window.startPrivateChat = async (userId, firstName, lastName) => {
-    // Créer ou trouver le canal privé
-    const myName = `${currentUser.first_name} ${currentUser.last_name}`;
-    const theirName = `${firstName} ${lastName}`;
-    
-    // Format du nom de canal : toujours par ordre alphabétique pour cohérence
-    const names = [myName, theirName].sort();
-    const channelName = `${names[0]} ↔ ${names[1]}`;
-    
-    // Vérifier si le canal existe déjà
-    const { data: existing } = await supabaseClient
-        .from('chat_subjects')
-        .select('*')
-        .ilike('name', channelSlug)
-        .single();
-    
-    if (!existing) {
-        // Créer le canal privé
-        const { error } = await supabaseClient
-            .from('chat_subjects')
-            .insert([{
-                name: channelName,
-                entity: 'Privé'
-            }]);
-        
-        if (error) {
-            window.showNotice("Erreur", "Impossible de créer la discussion privée.", "error");
-            return;
-        }
-    }
-    
-    // Basculer vers Discussion et sélectionner ce canal
-    window.switchTab('chat');
-    
-    // Attendre que la page chat soit chargée
-    setTimeout(() => {
-        // Sélectionner le canal
-        const channelButton = Array.from(document.querySelectorAll('.subject-item')).find(btn => 
-            btn.textContent.includes(channelName)
-        );
-        
-        if (channelButton) {
-            channelButton.click();
-        }
-        
-        // Focus sur l'input et pré-remplir avec mention
-        const chatInput = document.getElementById('chat-input-field');
-        if (chatInput) {
-            chatInput.value = `@${firstName} ${lastName} `;
-            chatInput.focus();
-        }
-    }, 500);
-};
-
 // ==========================================
 // SECTION MON PROFIL (VERSION COMPLÈTE + EMAIL & PIN)
 // ==========================================
@@ -1346,17 +1292,26 @@ window.loadChatSubjects = async () => {
     const myName = `${currentUser.first_name} ${currentUser.last_name}`;
     
     const filtered = subjects.filter(s => {
-        // Si c'est Institut Alsatia, voir tout
-        if (currentUser.portal === 'Institut Alsatia') return true;
-        
-        // Si c'est un canal privé (entity = 'Privé'), vérifier si mon nom est dedans
+        // BLOQUER TOUS LES CANAUX PRIVÉS (discussions 1-to-1 désactivées)
         if (s.entity === 'Privé') {
-            return s.name.includes(myName);
+            return false;
         }
+        
+        // Si c'est Institut Alsatia, voir tout (sauf les privés)
+        if (currentUser.portal === 'Institut Alsatia') return true;
         
         // Sinon, filtrer par entité
         return !s.entity || s.entity === currentUser.portal;
     });
+
+    // PROTECTION : Si le canal actif n'est plus accessible (canal privé supprimé), rediriger vers Général
+    const isCurrentSubjectAvailable = filtered.some(s => s.name === currentChatSubject);
+    if (!isCurrentSubjectAvailable) {
+        console.warn(`⚠️ Canal "${currentChatSubject}" inaccessible, redirection vers Général`);
+        currentChatSubject = 'Général';
+        const titleEl = document.getElementById('chat-current-title');
+        if (titleEl) titleEl.innerText = '# Général';
+    }
 
     container.innerHTML = filtered.map(s => {
         const isActive = currentChatSubject === s.name;
