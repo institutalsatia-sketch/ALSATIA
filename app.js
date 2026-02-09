@@ -1330,6 +1330,30 @@ window.loadChatSubjects = async () => {
     `;
     }).join('');
     lucide.createIcons();
+    
+    // Mettre à jour le dropdown mobile
+    const mobileMenu = document.getElementById('mobile-channel-menu');
+    if (mobileMenu) {
+        mobileMenu.innerHTML = filtered.map(s => {
+            const isActive = currentChatSubject === s.name;
+            return `
+            <div class="mobile-channel-item ${isActive ? 'active' : ''}" 
+                 onclick="window.switchChatSubject('${s.name.replace(/'/g, "\\'")}'); window.closeChannelDropdown();">
+                <div class="mobile-channel-item-content">
+                    <div class="mobile-channel-name"># ${s.name}</div>
+                    ${s.entity ? `<div class="mobile-channel-entity">${s.entity}</div>` : ''}
+                </div>
+                ${isActive ? '<span class="mobile-channel-check">✓</span>' : ''}
+            </div>
+            `;
+        }).join('');
+    }
+    
+    // Mettre à jour le bouton du dropdown
+    const mobileToggle = document.getElementById('mobile-current-channel');
+    if (mobileToggle) {
+        mobileToggle.innerText = `# ${currentChatSubject}`;
+    }
 };
 
 window.switchChatSubject = (subjectName) => {
@@ -2709,7 +2733,7 @@ window.closeMobileMenu = () => {
     document.getElementById("mobile-overlay").classList.remove("active");
 };
 
-// Fermer le menu mobile lors du changement donglet
+// Fermer le menu mobile lors du changement d'onglet
 const originalSwitchTab = window.switchTab;
 window.switchTab = (tabId) => {
     if (window.innerWidth <= 768) {
@@ -2718,7 +2742,47 @@ window.switchTab = (tabId) => {
     originalSwitchTab(tabId);
 };
 
-// Toggle chat sidebar mobile
+// =====================================================
+// DROPDOWN CANAUX MOBILE
+// =====================================================
+
+window.toggleChannelDropdown = () => {
+    const menu = document.getElementById('mobile-channel-menu');
+    const chevron = document.getElementById('mobile-chevron');
+    const isOpen = menu.style.display === 'block';
+    
+    if (isOpen) {
+        menu.style.display = 'none';
+        chevron.style.transform = 'rotate(0deg)';
+    } else {
+        menu.style.display = 'block';
+        chevron.style.transform = 'rotate(180deg)';
+        
+        // Créer overlay pour fermer au click extérieur
+        let overlay = document.getElementById('mobile-dropdown-overlay-chat');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'mobile-dropdown-overlay-chat';
+            overlay.className = 'mobile-dropdown-overlay active';
+            overlay.onclick = window.closeChannelDropdown;
+            document.body.appendChild(overlay);
+        } else {
+            overlay.classList.add('active');
+        }
+    }
+};
+
+window.closeChannelDropdown = () => {
+    const menu = document.getElementById('mobile-channel-menu');
+    const chevron = document.getElementById('mobile-chevron');
+    const overlay = document.getElementById('mobile-dropdown-overlay-chat');
+    
+    if (menu) menu.style.display = 'none';
+    if (chevron) chevron.style.transform = 'rotate(0deg)';
+    if (overlay) overlay.classList.remove('active');
+};
+
+// Toggle chat sidebar mobile (ancien système)
 window.toggleChatSidebar = () => {
     const sidebar = document.querySelector(".chat-sidebar");
     sidebar.classList.toggle("mobile-open");
