@@ -48,6 +48,20 @@ window.alsatiaConfirm = (title, text, callback, isDanger = false) => {
             closeCustomModal();
         };
     }
+// ==========================================
+// VARIABLES GLOBALES CHAT
+// ==========================================
+let currentChatSubject = 'Général';
+
+// ==========================================
+// REALTIME CHAT (VERSION SIMPLIFIÉE)
+// ==========================================
+window.subscribeToChat = () => {
+    // Version simplifiée - pas de realtime actif pour éviter les bugs
+    // Le chat se recharge manuellement
+    console.log('Chat subscription disabled - manual refresh only');
+};
+
 };
 
 // ==========================================
