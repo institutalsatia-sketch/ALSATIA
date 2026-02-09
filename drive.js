@@ -317,15 +317,50 @@ window.toggleView = () => {
 // CRÉATION DE DOSSIER
 // =====================================================
 
-window.createNewFolder = async () => {
-    const folderName = prompt('Nom du nouveau dossier :');
-    if (!folderName || folderName.trim() === '') return;
+window.createNewFolder = () => {
+    // Utiliser la modale de l'app au lieu de prompt()
+    const modalBody = document.getElementById('modal-body');
+    if (!modalBody) return;
+    
+    modalBody.innerHTML = `
+        <h2 style="margin:0 0 20px 0; font-size:1.4rem; font-weight:800; color:var(--text-main);">
+            📁 Nouveau dossier
+        </h2>
+        <input type="text" id="new-folder-name" placeholder="Nom du dossier" 
+               style="width:100%; padding:12px; border:2px solid var(--border); border-radius:8px; margin-bottom:20px; font-size:1rem;"
+               onkeypress="if(event.key==='Enter') document.getElementById('confirm-create-folder').click()">
+        <div style="display:flex; gap:10px; justify-content:flex-end;">
+            <button onclick="document.getElementById('custom-modal').style.display='none'" 
+                    style="padding:10px 20px; background:var(--border); border:none; border-radius:8px; cursor:pointer; font-weight:600;">
+                Annuler
+            </button>
+            <button id="confirm-create-folder" onclick="window.confirmCreateFolder()" 
+                    style="padding:10px 20px; background:var(--gold); color:white; border:none; border-radius:8px; cursor:pointer; font-weight:600;">
+                Créer
+            </button>
+        </div>
+    `;
+    
+    document.getElementById('custom-modal').style.display = 'flex';
+    setTimeout(() => document.getElementById('new-folder-name').focus(), 100);
+};
+
+window.confirmCreateFolder = async () => {
+    const input = document.getElementById('new-folder-name');
+    const folderName = input ? input.value.trim() : '';
+    
+    if (!folderName) {
+        showDriveError('Le nom du dossier ne peut pas être vide');
+        return;
+    }
+    
+    document.getElementById('custom-modal').style.display = 'none';
     
     try {
         const { data, error } = await supabaseClient
             .from('drive_items')
             .insert([{
-                name: folderName.trim(),
+                name: folderName,
                 type: 'folder',
                 entity: driveCurrentEntity,
                 parent_id: driveCurrentFolderId,
@@ -476,13 +511,30 @@ window.downloadFile = async (itemId) => {
 // SUPPRESSION
 // =====================================================
 
-window.deleteItem = async (itemId, itemName, itemType) => {
+window.deleteItem = (itemId, itemName, itemType) => {
     const confirmMsg = itemType === 'folder' 
         ? `Supprimer le dossier "${itemName}" et tout son contenu ?`
         : `Supprimer le fichier "${itemName}" ?`;
     
-    if (!confirm(confirmMsg)) return;
-    
+    // Utiliser alsatiaConfirm au lieu de confirm()
+    if (window.alsatiaConfirm) {
+        window.alsatiaConfirm(
+            "SUPPRESSION",
+            confirmMsg,
+            async () => {
+                await performDelete(itemId, itemName, itemType);
+            },
+            true
+        );
+    } else {
+        // Fallback si alsatiaConfirm n'existe pas
+        if (confirm(confirmMsg)) {
+            performDelete(itemId, itemName, itemType);
+        }
+    }
+};
+
+async function performDelete(itemId, itemName, itemType) {
     try {
         const item = driveAllItems.find(i => i.id === itemId);
         
@@ -512,7 +564,7 @@ window.deleteItem = async (itemId, itemName, itemType) => {
         console.error('❌ Erreur suppression:', error);
         showDriveError('Impossible de supprimer l\'élément');
     }
-};
+}
 
 // =====================================================
 // PRÉVISUALISATION
