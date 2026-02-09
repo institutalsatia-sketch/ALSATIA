@@ -318,24 +318,13 @@ function renderContacts(users) {
     if(!grid) return;
     
     grid.innerHTML = users.map(u => {
-        // Générer initiales colorées
-        const initials = `${u.first_name.charAt(0)}${u.last_name.charAt(0)}`.toUpperCase();
-        const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
-        const colorIndex = (u.first_name.charCodeAt(0) + u.last_name.charCodeAt(0)) % colors.length;
-        const avatarColor = colors[colorIndex];
-        
         return `
             <div class="contact-card" style="background:white; border-radius:16px; box-shadow:0 2px 8px rgba(0,0,0,0.08); padding:24px; transition:all 0.3s; border:2px solid transparent;" onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 24px rgba(0,0,0,0.12)'; this.style.borderColor='var(--gold)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'; this.style.borderColor='transparent';">
                 
-                <!-- Avatar avec initiales -->
-                <div style="display:flex; align-items:center; gap:15px; margin-bottom:20px;">
-                    <div style="width:60px; height:60px; border-radius:50%; background:${avatarColor}; display:flex; align-items:center; justify-content:center; color:white; font-weight:800; font-size:1.3rem; flex-shrink:0;">
-                        ${initials}
-                    </div>
-                    <div style="flex:1;">
-                        <h3 style="margin:0 0 4px 0; font-size:1.1rem; font-weight:800; color:#1e293b;">${u.first_name} ${u.last_name.toUpperCase()}</h3>
-                        <p style="margin:0; font-size:0.85rem; color:#64748b; font-weight:500;">${u.job_title || 'Collaborateur'}</p>
-                    </div>
+                <!-- En-tête sans avatar -->
+                <div style="margin-bottom:20px;">
+                    <h3 style="margin:0 0 4px 0; font-size:1.1rem; font-weight:800; color:#1e293b;">${u.first_name} ${u.last_name.toUpperCase()}</h3>
+                    <p style="margin:0; font-size:0.85rem; color:#64748b; font-weight:500;">${u.job_title || 'Collaborateur'}</p>
                 </div>
                 
                 <!-- Entité -->
@@ -1394,61 +1383,395 @@ window.execCreateEvent = async () => {
 };
 
 // 3. DOSSIER LOGISTIQUE & ACTIONS RÉSEAUX (ÉTAPE 2 & 3)
+// ==========================================
+// NOUVELLES FONCTIONS ÉVÉNEMENTS AVEC MÉDIAS
+// ==========================================
+// Remplace toute la section depuis window.openEventDetails jusqu'à window.refreshGallery
+
 window.openEventDetails = async (id) => {
     const { data: ev } = await supabaseClient.from('events').select('*').eq('id', id).single();
     if(!ev) return;
 
-    const isReady = ev.status === 'Complet' || (ev.event_time && ev.location && ev.description);
+    // Charger les médias depuis le bucket
+    const { data: mediaList } = await supabaseClient.storage
+        .from('event-media')
+        .list(`${id}/photos`);
+    
+    const { data: docsList } = await supabaseClient.storage
+        .from('event-media')
+        .list(`${id}/documents`);
+    
+    const photos = mediaList || [];
+    const documents = docsList || [];
+    
+    const isCompleted = ev.status === 'Complet' || ev.status === 'Terminé';
 
     showCustomModal(`
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
             <h2 class="luxe-title" style="margin:0;">${ev.title}</h2>
-            <button onclick="closeCustomModal()" style="border:none; background:none; cursor:pointer; font-size:1.5rem;">&times;</button>
+            <button onclick="window.closeCustomModal()" style="border:none; background:none; cursor:pointer; font-size:1.5rem;">&times;</button>
         </div>
 
-        <div style="display:grid; grid-template-columns: 1.2fr 1fr; gap:25px;">
-            <div>
-                <p class="mini-label" style="color:var(--primary); font-weight:800; border-bottom:1px solid #eee; padding-bottom:5px;">1. LOGISTIQUE & MÉDIAS</p>
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:15px;">
-                    <input type="time" class="luxe-input" value="${ev.event_time || ''}" onchange="window.updateEventField('${ev.id}', 'event_time', this.value)">
-                    <input type="text" class="luxe-input" placeholder="Lieu..." value="${ev.location || ''}" onblur="window.updateEventField('${ev.id}', 'location', this.value)">
+        <!-- Badge statut -->
+        <div style="text-align:center; margin-bottom:20px; padding:15px; background:${isCompleted ? 'linear-gradient(135deg, #dcfce7, #bbf7d0)' : 'linear-gradient(135deg, #fef3c7, #fde68a)'}; border-radius:12px; border:2px solid ${isCompleted ? '#22c55e' : '#f59e0b'};">
+            <div style="font-size:1.5rem; margin-bottom:5px;">${isCompleted ? '✅' : '⏳'}</div>
+            <div style="font-weight:800; color:${isCompleted ? '#166534' : '#92400e'}; font-size:1.1rem;">
+                ${isCompleted ? 'PRÊT POUR LES RÉSEAUX' : 'EN COURS DE PRÉPARATION'}
+            </div>
+        </div>
+
+        <!-- Informations de base -->
+        <div style="background:#f8fafc; padding:20px; border-radius:12px; margin-bottom:20px;">
+            <p class="mini-label">INFORMATIONS DE L'ÉVÉNEMENT</p>
+            
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom:15px;">
+                <div>
+                    <p style="font-size:0.75rem; color:#64748b; margin-bottom:5px;">DATE</p>
+                    <input type="date" id="ev-date" class="luxe-input" value="${ev.event_date}" onchange="window.updateEventField('${id}', 'event_date', this.value)">
                 </div>
-                <textarea class="luxe-input" style="height:100px; margin-top:10px;" placeholder="Texte réseaux..." onblur="window.updateEventField('${ev.id}', 'description', this.value)">${ev.description || ''}</textarea>
-                
-                <div style="margin-top:20px; padding:15px; background:#f8fafc; border-radius:12px; border:1px dashed #cbd5e1;">
-                    <p class="mini-label">PHOTOS DE L'ÉVÉNEMENT (events_media)</p>
-                    <div id="event-gallery" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin:15px 0; max-height:200px; overflow-y:auto;"></div>
-                    <input type="file" id="ev-upload-multi" style="display:none;" multiple onchange="window.uploadMultipleMedia('${ev.id}', this.files)">
-                    <button onclick="document.getElementById('ev-upload-multi').click()" class="btn-gold" style="width:100%; font-size:0.75rem;">+ AJOUTER FICHIERS</button>
+                <div>
+                    <p style="font-size:0.75rem; color:#64748b; margin-bottom:5px;">HEURE</p>
+                    <input type="time" id="ev-time" class="luxe-input" value="${ev.event_time || ''}" onchange="window.updateEventField('${id}', 'event_time', this.value)">
                 </div>
             </div>
+            
+            <div>
+                <p style="font-size:0.75rem; color:#64748b; margin-bottom:5px;">LIEU</p>
+                <input type="text" id="ev-location" class="luxe-input" value="${ev.location || ''}" placeholder="Ex: Salle des fêtes..." onchange="window.updateEventField('${id}', 'location', this.value)">
+            </div>
+        </div>
 
-            <div style="background:#f8fafc; padding:20px; border-radius:12px; border:1px solid #e2e8f0; align-self: start;">
-                <p class="mini-label" style="color:var(--primary); font-weight:800;">2. ACTIONS RÉSEAUX</p>
-                
-                ${!isReady ? `
-                    <div id="alert-incomplete" style="background:#fff7ed; border:1px solid #ffedd5; padding:12px; border-radius:8px; margin:15px 0; position:relative; display:flex; gap:10px; align-items:center;">
-                        <i data-lucide="alert-circle" style="color:#f59e0b; width:20px;"></i>
-                        <p style="font-size:0.7rem; color:#9a3412; margin:0; padding-right:20px;"><b>Dossier incomplet.</b><br>Vérifiez l'heure, le lieu et le texte.</p>
-                        <button onclick="document.getElementById('alert-incomplete').style.display='none'" style="position:absolute; top:5px; right:5px; background:none; border:none; cursor:pointer; color:#9a3412; font-size:1.2rem;">&times;</button>
+        <!-- Texte pour les réseaux -->
+        <div style="background:white; border:2px solid var(--gold); padding:20px; border-radius:12px; margin-bottom:20px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <p class="mini-label" style="margin:0; color:var(--gold);">📱 TEXTE POUR LES RÉSEAUX SOCIAUX</p>
+                ${ev.social_media_text ? `
+                    <div style="display:flex; gap:8px;">
+                        <button onclick="window.editSocialText('${id}')" style="background:var(--gold); color:white; border:none; padding:6px 12px; border-radius:6px; font-size:0.75rem; cursor:pointer; font-weight:700;">
+                            <i data-lucide="edit-3" style="width:12px; height:12px; vertical-align:middle; margin-right:4px;"></i>MODIFIER
+                        </button>
+                        <button onclick="window.deleteSocialText('${id}')" style="background:#fee2e2; color:#ef4444; border:none; padding:6px 12px; border-radius:6px; font-size:0.75rem; cursor:pointer; font-weight:700;">
+                            <i data-lucide="trash-2" style="width:12px; height:12px; vertical-align:middle; margin-right:4px;"></i>SUPPRIMER
+                        </button>
                     </div>
-                ` : `<p style="font-size:0.75rem; color:#166534; margin:15px 0;">✨ Dossier complet.</p>`}
+                ` : ''}
+            </div>
+            
+            ${ev.social_media_text ? `
+                <div id="social-text-display" style="background:#fffbeb; padding:15px; border-radius:8px; white-space:pre-wrap; font-size:0.9rem; line-height:1.6; color:#1e293b;">
+                    ${ev.social_media_text}
+                </div>
+                <div id="social-text-edit" style="display:none;">
+                    <textarea id="social-text-area" class="luxe-input" style="min-height:150px; font-size:0.9rem; line-height:1.6;">${ev.social_media_text}</textarea>
+                    <div style="display:flex; gap:10px; margin-top:10px;">
+                        <button onclick="window.saveSocialText('${id}')" class="btn-gold-fill" style="flex:1;">ENREGISTRER</button>
+                        <button onclick="window.cancelEditSocialText()" class="btn-outline" style="flex:1;">ANNULER</button>
+                    </div>
+                </div>
+            ` : `
+                <textarea id="social-text-new" class="luxe-input" placeholder="Rédigez votre post pour Instagram, Facebook, LinkedIn..." style="min-height:150px; font-size:0.9rem; line-height:1.6;"></textarea>
+                <button onclick="window.saveSocialText('${id}')" class="btn-gold-fill" style="width:100%; margin-top:10px;">
+                    <i data-lucide="check" style="width:16px; height:16px; vertical-align:middle; margin-right:6px;"></i>
+                    ENREGISTRER LE TEXTE
+                </button>
+            `}
+        </div>
 
-                <button onclick="window.copyToClipboard('${(ev.description || "").replace(/'/g, "\\'")}')" class="btn-gold" style="width:100%; background:#22c55e; border:none; margin-bottom:10px; height:45px; font-weight:bold;">COPIER LE TEXTE</button>
-                <button onclick="window.downloadAllMedia('${ev.id}')" class="btn-gold" style="width:100%; background:#1e293b; border:none; margin-bottom:10px; height:45px; font-weight:bold;">TOUT TÉLÉCHARGER</button>
+        <!-- Photos & Documents -->
+        <div style="background:white; border:2px solid #e2e8f0; padding:20px; border-radius:12px; margin-bottom:20px;">
+            <p class="mini-label" style="margin-bottom:15px;">📸 PHOTOS & 📄 DOCUMENTS</p>
+            
+            <!-- Upload photos -->
+            <div style="margin-bottom:20px;">
+                <label style="display:block; background:linear-gradient(135deg, #fef3c7, #fde68a); padding:15px; border-radius:8px; text-align:center; cursor:pointer; border:2px dashed var(--gold);">
+                    <i data-lucide="image-plus" style="width:24px; height:24px; color:var(--gold); margin-bottom:8px;"></i>
+                    <div style="font-weight:700; color:#92400e; font-size:0.85rem;">AJOUTER DES PHOTOS</div>
+                    <input type="file" id="photo-upload-${id}" accept="image/*" multiple onchange="window.uploadPhotos('${id}')" style="display:none;">
+                </label>
+            </div>
+            
+            <!-- Liste photos -->
+            <div id="photos-list-${id}" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(100px, 1fr)); gap:10px; margin-bottom:20px;">
+                ${photos.length === 0 ? '<p style="grid-column:1/-1; text-align:center; color:#64748b; padding:20px; font-size:0.85rem;">Aucune photo</p>' : ''}
+                ${photos.map(photo => {
+                    const photoUrl = supabaseClient.storage.from('event-media').getPublicUrl(`${id}/photos/${photo.name}`).data.publicUrl;
+                    return `
+                        <div style="position:relative; border-radius:8px; overflow:hidden; aspect-ratio:1; border:2px solid #e2e8f0;">
+                            <img src="${photoUrl}" style="width:100%; height:100%; object-fit:cover;">
+                            <button onclick="window.deleteMedia('${id}', 'photos', '${photo.name}')" style="position:absolute; top:4px; right:4px; background:rgba(239,68,68,0.9); border:none; color:white; width:24px; height:24px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+                                <i data-lucide="x" style="width:14px; height:14px;"></i>
+                            </button>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+            
+            <!-- Upload documents -->
+            <div style="margin-bottom:20px;">
+                <label style="display:block; background:#f8fafc; padding:15px; border-radius:8px; text-align:center; cursor:pointer; border:2px dashed #cbd5e1;">
+                    <i data-lucide="file-plus" style="width:24px; height:24px; color:#64748b; margin-bottom:8px;"></i>
+                    <div style="font-weight:700; color:#475569; font-size:0.85rem;">AJOUTER DES DOCUMENTS</div>
+                    <input type="file" id="doc-upload-${id}" accept=".pdf,.doc,.docx,.xls,.xlsx" multiple onchange="window.uploadDocuments('${id}')" style="display:none;">
+                </label>
+            </div>
+            
+            <!-- Liste documents -->
+            <div id="docs-list-${id}">
+                ${documents.length === 0 ? '<p style="text-align:center; color:#64748b; padding:10px; font-size:0.85rem;">Aucun document</p>' : ''}
+                ${documents.map(doc => `
+                    <div style="display:flex; align-items:center; justify-content:space-between; background:#f8fafc; padding:10px 15px; border-radius:8px; margin-bottom:8px;">
+                        <div style="display:flex; align-items:center; gap:10px; flex:1;">
+                            <i data-lucide="file-text" style="width:18px; height:18px; color:#64748b;"></i>
+                            <span style="font-size:0.85rem; color:#1e293b; font-weight:500;">${doc.name}</span>
+                        </div>
+                        <button onclick="window.deleteMedia('${id}', 'documents', '${doc.name}')" style="background:#fee2e2; color:#ef4444; border:none; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:0.75rem; font-weight:700;">
+                            <i data-lucide="trash-2" style="width:12px; height:12px; vertical-align:middle;"></i>
+                        </button>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+
+        <!-- Actions si terminé -->
+        ${isCompleted ? `
+            <div style="background:linear-gradient(135deg, #dcfce7, #bbf7d0); padding:20px; border-radius:12px; border:2px solid #22c55e; margin-bottom:20px;">
+                <p style="font-weight:800; color:#166534; margin-bottom:15px; font-size:1rem;">🎉 ACTIONS DISPONIBLES</p>
                 
-                <button onclick="window.toggleEventStatus('${ev.id}', '${ev.status}')" class="btn-gold" style="width:100%; background:white; color:${ev.status === 'Complet' ? '#ef4444' : '#22c55e'}; border:1px solid ${ev.status === 'Complet' ? '#ef4444' : '#22c55e'}; height:40px; font-size:0.7rem;">
-                    <i data-lucide="${ev.status === 'Complet' ? 'rotate-ccw' : 'check-circle'}" style="width:14px; margin-right:8px; vertical-align:middle;"></i>
-                    ${ev.status === 'Complet' ? 'REPASSER EN COURS' : 'MARQUER COMME TERMINÉ'}
+                <button onclick="window.downloadAllPhotos('${id}')" class="btn-gold-fill" style="width:100%; margin-bottom:10px; background:#22c55e; height:50px;">
+                    <i data-lucide="download" style="width:18px; height:18px; vertical-align:middle; margin-right:8px;"></i>
+                    TÉLÉCHARGER TOUTES LES PHOTOS
+                </button>
+                
+                <button onclick="window.copyTextToClipboard('${id}')" class="btn-gold-fill" style="width:100%; background:#3b82f6; height:50px;">
+                    <i data-lucide="copy" style="width:18px; height:18px; vertical-align:middle; margin-right:8px;"></i>
+                    COPIER LE TEXTE
                 </button>
             </div>
-        </div>
-        <div style="margin-top:20px; text-align:right;">
-             <button onclick="window.askDeleteEvent('${ev.id}', '${ev.title.replace(/'/g, "\\'")}')" style="color:#ef4444; background:none; border:none; font-size:0.65rem; cursor:pointer;">SUPPRIMER L'ÉVÉNEMENT</button>
-        </div>
+        ` : ''}
+
+        <!-- Bouton marquer comme terminé -->
+        <button onclick="window.toggleEventComplete('${id}', ${isCompleted})" class="btn-gold-fill" style="width:100%; height:55px; background:${isCompleted ? '#ef4444' : '#22c55e'}; margin-bottom:15px;">
+            <i data-lucide="${isCompleted ? 'rotate-ccw' : 'check-circle'}" style="width:20px; height:20px; vertical-align:middle; margin-right:8px;"></i>
+            ${isCompleted ? 'REPASSER EN COURS' : 'MARQUER COMME TERMINÉ'}
+        </button>
+
+        <!-- Bouton supprimer -->
+        <button onclick="window.askDeleteEvent('${id}', '${ev.title.replace(/'/g, "\\'")}')" style="width:100%; background:#fee2e2; color:#ef4444; border:2px solid #ef4444; padding:12px; border-radius:8px; cursor:pointer; font-weight:700; font-size:0.85rem;">
+            <i data-lucide="trash-2" style="width:16px; height:16px; vertical-align:middle; margin-right:6px;"></i>
+            SUPPRIMER L'ÉVÉNEMENT
+        </button>
     `);
+    
     lucide.createIcons();
-    window.refreshGallery(id);
+};
+
+// Sauvegarder le texte réseaux sociaux
+window.saveSocialText = async (eventId) => {
+    const newText = document.getElementById('social-text-new');
+    const editText = document.getElementById('social-text-area');
+    const text = newText ? newText.value.trim() : editText.value.trim();
+    
+    if (!text) {
+        return window.showNotice("Erreur", "Le texte ne peut pas être vide.", "error");
+    }
+    
+    const { error } = await supabaseClient
+        .from('events')
+        .update({ social_media_text: text })
+        .eq('id', eventId);
+    
+    if (error) {
+        window.showNotice("Erreur", "Impossible de sauvegarder le texte.", "error");
+        return;
+    }
+    
+    window.showNotice("Enregistré !", "Texte sauvegardé avec succès.", "success");
+    window.openEventDetails(eventId); // Recharger la modale
+};
+
+// Éditer le texte
+window.editSocialText = (eventId) => {
+    document.getElementById('social-text-display').style.display = 'none';
+    document.getElementById('social-text-edit').style.display = 'block';
+    lucide.createIcons();
+};
+
+// Annuler l'édition
+window.cancelEditSocialText = () => {
+    document.getElementById('social-text-display').style.display = 'block';
+    document.getElementById('social-text-edit').style.display = 'none';
+};
+
+// Supprimer le texte
+window.deleteSocialText = async (eventId) => {
+    window.alsatiaConfirm(
+        "SUPPRIMER LE TEXTE",
+        "Voulez-vous vraiment supprimer le texte pour les réseaux sociaux ?",
+        async () => {
+            const { error } = await supabaseClient
+                .from('events')
+                .update({ social_media_text: null })
+                .eq('id', eventId);
+            
+            if (error) {
+                window.showNotice("Erreur", "Impossible de supprimer le texte.", "error");
+                return;
+            }
+            
+            window.showNotice("Supprimé", "Texte supprimé.", "success");
+            window.openEventDetails(eventId);
+        },
+        true
+    );
+};
+
+// Upload photos
+window.uploadPhotos = async (eventId) => {
+    const input = document.getElementById(`photo-upload-${eventId}`);
+    const files = input.files;
+    
+    if (!files || files.length === 0) return;
+    
+    for (let file of files) {
+        const filePath = `${eventId}/photos/${Date.now()}_${file.name}`;
+        
+        const { error } = await supabaseClient.storage
+            .from('event-media')
+            .upload(filePath, file);
+        
+        if (error) {
+            window.showNotice("Erreur", `Impossible d'uploader ${file.name}`, "error");
+        }
+    }
+    
+    window.showNotice("Uploadé !", `${files.length} photo(s) ajoutée(s).`, "success");
+    window.openEventDetails(eventId); // Recharger
+};
+
+// Upload documents
+window.uploadDocuments = async (eventId) => {
+    const input = document.getElementById(`doc-upload-${eventId}`);
+    const files = input.files;
+    
+    if (!files || files.length === 0) return;
+    
+    for (let file of files) {
+        const filePath = `${eventId}/documents/${Date.now()}_${file.name}`;
+        
+        const { error } = await supabaseClient.storage
+            .from('event-media')
+            .upload(filePath, file);
+        
+        if (error) {
+            window.showNotice("Erreur", `Impossible d'uploader ${file.name}`, "error");
+        }
+    }
+    
+    window.showNotice("Uploadé !", `${files.length} document(s) ajouté(s).`, "success");
+    window.openEventDetails(eventId); // Recharger
+};
+
+// Supprimer un média
+window.deleteMedia = async (eventId, type, fileName) => {
+    window.alsatiaConfirm(
+        "SUPPRIMER",
+        `Voulez-vous vraiment supprimer ce fichier ?`,
+        async () => {
+            const filePath = `${eventId}/${type}/${fileName}`;
+            
+            const { error } = await supabaseClient.storage
+                .from('event-media')
+                .remove([filePath]);
+            
+            if (error) {
+                window.showNotice("Erreur", "Impossible de supprimer le fichier.", "error");
+                return;
+            }
+            
+            window.showNotice("Supprimé", "Fichier supprimé.", "success");
+            window.openEventDetails(eventId);
+        },
+        true
+    );
+};
+
+// Marquer comme terminé / repasser en cours
+window.toggleEventComplete = async (eventId, isCurrentlyCompleted) => {
+    const newStatus = isCurrentlyCompleted ? 'En cours' : 'Terminé';
+    
+    const { error } = await supabaseClient
+        .from('events')
+        .update({ status: newStatus })
+        .eq('id', eventId);
+    
+    if (error) {
+        window.showNotice("Erreur", "Impossible de changer le statut.", "error");
+        return;
+    }
+    
+    window.showNotice("Statut modifié", `Événement marqué comme "${newStatus}".`, "success");
+    window.openEventDetails(eventId);
+    loadEvents(); // Recharger la liste
+};
+
+// Télécharger toutes les photos (ZIP via JSZip)
+window.downloadAllPhotos = async (eventId) => {
+    const { data: files } = await supabaseClient.storage
+        .from('event-media')
+        .list(`${eventId}/photos`);
+    
+    if (!files || files.length === 0) {
+        window.showNotice("Aucune photo", "Aucune photo à télécharger.", "warning");
+        return;
+    }
+    
+    // Télécharger photo par photo (simple)
+    for (let file of files) {
+        const { data } = await supabaseClient.storage
+            .from('event-media')
+            .download(`${eventId}/photos/${file.name}`);
+        
+        if (data) {
+            const url = URL.createObjectURL(data);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = file.name;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    }
+    
+    window.showNotice("Téléchargement", `${files.length} photo(s) téléchargée(s).`, "success");
+};
+
+// Copier le texte dans le presse-papier
+window.copyTextToClipboard = async (eventId) => {
+    const { data: ev } = await supabaseClient.from('events').select('social_media_text').eq('id', eventId).single();
+    
+    if (!ev || !ev.social_media_text) {
+        window.showNotice("Aucun texte", "Aucun texte à copier.", "warning");
+        return;
+    }
+    
+    navigator.clipboard.writeText(ev.social_media_text).then(() => {
+        window.showNotice("Copié !", "Texte copié dans le presse-papier.", "success");
+    });
+};
+
+// Mettre à jour un champ de l'événement
+window.updateEventField = async (id, field, value) => {
+    const { error } = await supabaseClient
+        .from('events')
+        .update({ [field]: value })
+        .eq('id', id);
+    
+    if (error) {
+        window.showNotice("Erreur", "Impossible de sauvegarder.", "error");
+        return;
+    }
+    
+    window.showNotice("Enregistré", "Modification sauvegardée.", "success");
+    loadEvents();
 };
 
 // 4. STORAGE (UPLOAD / LISTE / DELETE)
@@ -1922,32 +2245,9 @@ function renderSingleMessage(msg, isReply = false) {
     const isMentioned = msg.content.includes(`@${currentUser.last_name}`);
     const date = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const portalIcon = LOGOS[msg.portal] || 'logo_alsatia.png';
-    
-    // Initiales pour l'avatar (SEULEMENT pour les autres)
-    const initials = msg.author_full_name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
-    
-    // Couleur de l'avatar basée sur le portail
-    const avatarColors = {
-        'Institut Alsatia': '#c5a059',
-        'Academia Alsatia': '#6366f1',
-        'Cours Herrade de Landsberg': '#ec4899',
-        'Collège Saints Louis et Zélie Martin': '#10b981'
-    };
-    const avatarColor = avatarColors[msg.portal] || '#64748b';
 
     return `
-        <div class="message-wrapper ${isMe ? 'my-wrapper' : ''}" data-msg-id="${msg.id}" style="display:flex; gap:12px; margin-bottom:${isReply ? '8px' : '20px'}; ${isReply ? 'margin-left:52px;' : ''} align-items:flex-start; ${isMe ? 'flex-direction:row-reverse;' : ''} animation: slideIn 0.3s ease-out; width:${isReply ? 'calc(100% - 52px)' : '100%'};">
-            ${!isMe && !isReply ? `
-                <div style="width:40px; height:40px; border-radius:50%; background:${avatarColor}; display:flex; align-items:center; justify-content:center; color:white; font-weight:700; font-size:0.85rem; flex-shrink:0; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-                    ${initials}
-                </div>
-            ` : ''}
-            
-            ${isReply && !isMe ? `
-                <div style="width:30px; height:30px; border-radius:50%; background:${avatarColor}; display:flex; align-items:center; justify-content:center; color:white; font-weight:600; font-size:0.7rem; flex-shrink:0; box-shadow: 0 1px 4px rgba(0,0,0,0.1);">
-                    ${initials}
-                </div>
-            ` : ''}
+        <div class="message-wrapper ${isMe ? 'my-wrapper' : ''}" data-msg-id="${msg.id}" style="display:flex; gap:12px; margin-bottom:${isReply ? '8px' : '20px'}; ${isReply ? 'margin-left:0;' : ''} align-items:flex-start; ${isMe ? 'flex-direction:row-reverse;' : ''} animation: slideIn 0.3s ease-out; width:100%;">
             
             <div style="${isMe ? 'text-align:right;' : ''} flex:1; min-width:0;">
                 <div style="display:flex; align-items:center; gap:8px; margin-bottom:5px; ${isMe ? 'justify-content:flex-end;' : ''}">
