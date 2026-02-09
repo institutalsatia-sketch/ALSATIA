@@ -8,7 +8,7 @@
     
     <!-- PWA Meta Tags -->
     <link rel="manifest" href="manifest.json">
-    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Alsatia">
     <link rel="apple-touch-icon" href="logo_alsatia.png">
@@ -24,14 +24,24 @@
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js')
+                navigator.serviceWorker.register('sw.js')
                     .then(reg => console.log('✅ Service Worker enregistré'))
-                    .catch(err => console.log('❌ Service Worker erreur:', err));
+                    .catch(err => console.error('❌ Service Worker erreur:', err));
             });
         }
     </script>
 </head>
 <body>
+    <!-- Vérification connexion -->
+    <script>
+        // Vérifier si l'utilisateur est connecté
+        const alsatiaUser = localStorage.getItem('alsatia_user');
+        if (!alsatiaUser) {
+            // Pas connecté → Rediriger vers login
+            window.location.href = 'login.html';
+        }
+    </script>
+    
     <!-- Menu burger mobile -->
     <button class="mobile-menu-toggle" id="mobile-menu-btn" onclick="toggleMobileMenu()">
         <i data-lucide="menu" style="width:24px; height:24px; color:white;"></i>
