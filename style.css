@@ -205,12 +205,6 @@ body {
     display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 25px;
 }
 
-.event-card {
-    background: white; border: 1px solid var(--border); border-radius: 20px; padding: 20px;
-    transition: all 0.3s ease; cursor: pointer; position: relative;
-}
-.event-card:hover { transform: translateY(-5px); border-color: var(--gold); box-shadow: 0 15px 30px rgba(0,0,0,0.05); }
-
 /* Onglets dans les modals événements */
 .event-tab-btn {
     background: none; border: none; padding: 12px 20px; font-weight: 600; color: var(--text-muted);
@@ -598,4 +592,65 @@ body {
         margin: 15px 20px !important;
         max-width: calc(100% - 40px) !important;
     }
+}
+/* =====================================================
+   ÉVÉNEMENTS - STYLES
+   ===================================================== */
+
+.month-separator {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 15px 20px;
+    background: linear-gradient(135deg, var(--gold) 0%, #d4a574 100%);
+    color: white;
+    font-weight: 700;
+    font-size: 0.95rem;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    letter-spacing: 0.5px;
+}
+
+.events-list-container {
+    display: flex;
+    flex-direction: column;
+}
+
+.event-card {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 15px;
+    cursor: pointer;
+    transition: all 0.3s;
+    border: 2px solid var(--border);
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.event-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+}
+
+.luxe-section {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    border: 2px solid var(--border);
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(197,160,89,0.2);
+    border-top-color: var(--gold);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
 }
