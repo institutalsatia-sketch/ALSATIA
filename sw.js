@@ -1,67 +1,87 @@
-// Service Worker Alsatia PWA
-const CACHE_NAME = 'alsatia-v2';
-const urlsToCache = [
+// ============================================
+// Service Worker ALSATIA — VERSION SAFE DEV
+// - Pas de cache JS dynamique (app / dm / drive)
+// - Cache HTML / CSS / images uniquement
+// - Mise à jour immédiate
+// ============================================
+
+const CACHE_NAME = 'alsatia-v3';
+
+const STATIC_ASSETS = [
   './login.html',
   './index.html',
   './style.css',
-  './app.js',
   './logo_alsatia.png',
   './herrade.png',
   './martin.png',
   './academia.png'
 ];
 
-// Installation du Service Worker
+// -----------------------------
+// INSTALL
+// -----------------------------
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('✅ Cache ouvert');
-        return cache.addAll(urlsToCache);
-      })
-  );
-});
+  self.skipWaiting(); // ⬅️ actif immédiatement
 
-// Activation du Service Worker
-self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
-            console.log('🗑️ Suppression ancien cache:', cacheName);
-            return caches.delete(cacheName);
-          }
-        })
-      );
+    caches.open(CACHE_NAME).then((cache) => {
+      console.log('✅ SW: cache static assets');
+      return cache.addAll(STATIC_ASSETS);
     })
   );
 });
 
-// Stratégie: Network First, puis Cache
+// -----------------------------
+// ACTIVATE
+// -----------------------------
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((name) => {
+          if (name !== CACHE_NAME) {
+            console.log('🗑️ SW: suppression ancien cache', name);
+            return caches.delete(name);
+          }
+        })
+      );
+    }).then(() => {
+      return self.clients.claim(); // ⬅️ contrôle immédiat
+    })
+  );
+});
+
+// -----------------------------
+// FETCH STRATEGY
+// -----------------------------
 self.addEventListener('fetch', (event) => {
-  // Ne cacher que les requêtes GET (ignorer POST/PATCH/DELETE/PUT)
-  if (event.request.method !== 'GET') {
-    event.respondWith(fetch(event.request));
+  const req = event.request;
+
+  // 1️⃣ Ignorer tout ce qui n'est pas GET
+  if (req.method !== 'GET') {
     return;
   }
-  
+
+  const url = new URL(req.url);
+
+  // 2️⃣ NE JAMAIS CACHER LES JS DYNAMIQUES
+  if (
+    url.pathname.endsWith('.js') ||
+    url.pathname.includes('supabase') ||
+    url.pathname.includes('/rest/')
+  ) {
+    event.respondWith(fetch(req));
+    return;
+  }
+
+  // 3️⃣ HTML / CSS / images → Network First
   event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        // Cloner la réponse
-        const responseToCache = response.clone();
-        
-        caches.open(CACHE_NAME)
-          .then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
-        
-        return response;
+    fetch(req)
+      .then((res) => {
+        const copy = res.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
+        return res;
       })
-      .catch(() => {
-        // Si réseau échoue, utiliser le cache
-        return caches.match(event.request);
-      })
+      .catch(() => caches.match(req))
   );
 });
