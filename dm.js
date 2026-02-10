@@ -5,11 +5,20 @@
 // - Sans pièces jointes
 // - Edition / suppression (soft delete) côté auteur
 // - Realtime Supabase + fallback polling si realtime KO
+// - Ajout : identité (nom complet + logo entité) dans le header
 // =====================================================
 
 console.log('💬 DM.JS CHARGÉ');
 
 (function () {
+  // Copie du mapping utilisé dans app.js (LOGOS) :contentReference[oaicite:3]{index=3}
+  const DM_LOGOS = {
+    "Institut Alsatia": "logo_alsatia.png",
+    "Cours Herrade de Landsberg": "herrade.png",
+    "Collège Saints Louis et Zélie Martin": "martin.png",
+    "Academia Alsatia": "academia.png"
+  };
+
   // ------------------------------
   // Helpers sûrs
   // ------------------------------
@@ -27,7 +36,6 @@ console.log('💬 DM.JS CHARGÉ');
   }
 
   function getSupabaseClient() {
-    // app.js déclare `const supabaseClient = ...`
     if (typeof supabaseClient !== 'undefined') return supabaseClient;
     if (typeof window.supabaseClient !== 'undefined') return window.supabaseClient;
     return null;
@@ -61,20 +69,31 @@ console.log('💬 DM.JS CHARGÉ');
     }
   }
 
+  function resolveLogoSrc(portal) {
+    return DM_LOGOS[String(portal || '')] || 'logo_alsatia.png';
+  }
+
+  function fullName(u) {
+    const fn = (u?.first_name || '').trim();
+    const ln = (u?.last_name || '').trim();
+    const combined = `${fn} ${ln}`.trim();
+    return combined || (u?.name || 'Utilisateur');
+  }
+
   // ------------------------------
   // Etat DM
   // ------------------------------
   let dmChannel = null;
-  let dmActivePeer = null; // { id, name }
+  let dmActivePeer = null; // { id, first_name, last_name, portal, name? }
   let dmConversationKey = null;
-  let dmMessagesMap = new Map(); // id -> message row
+  let dmMessagesMap = new Map();
 
   // Fallback polling
   let dmPollTimer = null;
   let dmPollInFlight = false;
 
   // ------------------------------
-  // Cleanup : unsubscribe realtime + stop polling
+  // Cleanup
   // ------------------------------
   function stopPolling() {
     if (dmPollTimer) {
@@ -110,7 +129,7 @@ console.log('💬 DM.JS CHARGÉ');
   })();
 
   // ------------------------------
-  // UI : ouvrir la modale DM
+  // UI : ouvrir modale DM
   // ------------------------------
   function openDMModal(peer) {
     const me = getCurrentUser();
@@ -123,7 +142,13 @@ console.log('💬 DM.JS CHARGÉ');
     dmConversationKey = makeConversationKey(me.id, peer.id);
     dmMessagesMap = new Map();
 
-    const titleName = escapeHTML(peer.name);
+    const meName = escapeHTML(fullName(me));
+    const peerName = escapeHTML(fullName(peer));
+    const mePortal = escapeHTML(me.portal || '—');
+    const peerPortal = escapeHTML(peer.portal || '—');
+
+    const meLogo = escapeHTML(resolveLogoSrc(me.portal));
+    const peerLogo = escapeHTML(resolveLogoSrc(peer.portal));
 
     const modalBody = document.getElementById('modal-body');
     const modal = document.getElementById('custom-modal');
@@ -134,13 +159,31 @@ console.log('💬 DM.JS CHARGÉ');
 
     modalBody.innerHTML = `
       <div class="dm-header">
-        <div>
+        <div class="dm-head-left">
           <h3 class="dm-title">
             <i data-lucide="message-circle" style="width:20px; height:20px; color:var(--gold);"></i>
             Conversation privée
           </h3>
-          <p class="dm-subtitle">Avec <strong>${titleName}</strong></p>
+
+          <div class="dm-identities">
+            <div class="dm-chip me" title="Vous">
+              <img class="dm-chip-logo" src="${meLogo}" alt="Logo ${mePortal}">
+              <div class="dm-chip-text">
+                <div class="dm-chip-name">${meName}</div>
+                <div class="dm-chip-portal">${mePortal}</div>
+              </div>
+            </div>
+
+            <div class="dm-chip" title="Contact">
+              <img class="dm-chip-logo" src="${peerLogo}" alt="Logo ${peerPortal}">
+              <div class="dm-chip-text">
+                <div class="dm-chip-name">${peerName}</div>
+                <div class="dm-chip-portal">${peerPortal}</div>
+              </div>
+            </div>
+          </div>
         </div>
+
         <button class="dm-close-btn" onclick="window.closeCustomModal()" aria-label="Fermer">&times;</button>
       </div>
 
@@ -192,7 +235,7 @@ console.log('💬 DM.JS CHARGÉ');
   }
 
   // ------------------------------
-  // Data : load messages
+  // Data : load
   // ------------------------------
   async function loadConversation() {
     const sb = getSupabaseClient();
@@ -234,7 +277,7 @@ console.log('💬 DM.JS CHARGÉ');
   }
 
   // ------------------------------
-  // Fallback polling (si realtime KO)
+  // Poll fallback
   // ------------------------------
   function startPolling() {
     if (dmPollTimer) return;
@@ -254,9 +297,7 @@ console.log('💬 DM.JS CHARGÉ');
   }
 
   // ------------------------------
-  // Data : subscribe realtime
-  // - On s'abonne sans filtre serveur pour éliminer les bugs de filter
-  // - On filtre côté client sur conversation_key
+  // Realtime subscribe
   // ------------------------------
   function subscribeConversation() {
     const sb = getSupabaseClient();
@@ -267,13 +308,12 @@ console.log('💬 DM.JS CHARGÉ');
     console.log('🔌 DM subscribe: ouverture canal realtime…');
 
     dmChannel = sb
-      .channel('dm-channel') // nom stable (évite les caractères spéciaux)
+      .channel('dm-channel')
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'dm_messages'
       }, (payload) => {
-        // Filtrage côté client
         const row = payload.new || payload.old;
         if (!row || row.conversation_key !== dmConversationKey) return;
 
@@ -291,20 +331,11 @@ console.log('💬 DM.JS CHARGÉ');
       .subscribe((status) => {
         console.log('🔌 DM realtime status:', status);
 
-        // Si realtime ne s’abonne pas correctement, on active le polling
-        // (SUBSCRIBED attendu)
-        if (status === 'SUBSCRIBED') {
-          stopPolling();
-        }
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          startPolling();
-        }
+        if (status === 'SUBSCRIBED') stopPolling();
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') startPolling();
       });
 
-    // “watchdog” : si pas SUBSCRIBED rapidement, polling
     setTimeout(() => {
-      // si dmChannel existe toujours et que polling pas lancé, on le lance
-      // (ça protège les cas où le callback status n’arrive pas)
       if (!dmPollTimer) startPolling();
     }, 3500);
   }
@@ -400,9 +431,7 @@ console.log('💬 DM.JS CHARGÉ');
       is_deleted: false
     };
 
-    const { error } = await sb
-      .from('dm_messages')
-      .insert([payload]);
+    const { error } = await sb.from('dm_messages').insert([payload]);
 
     if (error) {
       console.error('DM send error:', error);
@@ -469,10 +498,7 @@ console.log('💬 DM.JS CHARGÉ');
       return;
     }
 
-    const { error } = await sb
-      .from('dm_messages')
-      .update({ content: newText })
-      .eq('id', messageId);
+    const { error } = await sb.from('dm_messages').update({ content: newText }).eq('id', messageId);
 
     if (error) {
       console.error('DM edit error:', error);
@@ -495,10 +521,7 @@ console.log('💬 DM.JS CHARGÉ');
         'SUPPRIMER LE MESSAGE',
         'Voulez-vous vraiment supprimer ce message ?',
         async () => {
-          const { error } = await sb
-            .from('dm_messages')
-            .update({ is_deleted: true, content: '' })
-            .eq('id', messageId);
+          const { error } = await sb.from('dm_messages').update({ is_deleted: true, content: '' }).eq('id', messageId);
 
           if (error) {
             console.error('DM delete error:', error);
@@ -515,7 +538,7 @@ console.log('💬 DM.JS CHARGÉ');
 
   // ------------------------------
   // Integration : bouton "Message privé" dans Contacts
-  // Sans modifier app.js : on wrap window.renderContacts(users)
+  // Sans modifier app.js : wrap window.renderContacts(users)
   // ------------------------------
   function injectDMButtons(users) {
     const me = getCurrentUser();
@@ -533,8 +556,6 @@ console.log('💬 DM.JS CHARGÉ');
       if (me && u.id === me.id) continue;
       if (card.querySelector('.dm-contact-btn')) continue;
 
-      const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'Utilisateur';
-
       const btn = document.createElement('button');
       btn.className = 'dm-contact-btn';
       btn.type = 'button';
@@ -545,7 +566,13 @@ console.log('💬 DM.JS CHARGÉ');
       btn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        openDMModal({ id: u.id, name: fullName });
+
+        openDMModal({
+          id: u.id,
+          first_name: u.first_name,
+          last_name: u.last_name,
+          portal: u.portal
+        });
       });
 
       card.appendChild(btn);
