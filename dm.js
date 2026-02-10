@@ -498,54 +498,84 @@ console.log('💬 DM.JS CHARGÉ');
   }
 
   function startConversationPolling() {
-    if (dmPollTimer) return;
+  if (dmPollTimer) return;
+  console.warn('🟠 DM realtime KO → fallback polling activé (2s)');
+  dmPollTimer = setInterval(async () => {
+    if (dmPollInFlight) return;
+    dmPollInFlight = true;
+    try { await loadConversation(); } catch {} finally { dmPollInFlight = false; }
+  }, 2000);
+}
 
-    dmPollTimer = setInterval(async () => {
-      if (dmPollInFlight) return;
-      dmPollInFlight = true;
-      try { await loadConversation(); } catch {} finally { dmPollInFlight = false; }
-    }, 2000);
+function stopConversationPolling() {
+  if (dmPollTimer) {
+    clearInterval(dmPollTimer);
+    dmPollTimer = null;
   }
+}
+
 
   function subscribeConversation() {
-    const sb = getSupabaseClient();
-    if (!sb || !dmConversationKey) return;
+  const sb = getSupabaseClient();
+  if (!sb || !dmConversationKey) return;
 
-    unsubscribeConversation();
+  unsubscribeConversation();
 
-    dmChannel = sb
-      .channel('dm-conversation-channel')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'dm_messages' }, (payload) => {
-        const row = payload.new || payload.old;
-        if (!row || row.conversation_key !== dmConversationKey) return;
+  console.log('🔌 DM subscribe conversation…');
 
-        if (payload.eventType === 'INSERT') {
-          dmMessagesMap.set(payload.new.id, payload.new);
-          renderConversation({ keepScrollIfNearBottom: true });
+  // watchdog propre : si pas SUBSCRIBED après 3.5s -> polling
+  let watchdog = setTimeout(() => {
+    if (!dmPollTimer) startConversationPolling();
+  }, 3500);
 
-          // si message entrant pendant convo ouverte -> clear unread
-          const me = getCurrentUser();
-          if (me && dmActivePeer && payload.new.receiver_profile_id === me.id && payload.new.sender_profile_id === dmActivePeer.id) {
-            setSeen(dmActivePeer.id, nowISO());
-            clearUnreadFor(dmActivePeer.id);
-          }
-        } else if (payload.eventType === 'UPDATE') {
-          dmMessagesMap.set(payload.new.id, payload.new);
-          renderConversation({ keepScrollIfNearBottom: true });
-        } else if (payload.eventType === 'DELETE') {
-          dmMessagesMap.delete(payload.old.id);
-          renderConversation({ keepScrollIfNearBottom: true });
+  dmChannel = sb
+    .channel('dm-conversation-channel')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'dm_messages' }, (payload) => {
+      const row = payload.new || payload.old;
+      if (!row || row.conversation_key !== dmConversationKey) return;
+
+      if (payload.eventType === 'INSERT') {
+        dmMessagesMap.set(payload.new.id, payload.new);
+        renderConversation({ keepScrollIfNearBottom: true });
+
+        const me = getCurrentUser();
+        if (me && dmActivePeer && payload.new.receiver_profile_id === me.id && payload.new.sender_profile_id === dmActivePeer.id) {
+          setSeen(dmActivePeer.id, nowISO());
+          clearUnreadFor(dmActivePeer.id);
         }
-      })
-      .subscribe((status) => {
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') startConversationPolling();
-        if (status === 'SUBSCRIBED') stopConversationPolling();
-      });
+      } else if (payload.eventType === 'UPDATE') {
+        dmMessagesMap.set(payload.new.id, payload.new);
+        renderConversation({ keepScrollIfNearBottom: true });
+      } else if (payload.eventType === 'DELETE') {
+        dmMessagesMap.delete(payload.old.id);
+        renderConversation({ keepScrollIfNearBottom: true });
+      }
+    })
+    .subscribe((status) => {
+      console.log('🔌 DM realtime status (conversation):', status);
 
-    setTimeout(() => {
-      if (!dmPollTimer) startConversationPolling();
-    }, 3500);
-  }
+      if (status === 'SUBSCRIBED') {
+        // realtime OK : stop polling + stop watchdog
+        if (watchdog) { clearTimeout(watchdog); watchdog = null; }
+        stopConversationPolling();
+      }
+
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        // realtime KO : polling + tentative de resubscribe
+        if (watchdog) { clearTimeout(watchdog); watchdog = null; }
+        startConversationPolling();
+
+        // Resubscribe léger (évite boucle)
+        setTimeout(() => {
+          // si la conversation est toujours la même, on retente
+          if (dmActivePeer && dmConversationKey) {
+            subscribeConversation();
+          }
+        }, 1500);
+      }
+    });
+}
+
 
   function renderConversation(opts = {}) {
     const me = getCurrentUser();
