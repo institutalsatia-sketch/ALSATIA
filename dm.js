@@ -1,23 +1,15 @@
 // =====================================================
 // DM (CHAT PRIVÉ) - MODULE AUTONOME (sans toucher app.js)
-// - Accessible depuis Contacts (injection bouton)
-// - Modale custom (pas de fenêtre native)
-// - Messages en temps réel (Realtime) + fallback polling
-// - Nom/Entité au-dessus de chaque bulle (si CSS WhatsApp déjà en place)
-// - Badges non lus : onglet Contacts + carte du contact
-// - Clear badges dès ouverture de la conversation
-//
-// IMPORTANT:
-// - Utilise le client global "supabaseClient" (comme ton app)
-// - Pas de resubscribe automatique sur CLOSED (évite les boucles)
+// - Nom/Entité au-dessus de chaque bulle
+// - Bubbles type WhatsApp
+// - Badges non lus : menu Contacts + carte contact
+// - Dès que la convo est ouverte => badges cleared
+// - Realtime + fallback polling si realtime KO
 // =====================================================
 
-console.log('💬 DM.JS CHARGÉ — FULL');
+console.log('💬 DM.JS CHARGÉ');
 
 (function () {
-  // ------------------------------
-  // Config logos (copie/alignée sur app.js)
-  // ------------------------------
   const DM_LOGOS = {
     "Institut Alsatia": "logo_alsatia.png",
     "Cours Herrade de Landsberg": "herrade.png",
@@ -25,12 +17,7 @@ console.log('💬 DM.JS CHARGÉ — FULL');
     "Academia Alsatia": "academia.png"
   };
 
-  // ------------------------------
-  // LocalStorage keys
-  // ------------------------------
-  const LS_UNREAD_KEY = 'dm_unread_map_v1';        // { "<sender_profile_id>": number }
-  const LS_SEEN_KEY   = 'dm_last_seen_v1';         // { "<peer_profile_id>": ISO }
-  const LS_INBOX_KEY  = 'dm_inbox_last_check_v1';  // ISO
+  const LS_UNREAD_KEY = 'dm_unread_map_v1'; // { "<sender_profile_id>": number }
   const LS_CONTACT_CACHE_KEY = 'dm_contact_cache_v1'; // { "<profile_id>": {first_name,last_name,portal} }
 
   // ------------------------------
@@ -49,15 +36,9 @@ console.log('💬 DM.JS CHARGÉ — FULL');
     try { return JSON.parse(s); } catch { return null; }
   }
 
-  // ✅ CRITIQUE: récupérer le bon client Supabase
   function getSupabaseClient() {
-    // Dans ton app, c'est "supabaseClient"
-    if (typeof supabaseClient !== 'undefined' && supabaseClient && typeof supabaseClient.from === 'function') {
-      return supabaseClient;
-    }
-    if (typeof window.supabaseClient !== 'undefined' && window.supabaseClient && typeof window.supabaseClient.from === 'function') {
-      return window.supabaseClient;
-    }
+    if (typeof supabaseClient !== 'undefined') return supabaseClient;
+    if (typeof window.supabaseClient !== 'undefined') return window.supabaseClient;
     return null;
   }
 
@@ -89,15 +70,6 @@ console.log('💬 DM.JS CHARGÉ — FULL');
     }
   }
 
-  function nowISO() {
-    return new Date().toISOString();
-  }
-
-  function parseISO(iso) {
-    const t = Date.parse(iso);
-    return Number.isFinite(t) ? t : 0;
-  }
-
   function resolveLogoSrc(portal) {
     return DM_LOGOS[String(portal || '')] || 'logo_alsatia.png';
   }
@@ -109,15 +81,13 @@ console.log('💬 DM.JS CHARGÉ — FULL');
     return combined || (u?.name || 'Utilisateur');
   }
 
-  // ------------------------------
-  // Storage: unread
-  // ------------------------------
   function getUnreadMap() {
     try {
       const raw = localStorage.getItem(LS_UNREAD_KEY);
       if (!raw) return {};
       const obj = JSON.parse(raw);
-      return (obj && typeof obj === 'object') ? obj : {};
+      if (!obj || typeof obj !== 'object') return {};
+      return obj;
     } catch {
       return {};
     }
@@ -127,72 +97,43 @@ console.log('💬 DM.JS CHARGÉ — FULL');
     try { localStorage.setItem(LS_UNREAD_KEY, JSON.stringify(obj || {})); } catch {}
   }
 
-  function totalUnread() {
-    const map = getUnreadMap();
-    return Object.values(map).reduce((a, b) => a + (Number(b) || 0), 0);
-  }
-
   function incUnread(fromProfileId) {
+    const me = getCurrentUser();
+    if (!me) return;
+
+    const map = getUnreadMap();
     const k = String(fromProfileId || '');
     if (!k) return;
-    const map = getUnreadMap();
+
     map[k] = (Number(map[k]) || 0) + 1;
     setUnreadMap(map);
     updateUnreadUI();
   }
 
   function clearUnreadFor(peerId) {
+    const map = getUnreadMap();
     const k = String(peerId || '');
     if (!k) return;
-    const map = getUnreadMap();
+
     if (map[k]) {
       delete map[k];
       setUnreadMap(map);
-    }
-    updateUnreadUI();
-  }
-
-  // ------------------------------
-  // Storage: last seen
-  // ------------------------------
-  function getSeenMap() {
-    try {
-      const raw = localStorage.getItem(LS_SEEN_KEY);
-      if (!raw) return {};
-      const obj = JSON.parse(raw);
-      return (obj && typeof obj === 'object') ? obj : {};
-    } catch {
-      return {};
+      updateUnreadUI();
     }
   }
 
-  function setSeenMap(obj) {
-    try { localStorage.setItem(LS_SEEN_KEY, JSON.stringify(obj || {})); } catch {}
+  function totalUnread() {
+    const map = getUnreadMap();
+    return Object.values(map).reduce((a, b) => a + (Number(b) || 0), 0);
   }
 
-  function setSeen(peerId, iso) {
-    const k = String(peerId || '');
-    if (!k) return;
-    const map = getSeenMap();
-    map[k] = iso || nowISO();
-    setSeenMap(map);
-  }
-
-  function getSeen(peerId) {
-    const map = getSeenMap();
-    const iso = map[String(peerId || '')];
-    return iso || null;
-  }
-
-  // ------------------------------
-  // Contacts cache (nom/entité)
-  // ------------------------------
   function getContactCache() {
     try {
       const raw = localStorage.getItem(LS_CONTACT_CACHE_KEY);
       if (!raw) return {};
       const obj = JSON.parse(raw);
-      return (obj && typeof obj === 'object') ? obj : {};
+      if (!obj || typeof obj !== 'object') return {};
+      return obj;
     } catch {
       return {};
     }
@@ -228,7 +169,53 @@ console.log('💬 DM.JS CHARGÉ — FULL');
   }
 
   // ------------------------------
-  // UI: badges
+  // Etat DM
+  // ------------------------------
+  let dmChannel = null;        // conversation live
+  let dmInboxChannel = null;   // global inbox for unread
+  let dmActivePeer = null;     // { id, first_name, last_name, portal }
+  let dmConversationKey = null;
+  let dmMessagesMap = new Map();
+
+  // Fallback polling
+  let dmPollTimer = null;
+  let dmPollInFlight = false;
+
+  function stopPolling() {
+    if (dmPollTimer) {
+      clearInterval(dmPollTimer);
+      dmPollTimer = null;
+    }
+  }
+
+  function unsubscribeConversation() {
+    const sb = getSupabaseClient();
+    if (!sb) return;
+
+    stopPolling();
+
+    if (dmChannel) {
+      try { sb.removeChannel(dmChannel); } catch {}
+      dmChannel = null;
+    }
+  }
+
+  // Wrap closeCustomModal pour cleanup + stop realtime convo
+  (function wrapCloseCustomModal() {
+    if (typeof window.closeCustomModal !== 'function') return;
+    const originalClose = window.closeCustomModal;
+    if (originalClose.__dm_wrapped) return;
+
+    function wrappedCloseCustomModal() {
+      unsubscribeConversation();
+      return originalClose();
+    }
+    wrappedCloseCustomModal.__dm_wrapped = true;
+    window.closeCustomModal = wrappedCloseCustomModal;
+  })();
+
+  // ------------------------------
+  // UI : badges non lus
   // ------------------------------
   function ensureNavBadge() {
     const nav = document.getElementById('nav-contacts');
@@ -246,6 +233,7 @@ console.log('💬 DM.JS CHARGÉ — FULL');
 
   function ensureCardBadge(card) {
     if (!card) return null;
+
     card.classList.add('dm-card-relative');
 
     let badge = card.querySelector('.dm-card-badge');
@@ -259,27 +247,27 @@ console.log('💬 DM.JS CHARGÉ — FULL');
   }
 
   function updateUnreadUI() {
-    // Menu Contacts total
+    // Menu badge (total)
     const total = totalUnread();
     const navBadge = ensureNavBadge();
     if (navBadge) {
       if (total > 0) {
         navBadge.style.display = 'inline-flex';
-        navBadge.textContent = String(Math.min(total, 99));
+        navBadge.textContent = String(total);
       } else {
         navBadge.style.display = 'none';
         navBadge.textContent = '';
       }
     }
 
-    // Badges cartes
+    // Cards badges (per contact)
+    const map = getUnreadMap();
     const grid = document.getElementById('contacts-grid');
     if (!grid) return;
 
     const cards = grid.querySelectorAll('.contact-card');
     if (!cards || cards.length === 0) return;
 
-    const map = getUnreadMap();
     cards.forEach((card) => {
       const pid = card.dataset.profileId;
       const badge = ensureCardBadge(card);
@@ -296,81 +284,8 @@ console.log('💬 DM.JS CHARGÉ — FULL');
     });
   }
 
-  // refresh badges when switching to contacts
-  (function wrapSwitchTab() {
-    if (typeof window.switchTab !== 'function') return;
-    const orig = window.switchTab;
-    if (orig.__dm_badge_wrapped) return;
-
-    function wrapped(tab) {
-      const r = orig(tab);
-      if (tab === 'contacts') setTimeout(updateUnreadUI, 100);
-      return r;
-    }
-
-    wrapped.__dm_badge_wrapped = true;
-    window.switchTab = wrapped;
-  })();
-
   // ------------------------------
-  // DM state
-  // ------------------------------
-  let dmChannel = null;
-  let dmInboxChannel = null;
-
-  let dmActivePeer = null;      // { id, first_name, last_name, portal }
-  let dmConversationKey = null;
-  let dmMessagesMap = new Map();
-
-  let dmModalOpen = false;
-  let dmClosing = false;
-
-  // Polling convo
-  let dmPollTimer = null;
-  let dmPollInFlight = false;
-
-  // Polling inbox
-  let inboxPollTimer = null;
-  let inboxPollInFlight = false;
-
-  // ------------------------------
-  // Conversation polling fallback
-  // ------------------------------
-  function startConversationPolling() {
-    if (dmPollTimer) return;
-    console.warn('🟠 DM realtime KO → fallback polling activé (2s)');
-    dmPollTimer = setInterval(async () => {
-      if (!dmModalOpen) return;
-      if (dmPollInFlight) return;
-      dmPollInFlight = true;
-      try { await loadConversation(); } catch {} finally { dmPollInFlight = false; }
-    }, 2000);
-  }
-
-  function stopConversationPolling() {
-    if (dmPollTimer) {
-      clearInterval(dmPollTimer);
-      dmPollTimer = null;
-    }
-  }
-
-  // ------------------------------
-  // Unsubscribe conversation channel
-  // ------------------------------
-  function unsubscribeConversation() {
-    const sb = getSupabaseClient();
-    stopConversationPolling();
-
-    if (dmChannel && sb) {
-      dmClosing = true;
-      try { sb.removeChannel(dmChannel); } catch {}
-      dmChannel = null;
-      setTimeout(() => { dmClosing = false; }, 300);
-    }
-  }
-
-  // ------------------------------
-  // Open modal
+  // UI : ouvrir modale DM
   // ------------------------------
   async function openDMModal(peer) {
     const me = getCurrentUser();
@@ -379,9 +294,7 @@ console.log('💬 DM.JS CHARGÉ — FULL');
       return;
     }
 
-    dmModalOpen = true;
-
-    // Complete peer info if missing
+    // compléter peer si on n'a pas tout (au cas où)
     let peerFull = peer;
     if (!peerFull.portal || !peerFull.first_name || !peerFull.last_name) {
       const cache = getContactCache();
@@ -398,21 +311,21 @@ console.log('💬 DM.JS CHARGÉ — FULL');
     dmConversationKey = makeConversationKey(me.id, peerFull.id);
     dmMessagesMap = new Map();
 
-    // Mark as seen + clear unread when opening
-    setSeen(peerFull.id, nowISO());
+    // Dès que la conversation est ouverte => clear unread pour ce contact
     clearUnreadFor(peerFull.id);
 
     const meName = escapeHTML(fullName(me));
     const peerName = escapeHTML(fullName(peerFull));
     const mePortal = escapeHTML(me.portal || '—');
     const peerPortal = escapeHTML(peerFull.portal || '—');
+
     const meLogo = escapeHTML(resolveLogoSrc(me.portal));
     const peerLogo = escapeHTML(resolveLogoSrc(peerFull.portal));
 
     const modalBody = document.getElementById('modal-body');
     const modal = document.getElementById('custom-modal');
     if (!modalBody || !modal) {
-      console.error('DM: modal introuvable');
+      console.error('DM: modal introuvable (#custom-modal / #modal-body)');
       return;
     }
 
@@ -485,17 +398,18 @@ console.log('💬 DM.JS CHARGÉ — FULL');
     if (sendBtn) sendBtn.addEventListener('click', sendCurrentMessage);
 
     await loadConversation();
-    subscribeConversationRealtime();
+    subscribeConversation();
   }
 
   // ------------------------------
-  // Load conversation (REST)
+  // Data : load conversation
   // ------------------------------
   async function loadConversation() {
     const sb = getSupabaseClient();
     const me = getCurrentUser();
     const peer = dmActivePeer;
-    if (!sb || !me || !peer || !dmConversationKey) return;
+
+    if (!sb || !me || !peer) return;
 
     const box = document.getElementById('dm-messages');
     if (box && dmMessagesMap.size === 0) box.innerHTML = `<div class="dm-empty">Chargement...</div>`;
@@ -509,20 +423,55 @@ console.log('💬 DM.JS CHARGÉ — FULL');
 
     if (error) {
       console.error('DM load error:', error);
-      if (box) box.innerHTML = `<div class="dm-empty">Impossible de charger.</div>`;
+      if (window.showNotice) window.showNotice('DM', 'Impossible de charger la conversation.', 'error');
+      if (box) box.innerHTML = `<div class="dm-empty">Impossible de charger la conversation.</div>`;
       return;
     }
+
+    const prevCount = dmMessagesMap.size;
 
     dmMessagesMap = new Map();
     (data || []).forEach((m) => dmMessagesMap.set(m.id, m));
 
-    renderConversation({ keepScrollIfNearBottom: true });
+    const container = document.getElementById('dm-messages');
+    const keepBottom = container ? isNearBottom(container) : true;
+
+    renderConversation({ keepScrollIfNearBottom: keepBottom });
+
+    if (container && (prevCount === 0 || keepBottom)) {
+      scrollToBottom(container);
+    }
   }
 
   // ------------------------------
-  // Realtime conversation (direct)
+  // Poll fallback
   // ------------------------------
-  function subscribeConversationRealtime() {
+  function startPolling() {
+    if (dmPollTimer) return;
+
+    console.warn('🟠 DM realtime KO → fallback polling activé (2s)');
+    dmPollTimer = setInterval(async () => {
+      if (dmPollInFlight) return;
+      dmPollInFlight = true;
+      try {
+        await loadConversation();
+      } catch {} finally {
+        dmPollInFlight = false;
+      }
+    }, 2000);
+  }
+
+  function stopPolling() {
+    if (dmPollTimer) {
+      clearInterval(dmPollTimer);
+      dmPollTimer = null;
+    }
+  }
+
+  // ------------------------------
+  // Realtime: conversation
+  // ------------------------------
+  function subscribeConversation() {
     const sb = getSupabaseClient();
     if (!sb || !dmConversationKey) return;
 
@@ -530,90 +479,101 @@ console.log('💬 DM.JS CHARGÉ — FULL');
 
     console.log('🔌 DM subscribe conversation…');
 
-    // Watchdog: if not SUBSCRIBED => polling
-    let watchdog = setTimeout(() => {
-      if (dmModalOpen) startConversationPolling();
-    }, 3500);
-
-    const safeName = `dm_conv_${dmConversationKey.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
-
     dmChannel = sb
-      .channel(safeName)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'dm_messages',
-          filter: `conversation_key=eq.${dmConversationKey}`
-        },
-        (payload) => {
-          // direct update
-          if (!dmModalOpen) return;
+      .channel('dm-conversation-channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dm_messages' }, (payload) => {
+        const row = payload.new || payload.old;
+        if (!row || row.conversation_key !== dmConversationKey) return;
 
-          if (payload.eventType === 'INSERT') {
-            dmMessagesMap.set(payload.new.id, payload.new);
-            renderConversation({ keepScrollIfNearBottom: true });
+        if (payload.eventType === 'INSERT') {
+          dmMessagesMap.set(payload.new.id, payload.new);
+          renderConversation({ keepScrollIfNearBottom: true });
 
-            // if message incoming while open, clear unread
-            const me = getCurrentUser();
-            if (me && dmActivePeer && payload.new.receiver_profile_id === me.id && payload.new.sender_profile_id === dmActivePeer.id) {
-              setSeen(dmActivePeer.id, nowISO());
-              clearUnreadFor(dmActivePeer.id);
-            }
+          // Si c'est un message entrant et qu'on a la convo ouverte, on clear l'unread (au cas où)
+          const me = getCurrentUser();
+          if (me && payload.new.receiver_profile_id === me.id && dmActivePeer && payload.new.sender_profile_id === dmActivePeer.id) {
+            clearUnreadFor(dmActivePeer.id);
           }
-
-          if (payload.eventType === 'UPDATE') {
-            dmMessagesMap.set(payload.new.id, payload.new);
-            renderConversation({ keepScrollIfNearBottom: true });
-          }
-
-          if (payload.eventType === 'DELETE') {
-            dmMessagesMap.delete(payload.old.id);
-            renderConversation({ keepScrollIfNearBottom: true });
-          }
+        } else if (payload.eventType === 'UPDATE') {
+          dmMessagesMap.set(payload.new.id, payload.new);
+          renderConversation({ keepScrollIfNearBottom: true });
+        } else if (payload.eventType === 'DELETE') {
+          dmMessagesMap.delete(payload.old.id);
+          renderConversation({ keepScrollIfNearBottom: true });
         }
-      )
+      })
       .subscribe((status) => {
         console.log('🔌 DM realtime status (conversation):', status);
+        if (status === 'SUBSCRIBED') stopPolling();
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') startPolling();
+      });
 
-        // stop watchdog once we have any status
-        if (watchdog) { clearTimeout(watchdog); watchdog = null; }
+    setTimeout(() => {
+      if (!dmPollTimer) startPolling();
+    }, 3500);
+  }
 
-        if (status === 'SUBSCRIBED') {
-          stopConversationPolling();
+  // ------------------------------
+  // Realtime: inbox (non lus)
+  // - Toujours actif pour détecter messages entrants (même sans ouvrir la convo)
+  // ------------------------------
+  function ensureInboxSubscription() {
+    const sb = getSupabaseClient();
+    const me = getCurrentUser();
+    if (!sb || !me) return;
+
+    if (dmInboxChannel) return;
+
+    console.log('📥 DM subscribe inbox…');
+
+    dmInboxChannel = sb
+      .channel('dm-inbox-channel')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'dm_messages' }, async (payload) => {
+        const row = payload.new;
+        if (!row) return;
+
+        // On ne compte que les messages reçus par moi
+        if (row.receiver_profile_id !== me.id) return;
+
+        // Si la conversation est ouverte avec cet expéditeur, on ne badge pas
+        if (dmActivePeer && row.sender_profile_id === dmActivePeer.id) {
+          // On considère comme "lu à l'ouverture"
+          clearUnreadFor(dmActivePeer.id);
           return;
         }
 
-        // CLOSED caused by our own removeChannel => ignore
-        if (status === 'CLOSED' && (dmClosing || !dmModalOpen)) return;
+        // Incrémenter unread pour l'expéditeur
+        incUnread(row.sender_profile_id);
 
-        // fallback
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-          if (dmModalOpen) startConversationPolling();
+        // Optionnel: si on ne connaît pas l'expéditeur en cache, tenter de le fetch (pour affichage nom/entité ailleurs si besoin)
+        const cache = getContactCache();
+        if (!cache[String(row.sender_profile_id)]) {
+          const prof = await fetchProfileMini(row.sender_profile_id);
+          if (prof) cacheContact(prof);
         }
+      })
+      .subscribe((status) => {
+        console.log('📥 DM realtime status (inbox):', status);
+        // Pas de polling ici, seulement badges. Si ça rate, les badges ne seront pas realtime.
       });
   }
 
   // ------------------------------
   // Render conversation
   // ------------------------------
-  function renderAuthorLine(isMe, me, peer) {
-    const name = escapeHTML(isMe ? fullName(me) : fullName(peer));
-    const portal = escapeHTML(isMe ? (me.portal || '—') : (peer.portal || '—'));
-    return `<div class="dm-authorline"><span>${name}</span><span class="dot"></span><span>${portal}</span></div>`;
-  }
-
   function renderConversation(opts = {}) {
     const me = getCurrentUser();
     const peer = dmActivePeer;
     const container = document.getElementById('dm-messages');
+
     if (!me || !peer || !container) return;
 
-    const shouldKeep = opts.keepScrollIfNearBottom && isNearBottom(container);
+    const wasNearBottom = isNearBottom(container);
 
     const messages = Array.from(dmMessagesMap.values()).sort((a, b) => {
-      return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      const ta = new Date(a.created_at).getTime();
+      const tb = new Date(b.created_at).getTime();
+      return ta - tb;
     });
 
     if (messages.length === 0) {
@@ -622,9 +582,17 @@ console.log('💬 DM.JS CHARGÉ — FULL');
     }
 
     container.innerHTML = messages.map((m) => renderMessageRow(m, me, peer)).join('');
-
     if (window.lucide) lucide.createIcons();
-    if (shouldKeep) scrollToBottom(container);
+
+    if (opts.keepScrollIfNearBottom && wasNearBottom) {
+      scrollToBottom(container);
+    }
+  }
+
+  function renderAuthorLine(isMe, me, peer) {
+    const name = escapeHTML(isMe ? fullName(me) : fullName(peer));
+    const portal = escapeHTML(isMe ? (me.portal || '—') : (peer.portal || '—'));
+    return `<div class="dm-authorline"><span>${name}</span><span class="dot"></span><span>${portal}</span></div>`;
   }
 
   function renderMessageRow(m, me, peer) {
@@ -667,14 +635,14 @@ console.log('💬 DM.JS CHARGÉ — FULL');
   }
 
   // ------------------------------
-  // Send / edit / delete
+  // Actions: send/edit/delete
   // ------------------------------
   async function sendCurrentMessage() {
     const sb = getSupabaseClient();
     const me = getCurrentUser();
     const peer = dmActivePeer;
-    const input = document.getElementById('dm-input');
 
+    const input = document.getElementById('dm-input');
     if (!sb || !me || !peer || !input) return;
 
     const text = (input.value || '').trim();
@@ -692,7 +660,10 @@ console.log('💬 DM.JS CHARGÉ — FULL');
     };
 
     const { error } = await sb.from('dm_messages').insert([payload]);
-    if (error) console.error('DM send error:', error);
+    if (error) {
+      console.error('DM send error:', error);
+      if (window.showNotice) window.showNotice('DM', 'Impossible d’envoyer.', 'error');
+    }
   }
 
   window.dmStartEdit = function (messageId) {
@@ -726,7 +697,8 @@ console.log('💬 DM.JS CHARGÉ — FULL');
 
   window.dmCancelEdit = function (messageId) {
     const m = dmMessagesMap.get(messageId);
-    if (!m) return;
+    const me = getCurrentUser();
+    if (!m || !me) return;
 
     const textDiv = document.getElementById('dm-text-' + messageId);
     if (!textDiv) return;
@@ -745,10 +717,16 @@ console.log('💬 DM.JS CHARGÉ — FULL');
     if (!ta) return;
 
     const newText = (ta.value || '').trim();
-    if (!newText) return;
+    if (!newText) {
+      if (window.showNotice) window.showNotice('DM', 'Le message ne peut pas être vide.', 'warning');
+      return;
+    }
 
     const { error } = await sb.from('dm_messages').update({ content: newText }).eq('id', messageId);
-    if (error) console.error('DM edit error:', error);
+    if (error) {
+      console.error('DM edit error:', error);
+      if (window.showNotice) window.showNotice('DM', 'Impossible de modifier.', 'error');
+    }
   };
 
   window.dmDeleteMessage = function (messageId) {
@@ -764,32 +742,22 @@ console.log('💬 DM.JS CHARGÉ — FULL');
         'Voulez-vous vraiment supprimer ce message ?',
         async () => {
           const { error } = await sb.from('dm_messages').update({ is_deleted: true, content: '' }).eq('id', messageId);
-          if (error) console.error('DM delete error:', error);
+          if (error) {
+            console.error('DM delete error:', error);
+            if (window.showNotice) window.showNotice('DM', 'Impossible de supprimer.', 'error');
+          }
         },
         true
       );
+    } else {
+      console.error('DM: alsatiaConfirm indisponible, suppression refusée.');
+      if (window.showNotice) window.showNotice('DM', 'Suppression indisponible.', 'error');
     }
   };
 
   // ------------------------------
-  // Close modal wrap (cleanup)
-  // ------------------------------
-  (function wrapCloseCustomModal() {
-    if (typeof window.closeCustomModal !== 'function') return;
-    const originalClose = window.closeCustomModal;
-    if (originalClose.__dm_wrapped) return;
-
-    function wrappedCloseCustomModal() {
-      dmModalOpen = false;
-      unsubscribeConversation();
-      return originalClose();
-    }
-    wrappedCloseCustomModal.__dm_wrapped = true;
-    window.closeCustomModal = wrappedCloseCustomModal;
-  })();
-
-  // ------------------------------
-  // Contacts integration: inject button + dataset profileId
+  // Integration Contacts: bouton + badges
+  // - wrap renderContacts(users) sans modifier app.js
   // ------------------------------
   function injectDMButtonsAndBadges(users) {
     const me = getCurrentUser();
@@ -804,19 +772,19 @@ console.log('💬 DM.JS CHARGÉ — FULL');
       const card = cards[i];
       if (!u || !card) continue;
 
-      // link card -> profile id for badges
+      // lier carte -> user id pour badges
       card.dataset.profileId = String(u.id || '');
 
-      // cache contact for header + authorline
+      // cache contact mini pour header DM & author lines
       cacheContact(u);
 
-      // ensure badge element exists
+      // badge sur carte
       ensureCardBadge(card);
 
-      // don't dm self
+      // ne pas proposer un DM avec soi-même
       if (me && u.id === me.id) continue;
 
-      // avoid duplicate
+      // éviter double injection bouton
       if (!card.querySelector('.dm-contact-btn')) {
         const btn = document.createElement('button');
         btn.className = 'dm-contact-btn';
@@ -837,6 +805,7 @@ console.log('💬 DM.JS CHARGÉ — FULL');
             portal: u.portal
           });
 
+          // dès ouverture => retirer badge carte + menu
           updateUnreadUI();
         });
 
@@ -845,6 +814,8 @@ console.log('💬 DM.JS CHARGÉ — FULL');
     }
 
     if (window.lucide) lucide.createIcons();
+
+    // appliquer les badges actuels
     updateUnreadUI();
   }
 
@@ -864,149 +835,26 @@ console.log('💬 DM.JS CHARGÉ — FULL');
   }
 
   // ------------------------------
-  // Inbox detection (badges): polling + realtime
+  // Init
   // ------------------------------
-  function getInboxLastCheck() {
-    return localStorage.getItem(LS_INBOX_KEY) || null;
-  }
+  const tryHook = () => {
+    const ok = hookRenderContacts();
+    if (!ok) setTimeout(tryHook, 60);
+  };
+  tryHook();
 
-  function setInboxLastCheck(iso) {
-    try { localStorage.setItem(LS_INBOX_KEY, iso); } catch {}
-  }
+  // badge nav prêt au chargement
+  ensureNavBadge();
+  updateUnreadUI();
 
-  function initInboxCursor() {
-    // first run: don't badge all historical messages
-    const existing = getInboxLastCheck();
-    if (!existing) setInboxLastCheck(nowISO());
-  }
-
-  async function inboxPollOnce() {
-    const sb = getSupabaseClient();
+  // inbox realtime pour non-lus (dès que l'utilisateur est présent)
+  const tryInbox = () => {
     const me = getCurrentUser();
-    if (!sb || !me) return;
-
-    const lastISO = getInboxLastCheck() || nowISO();
-    const lastT = parseISO(lastISO);
-    if (!lastT) return;
-
-    const { data, error } = await sb
-      .from('dm_messages')
-      .select('id, sender_profile_id, receiver_profile_id, created_at')
-      .eq('receiver_profile_id', me.id)
-      .gt('created_at', new Date(lastT).toISOString())
-      .order('created_at', { ascending: true })
-      .limit(200);
-
-    if (error) return;
-
-    const rows = data || [];
-    if (rows.length === 0) return;
-
-    // advance cursor
-    setInboxLastCheck(rows[rows.length - 1].created_at);
-
-    for (const r of rows) {
-      const from = r.sender_profile_id;
-
-      // if convo open with sender => mark seen + no badge
-      if (dmModalOpen && dmActivePeer && String(dmActivePeer.id) === String(from)) {
-        setSeen(dmActivePeer.id, nowISO());
-        clearUnreadFor(dmActivePeer.id);
-        continue;
-      }
-
-      // compare with last seen
-      const seenISO = getSeen(from);
-      if (seenISO && parseISO(r.created_at) <= parseISO(seenISO)) continue;
-
-      incUnread(from);
-
-      // cache profile mini if missing
-      const cache = getContactCache();
-      if (!cache[String(from)]) {
-        const prof = await fetchProfileMini(from);
-        if (prof) cacheContact(prof);
-      }
-    }
-  }
-
-  function startInboxPolling() {
-    if (inboxPollTimer) return;
-
-    inboxPollTimer = setInterval(async () => {
-      if (inboxPollInFlight) return;
-      inboxPollInFlight = true;
-      try { await inboxPollOnce(); } catch {} finally { inboxPollInFlight = false; }
-    }, 3000);
-  }
-
-  function ensureInboxRealtime() {
     const sb = getSupabaseClient();
-    const me = getCurrentUser();
-    if (!sb || !me) return;
-    if (dmInboxChannel) return;
+    if (!me || !sb) return setTimeout(tryInbox, 120);
 
-    console.log('📥 DM subscribe inbox…');
-
-    dmInboxChannel = sb
-      .channel('dm-inbox-channel')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'dm_messages' }, async (payload) => {
-        const row = payload.new;
-        if (!row) return;
-        if (row.receiver_profile_id !== me.id) return;
-
-        // advance cursor
-        setInboxLastCheck(row.created_at);
-
-        // if convo open => seen
-        if (dmModalOpen && dmActivePeer && String(dmActivePeer.id) === String(row.sender_profile_id)) {
-          setSeen(dmActivePeer.id, nowISO());
-          clearUnreadFor(dmActivePeer.id);
-          return;
-        }
-
-        const seenISO = getSeen(row.sender_profile_id);
-        if (seenISO && parseISO(row.created_at) <= parseISO(seenISO)) return;
-
-        incUnread(row.sender_profile_id);
-
-        const cache = getContactCache();
-        if (!cache[String(row.sender_profile_id)]) {
-          const prof = await fetchProfileMini(row.sender_profile_id);
-          if (prof) cacheContact(prof);
-        }
-      })
-      .subscribe((status) => {
-        console.log('📥 DM realtime status (inbox):', status);
-      });
-  }
-
-  // ------------------------------
-  // INIT
-  // ------------------------------
-  (function init() {
-    ensureNavBadge();
-    updateUnreadUI();
-
-    // hook contacts rendering
-    const tryHook = () => {
-      const ok = hookRenderContacts();
-      if (!ok) setTimeout(tryHook, 60);
-    };
-    tryHook();
-
-    // inbox badges
-    initInboxCursor();
-    startInboxPolling();
-
-    // inbox realtime (bonus)
-    const tryInboxRT = () => {
-      const sb = getSupabaseClient();
-      const me = getCurrentUser();
-      if (!sb || !me) return setTimeout(tryInboxRT, 150);
-      ensureInboxRealtime();
-    };
-    tryInboxRT();
-  })();
+    ensureInboxSubscription();
+  };
+  tryInbox();
 
 })();
