@@ -303,6 +303,16 @@ window.switchTab = (tabId) => {
     // 2. CHARGEMENT DES DONNÉES SPÉCIFIQUES
     if (tabId === 'donors') window.loadDonors();
     if (tabId === 'events') loadEvents();
+    if (tabId === 'drive') {
+        // Attendre que drive.js soit chargé
+        setTimeout(() => {
+            if (window.initializeDrive) {
+                window.initializeDrive();
+            } else {
+                console.error('❌ window.initializeDrive non disponible');
+            }
+        }, 100);
+    }
     
     // Activation de la Messagerie
     if (tabId === 'chat') {
