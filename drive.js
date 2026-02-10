@@ -43,39 +43,82 @@ async function initDrive() {
 
 async function loadRootFolder() {
     try {
-        // Charger le dossier racine de l'entité
-        const { data, error } = await supabaseClient
-            .from('drive_items')
-            .select('*')
-            .eq('entity', driveCurrentEntity)
-            .is('parent_id', null)
-            .eq('type', 'folder')
-            .maybeSingle();
-        
-        if (error && error.code !== 'PGRST116') throw error;
-        
-        if (!data) {
-            // Créer le dossier racine s'il n'existe pas
-            const { data: newRoot, error: createError } = await supabaseClient
-                .from('drive_items')
-                .insert([{
-                    name: driveCurrentEntity,
-                    type: 'folder',
-                    entity: driveCurrentEntity,
-                    parent_id: null,
-                    uploaded_by: driveCurrentUser.id
-                }])
-                .select()
-                .single();
+        // Si Institut Alsatia, afficher les 4 dossiers racine
+        if (driveCurrentEntity === 'Institut Alsatia') {
+            console.log('🏛️ Institut Alsatia : Affichage des 4 entités');
             
-            if (createError) throw createError;
-            driveCurrentFolderId = newRoot.id;
+            // Charger tous les dossiers racine (parent_id = null)
+            const { data, error } = await supabaseClient
+                .from('drive_items')
+                .select('*')
+                .is('parent_id', null)
+                .eq('type', 'folder')
+                .order('name', { ascending: true });
+            
+            if (error) throw error;
+            
+            // Si aucun dossier racine n'existe, les créer
+            if (!data || data.length === 0) {
+                console.log('📁 Création des 4 dossiers racine...');
+                const entities = ['Institut Alsatia', 'Academia Alsatia', 'Cours Herrade', 'Collège Saints Martin'];
+                
+                for (const entity of entities) {
+                    await supabaseClient
+                        .from('drive_items')
+                        .insert([{
+                            name: entity,
+                            type: 'folder',
+                            entity: entity,
+                            parent_id: null,
+                            uploaded_by: driveCurrentUser.id
+                        }]);
+                }
+                
+                // Recharger après création
+                return loadRootFolder();
+            }
+            
+            // Afficher les 4 entités comme un dossier virtuel
+            driveAllItems = data;
+            driveCurrentFolderId = null; // Racine virtuelle
+            driveCurrentPath = [{ id: null, name: '🏛️ Toutes les entités' }];
+            renderDrive();
+            
         } else {
-            driveCurrentFolderId = data.id;
+            // Pour les autres entités, charger leur dossier racine
+            const { data, error } = await supabaseClient
+                .from('drive_items')
+                .select('*')
+                .eq('entity', driveCurrentEntity)
+                .is('parent_id', null)
+                .eq('type', 'folder')
+                .maybeSingle();
+            
+            if (error && error.code !== 'PGRST116') throw error;
+            
+            if (!data) {
+                // Créer le dossier racine s'il n'existe pas
+                const { data: newRoot, error: createError } = await supabaseClient
+                    .from('drive_items')
+                    .insert([{
+                        name: driveCurrentEntity,
+                        type: 'folder',
+                        entity: driveCurrentEntity,
+                        parent_id: null,
+                        uploaded_by: driveCurrentUser.id
+                    }])
+                    .select()
+                    .single();
+                
+                if (createError) throw createError;
+                driveCurrentFolderId = newRoot.id;
+            } else {
+                driveCurrentFolderId = data.id;
+            }
+            
+            driveCurrentPath = [{ id: driveCurrentFolderId, name: driveCurrentEntity }];
+            await loadFolder(driveCurrentFolderId);
         }
-        
-        driveCurrentPath = [{ id: driveCurrentFolderId, name: driveCurrentEntity }];
-        await loadFolder(driveCurrentFolderId);
         
     } catch (error) {
         console.error('❌ Erreur loadRootFolder:', error);
