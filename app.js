@@ -409,7 +409,33 @@ function renderContacts(users) {
         } else if (u.status === 'approved' && isInstitutAlsatia && u.id !== currentUser.id) {
             // Utilisateur approuvé - possibilité de révoquer (sauf soi-même)
             statusBadge = '<div style="display:inline-block; background:linear-gradient(135deg, #fef3c7, #fde68a); color:#92400e; font-size:0.7rem; font-weight:700; padding:6px 12px; border-radius:20px; margin-bottom:16px;">✅ ACTIF</div>';
+            
+            // GESTION DES ACCÈS (seulement si pas Institut Alsatia)
+            let accessToggles = '';
+            if (u.portal !== 'Institut Alsatia') {
+                accessToggles = `
+                    <div style="margin-top:16px; padding:12px; background:#f8fafc; border-radius:8px;">
+                        <p style="margin:0 0 10px 0; font-size:0.85rem; font-weight:700; color:#64748b;">🔐 Accès autorisés :</p>
+                        <div style="display:flex; flex-direction:column; gap:8px;">
+                            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.85rem;">
+                                <input type="checkbox" ${u.access_donors ? 'checked' : ''} onchange="window.toggleAccess('${u.id}', 'access_donors', this.checked)" style="width:18px; height:18px; cursor:pointer;">
+                                <span>Base Donateurs</span>
+                            </label>
+                            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.85rem;">
+                                <input type="checkbox" ${u.access_events ? 'checked' : ''} onchange="window.toggleAccess('${u.id}', 'access_events', this.checked)" style="width:18px; height:18px; cursor:pointer;">
+                                <span>Événements</span>
+                            </label>
+                            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.85rem;">
+                                <input type="checkbox" ${u.access_drive ? 'checked' : ''} onchange="window.toggleAccess('${u.id}', 'access_drive', this.checked)" style="width:18px; height:18px; cursor:pointer;">
+                                <span>Drive</span>
+                            </label>
+                        </div>
+                    </div>
+                `;
+            }
+            
             statusActions = `
+                ${accessToggles}
                 <div style="margin-top:16px;">
                     <button onclick="window.revokeUser('${u.id}')" style="width:100%; background:#ef4444; color:white; border:none; padding:10px; border-radius:8px; cursor:pointer; font-weight:700; font-size:0.85rem;">
                         🚫 RÉVOQUER L'ACCÈS
@@ -2958,3 +2984,79 @@ window.reactivateUser = async (userId) => {
         }
     );
 };
+
+// =====================================================
+// GESTION DES PERMISSIONS D'ACCÈS
+// =====================================================
+
+window.toggleAccess = async (userId, accessField, isChecked) => {
+    try {
+        console.log(`🔐 Modification ${accessField} pour ${userId} → ${isChecked}`);
+        
+        const { error } = await supabaseClient
+            .from('profiles')
+            .update({ [accessField]: isChecked })
+            .eq('id', userId);
+        
+        if (error) throw error;
+        
+        const accessName = {
+            'access_donors': 'Base Donateurs',
+            'access_events': 'Événements',
+            'access_drive': 'Drive'
+        }[accessField];
+        
+        window.showNotice(
+            "Accès modifié",
+            `${accessName} ${isChecked ? 'activé' : 'désactivé'}`,
+            "success"
+        );
+        
+    } catch (error) {
+        console.error('❌ Erreur toggleAccess:', error);
+        window.showNotice("Erreur", "Impossible de modifier l'accès.", "error");
+        loadContacts(); // Recharger pour remettre l'état correct
+    }
+};
+
+function applyAccessPermissions() {
+    if (!currentUser) return;
+    
+    // Institut Alsatia a accès à tout, rien à cacher
+    if (currentUser.portal === 'Institut Alsatia') return;
+    
+    console.log('🔐 Application des permissions pour:', currentUser.portal);
+    
+    // Cacher Base Donateurs si pas accès
+    if (!currentUser.access_donors) {
+        const donorsNav = document.getElementById('nav-donors');
+        if (donorsNav) {
+            donorsNav.style.display = 'none';
+            console.log('❌ Base Donateurs masquée');
+        }
+    }
+    
+    // Cacher Événements si pas accès
+    if (!currentUser.access_events) {
+        const eventsNav = document.getElementById('nav-events');
+        if (eventsNav) {
+            eventsNav.style.display = 'none';
+            console.log('❌ Événements masqués');
+        }
+    }
+    
+    // Cacher Drive si pas accès
+    if (!currentUser.access_drive) {
+        const driveNav = document.getElementById('nav-drive');
+        if (driveNav) {
+            driveNav.style.display = 'none';
+            console.log('❌ Drive masqué');
+        }
+    }
+}
+
+// Appliquer les permissions au chargement de la page
+document.addEventListener('DOMContentLoaded', () => {
+    applyAccessPermissions();
+    lucide.createIcons();
+});
