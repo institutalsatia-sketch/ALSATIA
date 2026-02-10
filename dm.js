@@ -1,17 +1,15 @@
 // =====================================================
 // DM (CHAT PRIVÉ) - MODULE AUTONOME (sans toucher app.js)
-// - Accessible uniquement via Contacts
-// - Modale pro (pas de fenêtre native)
-// - Sans pièces jointes
-// - Edition / suppression (soft delete) côté auteur
-// - Realtime Supabase + fallback polling si realtime KO
-// - Ajout : identité (nom complet + logo entité) dans le header
+// - Nom/Entité au-dessus de chaque bulle
+// - Bubbles type WhatsApp
+// - Badges non lus : menu Contacts + carte contact
+// - Dès que la convo est ouverte => badges cleared
+// - Realtime + fallback polling si realtime KO
 // =====================================================
 
 console.log('💬 DM.JS CHARGÉ');
 
 (function () {
-  // Copie du mapping utilisé dans app.js (LOGOS) :contentReference[oaicite:3]{index=3}
   const DM_LOGOS = {
     "Institut Alsatia": "logo_alsatia.png",
     "Cours Herrade de Landsberg": "herrade.png",
@@ -19,8 +17,11 @@ console.log('💬 DM.JS CHARGÉ');
     "Academia Alsatia": "academia.png"
   };
 
+  const LS_UNREAD_KEY = 'dm_unread_map_v1'; // { "<sender_profile_id>": number }
+  const LS_CONTACT_CACHE_KEY = 'dm_contact_cache_v1'; // { "<profile_id>": {first_name,last_name,portal} }
+
   // ------------------------------
-  // Helpers sûrs
+  // Helpers
   // ------------------------------
   function escapeHTML(str) {
     if (str === null || str === undefined) return '';
@@ -80,11 +81,99 @@ console.log('💬 DM.JS CHARGÉ');
     return combined || (u?.name || 'Utilisateur');
   }
 
+  function getUnreadMap() {
+    try {
+      const raw = localStorage.getItem(LS_UNREAD_KEY);
+      if (!raw) return {};
+      const obj = JSON.parse(raw);
+      if (!obj || typeof obj !== 'object') return {};
+      return obj;
+    } catch {
+      return {};
+    }
+  }
+
+  function setUnreadMap(obj) {
+    try { localStorage.setItem(LS_UNREAD_KEY, JSON.stringify(obj || {})); } catch {}
+  }
+
+  function incUnread(fromProfileId) {
+    const me = getCurrentUser();
+    if (!me) return;
+
+    const map = getUnreadMap();
+    const k = String(fromProfileId || '');
+    if (!k) return;
+
+    map[k] = (Number(map[k]) || 0) + 1;
+    setUnreadMap(map);
+    updateUnreadUI();
+  }
+
+  function clearUnreadFor(peerId) {
+    const map = getUnreadMap();
+    const k = String(peerId || '');
+    if (!k) return;
+
+    if (map[k]) {
+      delete map[k];
+      setUnreadMap(map);
+      updateUnreadUI();
+    }
+  }
+
+  function totalUnread() {
+    const map = getUnreadMap();
+    return Object.values(map).reduce((a, b) => a + (Number(b) || 0), 0);
+  }
+
+  function getContactCache() {
+    try {
+      const raw = localStorage.getItem(LS_CONTACT_CACHE_KEY);
+      if (!raw) return {};
+      const obj = JSON.parse(raw);
+      if (!obj || typeof obj !== 'object') return {};
+      return obj;
+    } catch {
+      return {};
+    }
+  }
+
+  function setContactCache(obj) {
+    try { localStorage.setItem(LS_CONTACT_CACHE_KEY, JSON.stringify(obj || {})); } catch {}
+  }
+
+  function cacheContact(u) {
+    if (!u?.id) return;
+    const cache = getContactCache();
+    cache[String(u.id)] = {
+      first_name: u.first_name || '',
+      last_name: u.last_name || '',
+      portal: u.portal || ''
+    };
+    setContactCache(cache);
+  }
+
+  async function fetchProfileMini(profileId) {
+    const sb = getSupabaseClient();
+    if (!sb || !profileId) return null;
+
+    const { data, error } = await sb
+      .from('profiles')
+      .select('id, first_name, last_name, portal')
+      .eq('id', profileId)
+      .single();
+
+    if (error) return null;
+    return data || null;
+  }
+
   // ------------------------------
   // Etat DM
   // ------------------------------
-  let dmChannel = null;
-  let dmActivePeer = null; // { id, first_name, last_name, portal, name? }
+  let dmChannel = null;        // conversation live
+  let dmInboxChannel = null;   // global inbox for unread
+  let dmActivePeer = null;     // { id, first_name, last_name, portal }
   let dmConversationKey = null;
   let dmMessagesMap = new Map();
 
@@ -92,9 +181,6 @@ console.log('💬 DM.JS CHARGÉ');
   let dmPollTimer = null;
   let dmPollInFlight = false;
 
-  // ------------------------------
-  // Cleanup
-  // ------------------------------
   function stopPolling() {
     if (dmPollTimer) {
       clearInterval(dmPollTimer);
@@ -109,12 +195,12 @@ console.log('💬 DM.JS CHARGÉ');
     stopPolling();
 
     if (dmChannel) {
-      try { sb.removeChannel(dmChannel); } catch (e) {}
+      try { sb.removeChannel(dmChannel); } catch {}
       dmChannel = null;
     }
   }
 
-  // Wrap closeCustomModal pour nettoyer
+  // Wrap closeCustomModal pour cleanup + stop realtime convo
   (function wrapCloseCustomModal() {
     if (typeof window.closeCustomModal !== 'function') return;
     const originalClose = window.closeCustomModal;
@@ -129,26 +215,112 @@ console.log('💬 DM.JS CHARGÉ');
   })();
 
   // ------------------------------
+  // UI : badges non lus
+  // ------------------------------
+  function ensureNavBadge() {
+    const nav = document.getElementById('nav-contacts');
+    if (!nav) return null;
+
+    let badge = nav.querySelector('.dm-nav-badge');
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'dm-nav-badge';
+      badge.style.display = 'none';
+      nav.appendChild(badge);
+    }
+    return badge;
+  }
+
+  function ensureCardBadge(card) {
+    if (!card) return null;
+
+    card.classList.add('dm-card-relative');
+
+    let badge = card.querySelector('.dm-card-badge');
+    if (!badge) {
+      badge = document.createElement('div');
+      badge.className = 'dm-card-badge';
+      badge.textContent = '';
+      card.appendChild(badge);
+    }
+    return badge;
+  }
+
+  function updateUnreadUI() {
+    // Menu badge (total)
+    const total = totalUnread();
+    const navBadge = ensureNavBadge();
+    if (navBadge) {
+      if (total > 0) {
+        navBadge.style.display = 'inline-flex';
+        navBadge.textContent = String(total);
+      } else {
+        navBadge.style.display = 'none';
+        navBadge.textContent = '';
+      }
+    }
+
+    // Cards badges (per contact)
+    const map = getUnreadMap();
+    const grid = document.getElementById('contacts-grid');
+    if (!grid) return;
+
+    const cards = grid.querySelectorAll('.contact-card');
+    if (!cards || cards.length === 0) return;
+
+    cards.forEach((card) => {
+      const pid = card.dataset.profileId;
+      const badge = ensureCardBadge(card);
+      if (!badge) return;
+
+      const count = pid ? (Number(map[String(pid)]) || 0) : 0;
+      if (count > 0) {
+        badge.style.display = 'inline-flex';
+        badge.textContent = String(Math.min(count, 99));
+      } else {
+        badge.style.display = 'none';
+        badge.textContent = '';
+      }
+    });
+  }
+
+  // ------------------------------
   // UI : ouvrir modale DM
   // ------------------------------
-  function openDMModal(peer) {
+  async function openDMModal(peer) {
     const me = getCurrentUser();
     if (!me) {
       if (window.showNotice) window.showNotice('Erreur', 'Utilisateur non connecté.', 'error');
       return;
     }
 
-    dmActivePeer = peer;
-    dmConversationKey = makeConversationKey(me.id, peer.id);
+    // compléter peer si on n'a pas tout (au cas où)
+    let peerFull = peer;
+    if (!peerFull.portal || !peerFull.first_name || !peerFull.last_name) {
+      const cache = getContactCache();
+      const cached = cache[String(peer.id)];
+      if (cached) {
+        peerFull = { ...peerFull, ...cached };
+      } else {
+        const fetched = await fetchProfileMini(peer.id);
+        if (fetched) peerFull = fetched;
+      }
+    }
+
+    dmActivePeer = peerFull;
+    dmConversationKey = makeConversationKey(me.id, peerFull.id);
     dmMessagesMap = new Map();
 
+    // Dès que la conversation est ouverte => clear unread pour ce contact
+    clearUnreadFor(peerFull.id);
+
     const meName = escapeHTML(fullName(me));
-    const peerName = escapeHTML(fullName(peer));
+    const peerName = escapeHTML(fullName(peerFull));
     const mePortal = escapeHTML(me.portal || '—');
-    const peerPortal = escapeHTML(peer.portal || '—');
+    const peerPortal = escapeHTML(peerFull.portal || '—');
 
     const meLogo = escapeHTML(resolveLogoSrc(me.portal));
-    const peerLogo = escapeHTML(resolveLogoSrc(peer.portal));
+    const peerLogo = escapeHTML(resolveLogoSrc(peerFull.portal));
 
     const modalBody = document.getElementById('modal-body');
     const modal = document.getElementById('custom-modal');
@@ -201,13 +373,11 @@ console.log('💬 DM.JS CHARGÉ');
       </div>
     `;
 
-    // Afficher modale
     modal.style.display = 'flex';
     setTimeout(() => { modal.style.opacity = '1'; }, 10);
 
     if (window.lucide) lucide.createIcons();
 
-    // Bind events
     const input = document.getElementById('dm-input');
     const sendBtn = document.getElementById('dm-send');
 
@@ -219,7 +389,6 @@ console.log('💬 DM.JS CHARGÉ');
         }
       });
 
-      // auto-grow
       input.addEventListener('input', () => {
         input.style.height = 'auto';
         input.style.height = Math.min(input.scrollHeight, 120) + 'px';
@@ -228,14 +397,12 @@ console.log('💬 DM.JS CHARGÉ');
 
     if (sendBtn) sendBtn.addEventListener('click', sendCurrentMessage);
 
-    // Load + subscribe
-    loadConversation()
-      .then(() => subscribeConversation())
-      .catch(() => {});
+    await loadConversation();
+    subscribeConversation();
   }
 
   // ------------------------------
-  // Data : load
+  // Data : load conversation
   // ------------------------------
   async function loadConversation() {
     const sb = getSupabaseClient();
@@ -288,16 +455,21 @@ console.log('💬 DM.JS CHARGÉ');
       dmPollInFlight = true;
       try {
         await loadConversation();
-      } catch (e) {
-        // silence
-      } finally {
+      } catch {} finally {
         dmPollInFlight = false;
       }
     }, 2000);
   }
 
+  function stopPolling() {
+    if (dmPollTimer) {
+      clearInterval(dmPollTimer);
+      dmPollTimer = null;
+    }
+  }
+
   // ------------------------------
-  // Realtime subscribe
+  // Realtime: conversation
   // ------------------------------
   function subscribeConversation() {
     const sb = getSupabaseClient();
@@ -305,21 +477,23 @@ console.log('💬 DM.JS CHARGÉ');
 
     unsubscribeConversation();
 
-    console.log('🔌 DM subscribe: ouverture canal realtime…');
+    console.log('🔌 DM subscribe conversation…');
 
     dmChannel = sb
-      .channel('dm-channel')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'dm_messages'
-      }, (payload) => {
+      .channel('dm-conversation-channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dm_messages' }, (payload) => {
         const row = payload.new || payload.old;
         if (!row || row.conversation_key !== dmConversationKey) return;
 
         if (payload.eventType === 'INSERT') {
           dmMessagesMap.set(payload.new.id, payload.new);
           renderConversation({ keepScrollIfNearBottom: true });
+
+          // Si c'est un message entrant et qu'on a la convo ouverte, on clear l'unread (au cas où)
+          const me = getCurrentUser();
+          if (me && payload.new.receiver_profile_id === me.id && dmActivePeer && payload.new.sender_profile_id === dmActivePeer.id) {
+            clearUnreadFor(dmActivePeer.id);
+          }
         } else if (payload.eventType === 'UPDATE') {
           dmMessagesMap.set(payload.new.id, payload.new);
           renderConversation({ keepScrollIfNearBottom: true });
@@ -329,8 +503,7 @@ console.log('💬 DM.JS CHARGÉ');
         }
       })
       .subscribe((status) => {
-        console.log('🔌 DM realtime status:', status);
-
+        console.log('🔌 DM realtime status (conversation):', status);
         if (status === 'SUBSCRIBED') stopPolling();
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') startPolling();
       });
@@ -341,7 +514,52 @@ console.log('💬 DM.JS CHARGÉ');
   }
 
   // ------------------------------
-  // Render
+  // Realtime: inbox (non lus)
+  // - Toujours actif pour détecter messages entrants (même sans ouvrir la convo)
+  // ------------------------------
+  function ensureInboxSubscription() {
+    const sb = getSupabaseClient();
+    const me = getCurrentUser();
+    if (!sb || !me) return;
+
+    if (dmInboxChannel) return;
+
+    console.log('📥 DM subscribe inbox…');
+
+    dmInboxChannel = sb
+      .channel('dm-inbox-channel')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'dm_messages' }, async (payload) => {
+        const row = payload.new;
+        if (!row) return;
+
+        // On ne compte que les messages reçus par moi
+        if (row.receiver_profile_id !== me.id) return;
+
+        // Si la conversation est ouverte avec cet expéditeur, on ne badge pas
+        if (dmActivePeer && row.sender_profile_id === dmActivePeer.id) {
+          // On considère comme "lu à l'ouverture"
+          clearUnreadFor(dmActivePeer.id);
+          return;
+        }
+
+        // Incrémenter unread pour l'expéditeur
+        incUnread(row.sender_profile_id);
+
+        // Optionnel: si on ne connaît pas l'expéditeur en cache, tenter de le fetch (pour affichage nom/entité ailleurs si besoin)
+        const cache = getContactCache();
+        if (!cache[String(row.sender_profile_id)]) {
+          const prof = await fetchProfileMini(row.sender_profile_id);
+          if (prof) cacheContact(prof);
+        }
+      })
+      .subscribe((status) => {
+        console.log('📥 DM realtime status (inbox):', status);
+        // Pas de polling ici, seulement badges. Si ça rate, les badges ne seront pas realtime.
+      });
+  }
+
+  // ------------------------------
+  // Render conversation
   // ------------------------------
   function renderConversation(opts = {}) {
     const me = getCurrentUser();
@@ -363,8 +581,7 @@ console.log('💬 DM.JS CHARGÉ');
       return;
     }
 
-    container.innerHTML = messages.map((m) => renderMessageRow(m, me)).join('');
-
+    container.innerHTML = messages.map((m) => renderMessageRow(m, me, peer)).join('');
     if (window.lucide) lucide.createIcons();
 
     if (opts.keepScrollIfNearBottom && wasNearBottom) {
@@ -372,12 +589,19 @@ console.log('💬 DM.JS CHARGÉ');
     }
   }
 
-  function renderMessageRow(m, me) {
+  function renderAuthorLine(isMe, me, peer) {
+    const name = escapeHTML(isMe ? fullName(me) : fullName(peer));
+    const portal = escapeHTML(isMe ? (me.portal || '—') : (peer.portal || '—'));
+    return `<div class="dm-authorline"><span>${name}</span><span class="dot"></span><span>${portal}</span></div>`;
+  }
+
+  function renderMessageRow(m, me, peer) {
     const isMe = m.sender_profile_id === me.id;
-    const rowClass = isMe ? 'me' : 'them';
 
     const isDeleted = !!m.is_deleted;
-    const content = isDeleted ? '<em style="opacity:0.65;">Message supprimé</em>' : escapeHTML(m.content);
+    const content = isDeleted
+      ? '<em style="opacity:0.65;">Message supprimé</em>'
+      : escapeHTML(m.content);
 
     const edited = (m.updated_at && m.created_at && (new Date(m.updated_at).getTime() - new Date(m.created_at).getTime()) > 1500);
     const editedBadge = (!isDeleted && edited) ? `<span class="dm-edited">modifié</span>` : '';
@@ -393,9 +617,13 @@ console.log('💬 DM.JS CHARGÉ');
       </div>
     ` : '';
 
+    const bubbleClass = isMe ? 'me' : 'them';
+    const rowClass = isMe ? 'me' : 'them';
+
     return `
       <div class="dm-bubble-row ${rowClass}" id="dm-row-${m.id}">
-        <div class="dm-bubble ${rowClass}">
+        ${renderAuthorLine(isMe, me, peer)}
+        <div class="dm-bubble ${bubbleClass}">
           <div class="dm-text" id="dm-text-${m.id}">${content}</div>
           <div class="dm-meta">
             <span>${formatTime(m.created_at)} ${editedBadge}</span>
@@ -407,7 +635,7 @@ console.log('💬 DM.JS CHARGÉ');
   }
 
   // ------------------------------
-  // Actions : send
+  // Actions: send/edit/delete
   // ------------------------------
   async function sendCurrentMessage() {
     const sb = getSupabaseClient();
@@ -432,16 +660,12 @@ console.log('💬 DM.JS CHARGÉ');
     };
 
     const { error } = await sb.from('dm_messages').insert([payload]);
-
     if (error) {
       console.error('DM send error:', error);
       if (window.showNotice) window.showNotice('DM', 'Impossible d’envoyer.', 'error');
     }
   }
 
-  // ------------------------------
-  // Actions : edit
-  // ------------------------------
   window.dmStartEdit = function (messageId) {
     const me = getCurrentUser();
     if (!me) return;
@@ -499,16 +723,12 @@ console.log('💬 DM.JS CHARGÉ');
     }
 
     const { error } = await sb.from('dm_messages').update({ content: newText }).eq('id', messageId);
-
     if (error) {
       console.error('DM edit error:', error);
       if (window.showNotice) window.showNotice('DM', 'Impossible de modifier.', 'error');
     }
   };
 
-  // ------------------------------
-  // Actions : delete (soft)
-  // ------------------------------
   window.dmDeleteMessage = function (messageId) {
     const sb = getSupabaseClient();
     const me = getCurrentUser();
@@ -522,7 +742,6 @@ console.log('💬 DM.JS CHARGÉ');
         'Voulez-vous vraiment supprimer ce message ?',
         async () => {
           const { error } = await sb.from('dm_messages').update({ is_deleted: true, content: '' }).eq('id', messageId);
-
           if (error) {
             console.error('DM delete error:', error);
             if (window.showNotice) window.showNotice('DM', 'Impossible de supprimer.', 'error');
@@ -537,10 +756,10 @@ console.log('💬 DM.JS CHARGÉ');
   };
 
   // ------------------------------
-  // Integration : bouton "Message privé" dans Contacts
-  // Sans modifier app.js : wrap window.renderContacts(users)
+  // Integration Contacts: bouton + badges
+  // - wrap renderContacts(users) sans modifier app.js
   // ------------------------------
-  function injectDMButtons(users) {
+  function injectDMButtonsAndBadges(users) {
     const me = getCurrentUser();
     const grid = document.getElementById('contacts-grid');
     if (!grid || !Array.isArray(users) || users.length === 0) return;
@@ -553,32 +772,51 @@ console.log('💬 DM.JS CHARGÉ');
       const card = cards[i];
       if (!u || !card) continue;
 
+      // lier carte -> user id pour badges
+      card.dataset.profileId = String(u.id || '');
+
+      // cache contact mini pour header DM & author lines
+      cacheContact(u);
+
+      // badge sur carte
+      ensureCardBadge(card);
+
+      // ne pas proposer un DM avec soi-même
       if (me && u.id === me.id) continue;
-      if (card.querySelector('.dm-contact-btn')) continue;
 
-      const btn = document.createElement('button');
-      btn.className = 'dm-contact-btn';
-      btn.type = 'button';
-      btn.innerHTML = `
-        <i data-lucide="message-circle" style="width:18px; height:18px;"></i>
-        MESSAGE PRIVÉ
-      `;
-      btn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
+      // éviter double injection bouton
+      if (!card.querySelector('.dm-contact-btn')) {
+        const btn = document.createElement('button');
+        btn.className = 'dm-contact-btn';
+        btn.type = 'button';
+        btn.innerHTML = `
+          <i data-lucide="message-circle" style="width:18px; height:18px;"></i>
+          MESSAGE PRIVÉ
+        `;
 
-        openDMModal({
-          id: u.id,
-          first_name: u.first_name,
-          last_name: u.last_name,
-          portal: u.portal
+        btn.addEventListener('click', async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+
+          await openDMModal({
+            id: u.id,
+            first_name: u.first_name,
+            last_name: u.last_name,
+            portal: u.portal
+          });
+
+          // dès ouverture => retirer badge carte + menu
+          updateUnreadUI();
         });
-      });
 
-      card.appendChild(btn);
+        card.appendChild(btn);
+      }
     }
 
     if (window.lucide) lucide.createIcons();
+
+    // appliquer les badges actuels
+    updateUnreadUI();
   }
 
   function hookRenderContacts() {
@@ -589,18 +827,34 @@ console.log('💬 DM.JS CHARGÉ');
 
     function wrappedRenderContacts(users) {
       original(users);
-      injectDMButtons(users);
+      injectDMButtonsAndBadges(users);
     }
     wrappedRenderContacts.__dm_wrapped = true;
-
     window.renderContacts = wrappedRenderContacts;
     return true;
   }
 
+  // ------------------------------
+  // Init
+  // ------------------------------
   const tryHook = () => {
     const ok = hookRenderContacts();
     if (!ok) setTimeout(tryHook, 60);
   };
   tryHook();
+
+  // badge nav prêt au chargement
+  ensureNavBadge();
+  updateUnreadUI();
+
+  // inbox realtime pour non-lus (dès que l'utilisateur est présent)
+  const tryInbox = () => {
+    const me = getCurrentUser();
+    const sb = getSupabaseClient();
+    if (!me || !sb) return setTimeout(tryInbox, 120);
+
+    ensureInboxSubscription();
+  };
+  tryInbox();
 
 })();
