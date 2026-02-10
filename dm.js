@@ -514,62 +514,80 @@ console.log('💬 DM.JS CHARGÉ (FIX v3)');
   }
 
   // IMPORTANT : pas de resubscribe automatique sur CLOSED
-  function subscribeConversation() {
-    const sb = getSupabaseClient();
-    if (!sb || !dmConversationKey) return;
+function subscribeConversation() {
+  const sb = getSupabaseClient();
+  if (!sb || !dmConversationKey) return;
 
-    unsubscribeConversation();
+  // IMPORTANT: on coupe proprement l'ancien channel
+  unsubscribeConversation();
 
-    console.log('🔌 DM subscribe conversation…');
+  console.log('🔌 DM subscribe conversation…', dmConversationKey);
 
-    // channel name unique par conversation (évite collisions)
-    const channelName = `dm-conv:${dmConversationKey}`;
+  // watchdog: si pas SUBSCRIBED, on passe en polling
+  let watchdog = setTimeout(() => {
+    console.warn('🟠 DM realtime pas SUBSCRIBED → fallback polling');
+    startConversationPolling();
+  }, 3500);
 
-    // watchdog : si pas SUBSCRIBED → polling
-    let watchdog = setTimeout(() => {
-      if (dmModalOpen) startConversationPolling();
-    }, 3500);
+  // Nom de channel "safe" (pas de ":" ni espaces)
+  const channelName = `dm_conv_${dmConversationKey.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
 
-    dmChannel = sb
-      .channel(channelName)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'dm_messages' }, (payload) => {
-        const row = payload.new || payload.old;
-        if (!row || row.conversation_key !== dmConversationKey) return;
-
+  dmChannel = sb
+    .channel(channelName)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'dm_messages',
+        // Filtre serveur (très important pour fiabilité/perf)
+        filter: `conversation_key=eq.${dmConversationKey}`
+      },
+      (payload) => {
         if (payload.eventType === 'INSERT') {
           dmMessagesMap.set(payload.new.id, payload.new);
           renderConversation({ keepScrollIfNearBottom: true });
 
           const me = getCurrentUser();
-          if (me && dmActivePeer && payload.new.receiver_profile_id === me.id && payload.new.sender_profile_id === dmActivePeer.id) {
+          if (
+            me &&
+            dmActivePeer &&
+            payload.new.receiver_profile_id === me.id &&
+            payload.new.sender_profile_id === dmActivePeer.id
+          ) {
             setSeen(dmActivePeer.id, nowISO());
             clearUnreadFor(dmActivePeer.id);
           }
-        } else if (payload.eventType === 'UPDATE') {
+        }
+
+        if (payload.eventType === 'UPDATE') {
           dmMessagesMap.set(payload.new.id, payload.new);
           renderConversation({ keepScrollIfNearBottom: true });
-        } else if (payload.eventType === 'DELETE') {
+        }
+
+        if (payload.eventType === 'DELETE') {
           dmMessagesMap.delete(payload.old.id);
           renderConversation({ keepScrollIfNearBottom: true });
         }
-      })
-      .subscribe((status) => {
-        console.log('🔌 DM realtime status (conversation):', status);
+      }
+    )
+    .subscribe((status) => {
+      console.log('🔌 DM realtime status (conversation):', status);
 
+      if (status === 'SUBSCRIBED') {
         if (watchdog) { clearTimeout(watchdog); watchdog = null; }
+        stopConversationPolling(); // realtime OK → pas de polling
+        return;
+      }
 
-        if (status === 'SUBSCRIBED') {
-          stopConversationPolling();
-          return;
-        }
+      // Si erreur/timeout/closed → polling (mais PAS de resubscribe automatique)
+      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        if (watchdog) { clearTimeout(watchdog); watchdog = null; }
+        startConversationPolling();
+      }
+    });
+}
 
-        // CLOSED provoqué volontairement (close modal) → ignorer
-        if (status === 'CLOSED' && (dmClosing || !dmModalOpen)) return;
-
-        // sinon : fallback polling
-        if (dmModalOpen) startConversationPolling();
-      });
-  }
 
   function renderConversation(opts = {}) {
     const me = getCurrentUser();
