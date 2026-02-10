@@ -87,18 +87,22 @@ async function loadFolder(folderId) {
     try {
         showDriveLoading();
         
-        // Charger tous les items du dossier
+        console.log('📂 Chargement dossier:', folderId);
+        
+        // Charger tous les items du dossier (sans join profiles pour éviter problèmes)
         const { data, error } = await supabaseClient
             .from('drive_items')
-            .select(`
-                *,
-                uploaded_by:profiles!drive_items_uploaded_by_fkey(first_name, last_name)
-            `)
+            .select('*')
             .eq('parent_id', folderId)
             .order('type', { ascending: false }) // Dossiers en premier
             .order('name', { ascending: true });
         
-        if (error) throw error;
+        if (error) {
+            console.error('❌ Erreur SQL loadFolder:', error);
+            throw error;
+        }
+        
+        console.log('✅ Items chargés:', data ? data.length : 0);
         
         driveAllItems = data || [];
         driveCurrentFolderId = folderId;
@@ -108,6 +112,20 @@ async function loadFolder(folderId) {
     } catch (error) {
         console.error('❌ Erreur loadFolder:', error);
         showDriveError('Impossible de charger le dossier');
+        
+        // Afficher un message dans le container
+        const container = document.getElementById('drive-content');
+        if (container) {
+            container.innerHTML = `
+                <div style="text-align:center; padding:60px; color:#ef4444;">
+                    <p style="font-size:1.1rem; margin-bottom:10px;">❌ Erreur de chargement</p>
+                    <p style="font-size:0.9rem;">${error.message || 'Erreur inconnue'}</p>
+                    <button onclick="location.reload()" style="margin-top:20px; padding:10px 20px; background:var(--gold); color:white; border:none; border-radius:8px; cursor:pointer;">
+                        Recharger
+                    </button>
+                </div>
+            `;
+        }
     }
 }
 
@@ -212,7 +230,7 @@ function renderListItem(item) {
     const icon = isFolder ? 'folder' : getFileIcon(item.mime_type);
     const size = isFolder ? '-' : formatFileSize(item.file_size);
     const date = new Date(item.updated_at).toLocaleDateString('fr-FR');
-    const owner = item.uploaded_by ? `${item.uploaded_by.first_name} ${item.uploaded_by.last_name}` : '-';
+    const owner = '-'; // On retire le propriétaire pour simplifier
     
     return `
         <tr class="drive-item" onclick="${isFolder ? `openFolder('${item.id}', '${item.name}')` : `previewFile('${item.id}')`}">
@@ -315,9 +333,16 @@ window.toggleView = () => {
 // =====================================================
 
 window.createNewFolder = () => {
+    console.log('📁 Ouverture modale création dossier');
+    
     // Utiliser la modale de l'app au lieu de prompt()
     const modalBody = document.getElementById('modal-body');
-    if (!modalBody) return;
+    if (!modalBody) {
+        console.error('❌ modal-body introuvable !');
+        return;
+    }
+    
+    console.log('✅ modal-body trouvé');
     
     modalBody.innerHTML = `
         <h2 style="margin:0 0 20px 0; font-size:1.4rem; font-weight:800; color:var(--text-main);">
@@ -338,15 +363,30 @@ window.createNewFolder = () => {
         </div>
     `;
     
-    document.getElementById('custom-modal').style.display = 'flex';
-    setTimeout(() => document.getElementById('new-folder-name').focus(), 100);
+    const modal = document.getElementById('custom-modal');
+    if (!modal) {
+        console.error('❌ custom-modal introuvable !');
+        return;
+    }
+    
+    console.log('✅ Affichage modal');
+    modal.style.display = 'flex';
+    setTimeout(() => {
+        const input = document.getElementById('new-folder-name');
+        if (input) input.focus();
+    }, 100);
 };
 
 window.confirmCreateFolder = async () => {
+    console.log('✅ Confirmation création dossier');
+    
     const input = document.getElementById('new-folder-name');
     const folderName = input ? input.value.trim() : '';
     
+    console.log('📝 Nom du dossier:', folderName);
+    
     if (!folderName) {
+        console.warn('⚠️ Nom vide');
         showDriveError('Le nom du dossier ne peut pas être vide');
         return;
     }
@@ -354,6 +394,11 @@ window.confirmCreateFolder = async () => {
     document.getElementById('custom-modal').style.display = 'none';
     
     try {
+        console.log('💾 Insertion en base...');
+        console.log('  - Entity:', driveCurrentEntity);
+        console.log('  - Parent:', driveCurrentFolderId);
+        console.log('  - User:', driveCurrentUser);
+        
         const { data, error } = await supabaseClient
             .from('drive_items')
             .insert([{
@@ -366,14 +411,19 @@ window.confirmCreateFolder = async () => {
             .select()
             .single();
         
-        if (error) throw error;
+        if (error) {
+            console.error('❌ Erreur SQL:', error);
+            throw error;
+        }
+        
+        console.log('✅ Dossier créé:', data);
         
         showDriveSuccess(`Dossier "${folderName}" créé`);
         await loadFolder(driveCurrentFolderId);
         
     } catch (error) {
         console.error('❌ Erreur création dossier:', error);
-        showDriveError('Impossible de créer le dossier');
+        showDriveError('Impossible de créer le dossier: ' + error.message);
     }
 };
 
@@ -759,9 +809,15 @@ function showDriveError(message) {
 // LANCEMENT AU CHARGEMENT
 // =====================================================
 
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('📂 Initialisation du Drive...');
-    initDrive();
-});
+let driveInitialized = false;
+
+// Fonction exposée pour initialiser le Drive (appelée par switchTab)
+window.initializeDrive = () => {
+    if (!driveInitialized) {
+        console.log('📂 Initialisation du Drive...');
+        driveInitialized = true;
+        initDrive();
+    }
+};
 
 console.log('✅ DRIVE.JS PRÊT');
