@@ -357,8 +357,17 @@ function renderGridItem(item) {
 // =====================================================
 
 window.navigateToFolder = async (folderId, pathIndex) => {
+    console.log('🧭 Navigation vers:', folderId, 'pathIndex:', pathIndex);
+    
     driveCurrentPath = driveCurrentPath.slice(0, pathIndex + 1);
-    await loadFolder(folderId);
+    
+    // Si on revient à la racine virtuelle (Institut Alsatia voit les 4 entités)
+    if (folderId === null || folderId === 'null') {
+        console.log('🏛️ Retour à la racine virtuelle');
+        await loadRootFolder();
+    } else {
+        await loadFolder(folderId);
+    }
 };
 
 window.openFolder = async (folderId, folderName) => {
@@ -377,6 +386,12 @@ window.toggleView = () => {
 
 window.createNewFolder = () => {
     console.log('📁 Ouverture modale création dossier');
+    
+    // Bloquer si on est à la racine virtuelle (Institut Alsatia)
+    if (driveCurrentFolderId === null && driveCurrentEntity === 'Institut Alsatia') {
+        showDriveError('Impossible de créer un dossier ici. Ouvrez d\'abord une entité.');
+        return;
+    }
     
     // Utiliser la modale de l'app au lieu de prompt()
     const modalBody = document.getElementById('modal-body');
@@ -477,6 +492,13 @@ window.confirmCreateFolder = async () => {
 window.handleFileUpload = async (event) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
+    
+    // Bloquer si on est à la racine virtuelle (Institut Alsatia)
+    if (driveCurrentFolderId === null && driveCurrentEntity === 'Institut Alsatia') {
+        showDriveError('Impossible d\'uploader ici. Ouvrez d\'abord une entité.');
+        event.target.value = ''; // Reset input
+        return;
+    }
     
     const uploadContainer = document.getElementById('drive-upload-progress');
     if (uploadContainer) {
