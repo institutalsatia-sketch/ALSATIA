@@ -4,7 +4,7 @@
 // - Modale pro (pas de fenêtre native)
 // - Sans pièces jointes
 // - Edition / suppression (soft delete) côté auteur
-// - Realtime Supabase (INSERT/UPDATE/DELETE)
+// - Realtime Supabase + fallback polling si realtime KO
 // =====================================================
 
 console.log('💬 DM.JS CHARGÉ');
@@ -28,7 +28,6 @@ console.log('💬 DM.JS CHARGÉ');
 
   function getSupabaseClient() {
     // app.js déclare `const supabaseClient = ...`
-    // accessible comme identifiant global (pas forcément window.supabaseClient).
     if (typeof supabaseClient !== 'undefined') return supabaseClient;
     if (typeof window.supabaseClient !== 'undefined') return window.supabaseClient;
     return null;
@@ -42,6 +41,11 @@ console.log('💬 DM.JS CHARGÉ');
   function scrollToBottom(el) {
     if (!el) return;
     el.scrollTop = el.scrollHeight;
+  }
+
+  function isNearBottom(el) {
+    if (!el) return true;
+    return (el.scrollHeight - el.scrollTop - el.clientHeight) < 220;
   }
 
   function formatTime(ts) {
@@ -65,12 +69,25 @@ console.log('💬 DM.JS CHARGÉ');
   let dmConversationKey = null;
   let dmMessagesMap = new Map(); // id -> message row
 
+  // Fallback polling
+  let dmPollTimer = null;
+  let dmPollInFlight = false;
+
   // ------------------------------
-  // Cleanup : on wrap closeCustomModal pour nettoyer le realtime DM
+  // Cleanup : unsubscribe realtime + stop polling
   // ------------------------------
+  function stopPolling() {
+    if (dmPollTimer) {
+      clearInterval(dmPollTimer);
+      dmPollTimer = null;
+    }
+  }
+
   function unsubscribeConversation() {
     const sb = getSupabaseClient();
     if (!sb) return;
+
+    stopPolling();
 
     if (dmChannel) {
       try { sb.removeChannel(dmChannel); } catch (e) {}
@@ -78,6 +95,7 @@ console.log('💬 DM.JS CHARGÉ');
     }
   }
 
+  // Wrap closeCustomModal pour nettoyer
   (function wrapCloseCustomModal() {
     if (typeof window.closeCustomModal !== 'function') return;
     const originalClose = window.closeCustomModal;
@@ -168,7 +186,9 @@ console.log('💬 DM.JS CHARGÉ');
     if (sendBtn) sendBtn.addEventListener('click', sendCurrentMessage);
 
     // Load + subscribe
-    loadConversation().then(() => subscribeConversation()).catch(() => {});
+    loadConversation()
+      .then(() => subscribeConversation())
+      .catch(() => {});
   }
 
   // ------------------------------
@@ -182,7 +202,7 @@ console.log('💬 DM.JS CHARGÉ');
     if (!sb || !me || !peer) return;
 
     const box = document.getElementById('dm-messages');
-    if (box) box.innerHTML = `<div class="dm-empty">Chargement...</div>`;
+    if (box && dmMessagesMap.size === 0) box.innerHTML = `<div class="dm-empty">Chargement...</div>`;
 
     const { data, error } = await sb
       .from('dm_messages')
@@ -198,16 +218,45 @@ console.log('💬 DM.JS CHARGÉ');
       return;
     }
 
+    const prevCount = dmMessagesMap.size;
+
     dmMessagesMap = new Map();
     (data || []).forEach((m) => dmMessagesMap.set(m.id, m));
 
-    renderConversation();
     const container = document.getElementById('dm-messages');
-    scrollToBottom(container);
+    const keepBottom = container ? isNearBottom(container) : true;
+
+    renderConversation({ keepScrollIfNearBottom: keepBottom });
+
+    if (container && (prevCount === 0 || keepBottom)) {
+      scrollToBottom(container);
+    }
+  }
+
+  // ------------------------------
+  // Fallback polling (si realtime KO)
+  // ------------------------------
+  function startPolling() {
+    if (dmPollTimer) return;
+
+    console.warn('🟠 DM realtime KO → fallback polling activé (2s)');
+    dmPollTimer = setInterval(async () => {
+      if (dmPollInFlight) return;
+      dmPollInFlight = true;
+      try {
+        await loadConversation();
+      } catch (e) {
+        // silence
+      } finally {
+        dmPollInFlight = false;
+      }
+    }, 2000);
   }
 
   // ------------------------------
   // Data : subscribe realtime
+  // - On s'abonne sans filtre serveur pour éliminer les bugs de filter
+  // - On filtre côté client sur conversation_key
   // ------------------------------
   function subscribeConversation() {
     const sb = getSupabaseClient();
@@ -215,14 +264,19 @@ console.log('💬 DM.JS CHARGÉ');
 
     unsubscribeConversation();
 
+    console.log('🔌 DM subscribe: ouverture canal realtime…');
+
     dmChannel = sb
-      .channel('dm-' + dmConversationKey)
+      .channel('dm-channel') // nom stable (évite les caractères spéciaux)
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
-        table: 'dm_messages',
-        filter: 'conversation_key=eq.' + dmConversationKey
+        table: 'dm_messages'
       }, (payload) => {
+        // Filtrage côté client
+        const row = payload.new || payload.old;
+        if (!row || row.conversation_key !== dmConversationKey) return;
+
         if (payload.eventType === 'INSERT') {
           dmMessagesMap.set(payload.new.id, payload.new);
           renderConversation({ keepScrollIfNearBottom: true });
@@ -234,7 +288,25 @@ console.log('💬 DM.JS CHARGÉ');
           renderConversation({ keepScrollIfNearBottom: true });
         }
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log('🔌 DM realtime status:', status);
+
+        // Si realtime ne s’abonne pas correctement, on active le polling
+        // (SUBSCRIBED attendu)
+        if (status === 'SUBSCRIBED') {
+          stopPolling();
+        }
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          startPolling();
+        }
+      });
+
+    // “watchdog” : si pas SUBSCRIBED rapidement, polling
+    setTimeout(() => {
+      // si dmChannel existe toujours et que polling pas lancé, on le lance
+      // (ça protège les cas où le callback status n’arrive pas)
+      if (!dmPollTimer) startPolling();
+    }, 3500);
   }
 
   // ------------------------------
@@ -247,7 +319,7 @@ console.log('💬 DM.JS CHARGÉ');
 
     if (!me || !peer || !container) return;
 
-    const wasNearBottom = (container.scrollHeight - container.scrollTop - container.clientHeight) < 220;
+    const wasNearBottom = isNearBottom(container);
 
     const messages = Array.from(dmMessagesMap.values()).sort((a, b) => {
       const ta = new Date(a.created_at).getTime();
@@ -436,7 +508,6 @@ console.log('💬 DM.JS CHARGÉ');
         true
       );
     } else {
-      // pas de fenêtre native -> on refuse plutôt que confirm()
       console.error('DM: alsatiaConfirm indisponible, suppression refusée.');
       if (window.showNotice) window.showNotice('DM', 'Suppression indisponible.', 'error');
     }
