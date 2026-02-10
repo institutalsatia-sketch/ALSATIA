@@ -820,4 +820,13 @@ window.initializeDrive = () => {
     }
 };
 
+// Vérifier si l'onglet Drive est actif au chargement de la page
+document.addEventListener('DOMContentLoaded', () => {
+    const driveTab = document.getElementById('tab-drive');
+    if (driveTab && driveTab.classList.contains('active')) {
+        console.log('🚀 Drive actif au chargement, initialisation...');
+        window.initializeDrive();
+    }
+});
+
 console.log('✅ DRIVE.JS PRÊT');
