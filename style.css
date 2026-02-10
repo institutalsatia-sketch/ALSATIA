@@ -226,9 +226,11 @@ body {
     align-items: center; 
     padding: 20px;
     opacity: 0;
-    pointer-events: none; /* L'overlay ne bloque pas les clics */
-}
     transition: opacity 0.3s ease;
+}
+
+.modal-overlay[style*="display: flex"] {
+    opacity: 1;
 }
 
 .modal-card { 
