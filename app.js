@@ -21,8 +21,11 @@ const LOGOS = {
 };
 // FIX CHAT REALTIME
 window.subscribeToChat = function() {
-    if (window.chatChannel) window.chatChannel.unsubscribe();
-    window.chatChannel = supabaseClient.channel('chat-' + Date.now()).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_global', filter: 'subject=eq.' + currentChatSubject }, function(p) { 
+    if (window.chatChannel) {
+        try { supabaseClient.removeChannel(window.chatChannel); } catch (e) {}
+        window.chatChannel = null;
+    }
+    window.chatChannel = supabaseClient.channel('chat:' + currentChatSubject).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_global', filter: 'subject=eq.' + currentChatSubject }, function(p) { 
         if (p.new.author_full_name !== currentUser.first_name + ' ' + currentUser.last_name) { 
             var c = document.getElementById('chat-messages-container'); 
             if (c) { 
@@ -31,7 +34,7 @@ window.subscribeToChat = function() {
                 if(window.lucide) lucide.createIcons(); 
             }
         }
-    }).subscribe();
+    }).subscribe((status) => console.log('CHAT REALTIME STATUS:', status));
 };
 // ==========================================
 // MOTEUR DE DIALOGUE DE LUXE (INDISPENSABLE)
@@ -205,7 +208,43 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.location.href = 'login.html'; 
         return; 
     }
-    
+
+    // ✅ Exiger une session Supabase Auth (JWT), sinon retour login
+    const { data: sessionData, error: sessionErr } = await supabaseClient.auth.getSession();
+    if (sessionErr || !sessionData?.session) {
+        console.warn('⚠️ Pas de session Supabase Auth. Retour login.', sessionErr);
+        localStorage.clear();
+        window.location.href = 'login.html';
+        return;
+    }
+
+    // ✅ Source de vérité : charger le profil lié au user Auth
+    const authUserId = sessionData.session.user.id;
+    const { data: freshProfile, error: freshErr } = await supabaseClient
+        .from('profiles')
+        .select('id, first_name, last_name, portal, email, job_title, phone, status, access_donors, access_events, access_drive, auth_user_id')
+        .eq('auth_user_id', authUserId)
+        .single();
+
+    if (freshErr || !freshProfile) {
+        console.warn('⚠️ Profil introuvable pour la session Auth. Retour login.', freshErr);
+        localStorage.clear();
+        await supabaseClient.auth.signOut();
+        window.location.href = 'login.html';
+        return;
+    }
+
+    if (freshProfile.status !== 'approved') {
+        console.warn('⚠️ Compte non approuvé. Retour login.');
+        localStorage.clear();
+        await supabaseClient.auth.signOut();
+        window.location.href = 'login.html';
+        return;
+    }
+
+    currentUser = freshProfile;
+    localStorage.setItem('alsatia_user', JSON.stringify(currentUser));
+
     initInterface();
     
     // Chargement initial des données
@@ -346,7 +385,7 @@ async function loadContacts() {
     
     const { data: users, error } = await supabaseClient
         .from('profiles')
-        .select('*')
+        .select('id, first_name, last_name, portal, job_title, email, phone, status, access_donors, access_events, access_drive')
         .order('portal', { ascending: true })
         .order('last_name', { ascending: true});
 
@@ -521,7 +560,7 @@ window.openProfileModal = async () => {
     // On force la récupération pour avoir les données les plus récentes
     const { data: profile, error } = await supabaseClient
         .from('profiles')
-        .select('*')
+        .select('id, first_name, last_name, portal, job_title, email, phone, status, access_donors, access_events, access_drive')
         .eq('id', currentUser.id)
         .single();
 
@@ -554,7 +593,7 @@ window.openProfileModal = async () => {
             </div>
             <div class="form-group">
                 <label class="mini-label">NOUVEAU CODE PIN (4 CHIFFRES)</label>
-                <input type="password" id="prof-pin" class="luxe-input" maxlength="4" placeholder="••••" value="${profile.pin || ''}">
+                <input type="password" id="prof-pin" class="luxe-input" maxlength="4" placeholder="••••" value="">
             </div>
         </div>
 
@@ -592,18 +631,54 @@ window.saveMyProfile = async () => {
         first_name: document.getElementById('prof-first').value.trim(),
         last_name: document.getElementById('prof-last').value.trim(),
         email: emailVal,
-        pin: pinVal,
         job_title: document.getElementById('prof-job').value.trim(),
         phone: document.getElementById('prof-phone').value.trim()
     };
 
     // VALIDATIONS SÉCURITÉ
-    if (!updates.first_name || !updates.last_name || !updates.email || !updates.pin) {
-        return window.showNotice("Champs obligatoires", "Prénom, Nom, Email et PIN sont requis.", "error");
+    if (!updates.first_name || !updates.last_name || !updates.email) {
+        return window.showNotice("Champs obligatoires", "Prénom, Nom et Email sont requis.", "error");
     }
 
-    if (updates.pin.length !== 4 || isNaN(updates.pin)) {
-        return window.showNotice("Format PIN", "Le code PIN doit être composé de 4 chiffres.", "error");
+    // Si l'utilisateur a saisi un nouveau PIN, on met à jour le password Auth + profiles.pin
+    let shouldUpdatePin = false;
+    if (pinVal) {
+        if (pinVal.length !== 4 || isNaN(pinVal)) {
+            return window.showNotice("Format PIN", "Le code PIN doit être composé de 4 chiffres.", "error");
+        }
+        shouldUpdatePin = true;
+    }
+
+    // 1) Mettre à jour l'email Auth (si possible) + le password Auth (si demandé)
+    try {
+        const authUpdates = {};
+        // Si l'email change, demander à Supabase Auth de le mettre à jour aussi.
+        // Selon la config Supabase (Secure email change), cela peut envoyer une confirmation.
+        authUpdates.email = updates.email;
+
+        if (shouldUpdatePin) {
+            authUpdates.password = pinVal + pinVal + pinVal + pinVal;
+        }
+
+        const { error: authErr } = await supabaseClient.auth.updateUser(authUpdates);
+        if (authErr) {
+            console.warn('Auth update warning:', authErr);
+            // On n'échoue pas systématiquement sur l'email (peut demander confirmation).
+            // Mais si le password échoue, on bloque.
+            if (shouldUpdatePin) {
+                return window.showNotice("Erreur", "Impossible de mettre à jour le PIN (Auth).", "error");
+            }
+        }
+    } catch (e) {
+        console.warn('Auth update exception:', e);
+        if (shouldUpdatePin) {
+            return window.showNotice("Erreur", "Impossible de mettre à jour le PIN (Auth).", "error");
+        }
+    }
+
+    // 2) Mettre à jour le profil (Postgres)
+    if (shouldUpdatePin) {
+        updates.pin = pinVal;
     }
 
     const { error } = await supabaseClient
@@ -613,17 +688,25 @@ window.saveMyProfile = async () => {
 
     if (error) {
         console.error("Update Error:", error);
-        return window.showNotice("Erreur SQL", "Impossible de sauvegarder : l'email est peut-être déjà utilisé.", "error");
+        return window.showNotice("Erreur", "Impossible de sauvegarder vos informations.", "error");
     }
 
-    // MISE À JOUR DE LA SESSION LOCALE
+    // 3) Mettre à jour la session locale (sans exposer le PIN)
     currentUser = { ...currentUser, ...updates };
+    delete currentUser.pin;
     localStorage.setItem('alsatia_user', JSON.stringify(currentUser));
 
-    // REFRESH INTERFACE & FEEDBACK
-    initInterface(); 
+    initInterface();
     closeCustomModal();
-    window.showNotice("Profil mis à jour", "Vos informations de compte ont été synchronisées avec succès.");
+
+    if (shouldUpdatePin) {
+        window.showNotice("Profil mis à jour", "Vos informations ont été synchronisées (PIN mis à jour).");
+        // Effacer le champ PIN après succès
+        const pinInput = document.getElementById('prof-pin');
+        if (pinInput) pinInput.value = '';
+    } else {
+        window.showNotice("Profil mis à jour", "Vos informations ont été synchronisées avec succès.");
+    }
 };
 
 // ==========================================
@@ -1230,7 +1313,7 @@ window.loadAccountPage = async () => {
     // Charger les infos depuis Supabase
     const { data: profile, error } = await supabaseClient
         .from('profiles')
-        .select('*')
+        .select('id, first_name, last_name, portal, job_title, email, phone, status, access_donors, access_events, access_drive')
         .eq('id', currentUser.id)
         .single();
     
@@ -1875,6 +1958,7 @@ window.sendChatMessage = async () => {
     // Préparer les données du message
     const messageData = {
         content: content,
+        author_profile_id: currentUser.id,
         author_full_name: `${currentUser.first_name} ${currentUser.last_name}`,
         author_last_name: currentUser.last_name,
         portal: currentUser.portal,

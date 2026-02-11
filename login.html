@@ -368,215 +368,184 @@
 </div>
 
 <script>
-    const supabaseUrl = 'https://ptiosrmpliffsjooedle.supabase.co';
-    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0aW9zcm1wbGlmZnNqb29lZGxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgzMzY0MzgsImV4cCI6MjA4MzkxMjQzOH0.SdTtCooQsDcCIQdGddnDz2-lMM_X6yfNpVmAW4C7j7o';
-    const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+  const supabaseUrl = 'https://ptiosrmpliffsjooedle.supabase.co';
+  const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0aW9zcm1wbGlmZnNqb29lZGxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgzMzY0MzgsImV4cCI6MjA4MzkxMjQzOH0.SdTtCooQsDcCIQdGddnDz2-lMM_X6yfNpVmAW4C7j7o';
+  const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
-    let currentPortal = "";
+  let currentPortal = "";
+  const userIndex = new Map(); // profile_id -> { email }
 
-    function showError(msg) {
-        const errDiv = document.getElementById('login-error');
-        errDiv.innerText = msg;
-        errDiv.style.display = 'block';
-        setTimeout(() => errDiv.style.display = 'none', 4000);
+  function showError(msg) {
+    const errDiv = document.getElementById('login-error');
+    errDiv.innerText = msg;
+    errDiv.style.display = 'block';
+    setTimeout(() => errDiv.style.display = 'none', 4000);
+  }
+
+  function pinToPassword(pin) {
+    return String(pin) + String(pin) + String(pin) + String(pin);
+  }
+
+  async function selectPortal(portal) {
+    currentPortal = portal;
+    document.getElementById('step-1').style.display = 'none';
+    document.getElementById('step-2').style.display = 'block';
+    document.getElementById('portal-name').innerText = portal;
+
+    // Charger uniquement les comptes approuvés (liste de connexion)
+    const { data, error } = await supabaseClient
+      .from('profiles')
+      .select('id, first_name, last_name, email, status')
+      .eq('portal', portal)
+      .eq('status', 'approved')
+      .order('last_name');
+
+    if (error) {
+      console.error(error);
+      showError("Impossible de charger la liste des utilisateurs.");
+      return;
     }
 
-    async function selectPortal(portal) {
-        currentPortal = portal;
-        document.getElementById('step-1').style.display = 'none';
-        document.getElementById('step-2').style.display = 'block';
-        document.getElementById('portal-name').innerText = portal;
+    const select = document.getElementById('user-select');
+    // reset options to default + NEW
+    select.innerHTML = `
+      <option value="">— Qui êtes-vous ? —</option>
+      <option value="NEW">+ Nouveau membre</option>
+    `;
 
-        const { data, error } = await supabaseClient.from('profiles').select('*').eq('portal', portal).order('last_name');
-        const select = document.getElementById('user-select');
-        if (data) {
-            data.forEach(user => {
-                const opt = document.createElement('option');
-                opt.value = user.id;
-                opt.innerText = `${user.last_name.toUpperCase()} ${user.first_name}`;
-                select.appendChild(opt);
-            });
+    userIndex.clear();
+
+    (data || []).forEach(user => {
+      const opt = document.createElement('option');
+      opt.value = user.id;
+      opt.innerText = `${(user.last_name || '').toUpperCase()} ${user.first_name || ''}`;
+      select.appendChild(opt);
+
+      userIndex.set(user.id, { email: user.email || null });
+    });
+  }
+
+  function checkUserType() {
+    const val = document.getElementById('user-select').value;
+    document.getElementById('new-user-fields').style.display = (val === 'NEW') ? 'block' : 'none';
+    document.getElementById('pin-area').style.display = (val !== "") ? 'block' : 'none';
+  }
+
+  async function attemptLogin() {
+    const loginBtn = document.getElementById('login-btn');
+    loginBtn.disabled = true;
+    loginBtn.innerText = 'Connexion...';
+
+    const userSelect = document.getElementById('user-select').value;
+    const pin = document.getElementById('pin-input').value.trim();
+
+    try {
+      if (!/^[0-9]{4}$/.test(pin)) {
+        showError("Le PIN doit faire 4 chiffres.");
+        return;
+      }
+
+      if (userSelect === 'NEW') {
+        // NOUVEL UTILISATEUR
+        const fname = document.getElementById('reg-fname').value.trim();
+        const lname = document.getElementById('reg-lname').value.trim();
+
+        if (!fname || !lname) {
+          showError("Tous les champs sont requis.");
+          return;
         }
+
+        // Email automatique (interne)
+        const autoEmail = `${fname.toLowerCase()}.${lname.toLowerCase()}.${pin}@alsatia.internal`;
+
+        // Création Auth
+        const { data: authData, error: authError } = await supabaseClient.auth.signUp({
+          email: autoEmail,
+          password: pinToPassword(pin),
+          options: {
+            data: { first_name: fname, last_name: lname, portal: currentPortal }
+          }
+        });
+        if (authError) throw new Error("Inscription : " + authError.message);
+
+        // Créer profil (pending)
+        const { error: profileError } = await supabaseClient
+          .from('profiles')
+          .insert([{
+            first_name: fname,
+            last_name: lname,
+            email: autoEmail,
+            portal: currentPortal,
+            pin: pin,
+            auth_user_id: authData?.user?.id ?? null,
+            status: 'pending'
+          }]);
+
+        if (profileError) throw new Error("Profil : " + profileError.message);
+
+        // Ne pas garder la session Auth pour un compte pending
+        await supabaseClient.auth.signOut();
+
+        showError("Compte créé ! En attente d'approbation par l'Institut Alsatia.");
+        setTimeout(() => location.reload(), 3000);
+        return;
+      }
+
+      // UTILISATEUR EXISTANT : Auth = vérité technique (pas de vérification PIN en base)
+      const entry = userIndex.get(userSelect);
+      if (!entry || !entry.email) {
+        showError("Compte incomplet : email manquant. Contactez l'Institut Alsatia.");
+        return;
+      }
+
+      const { data: signInData, error: signInError } = await supabaseClient.auth.signInWithPassword({
+        email: entry.email,
+        password: pinToPassword(pin)
+      });
+
+      if (signInError || !signInData?.session) {
+        console.warn(signInError);
+        showError("Code PIN incorrect.");
+        return;
+      }
+
+      // Charger le profil lié au user Auth (source de vérité)
+      const authUserId = signInData.session.user.id;
+      const { data: profile, error: profErr } = await supabaseClient
+        .from('profiles')
+        .select('id, first_name, last_name, portal, email, job_title, phone, status, access_donors, access_events, access_drive, auth_user_id')
+        .eq('auth_user_id', authUserId)
+        .single();
+
+      if (profErr || !profile) {
+        console.error(profErr);
+        showError("Profil introuvable. Contactez l'Institut Alsatia.");
+        await supabaseClient.auth.signOut();
+        return;
+      }
+
+      if (profile.status !== 'approved') {
+        showError("Votre compte n'est pas approuvé.");
+        await supabaseClient.auth.signOut();
+        return;
+      }
+
+      localStorage.setItem('alsatia_user', JSON.stringify(profile));
+      window.location.href = 'index.html';
+
+    } catch (e) {
+      console.error(e);
+      showError(e?.message || "Erreur inconnue.");
+    } finally {
+      loginBtn.disabled = false;
+      loginBtn.innerText = 'Accéder';
     }
+  }
 
-    function checkUserType() {
-        const val = document.getElementById('user-select').value;
-        document.getElementById('new-user-fields').style.display = (val === 'NEW') ? 'block' : 'none';
-        document.getElementById('pin-area').style.display = (val !== "") ? 'block' : 'none';
-    }
-
-    async function attemptLogin() {
-        const loginBtn = document.getElementById('login-btn');
-        loginBtn.disabled = true;
-        loginBtn.innerText = 'Connexion...';
-
-        const userSelect = document.getElementById('user-select').value;
-        const pin = document.getElementById('pin-input').value;
-
-        try {
-            if (userSelect === 'NEW') {
-                // NOUVEL UTILISATEUR
-                const fname = document.getElementById('reg-fname').value.trim();
-                const lname = document.getElementById('reg-lname').value.trim();
-                
-                if(!fname || !lname || !pin) {
-                    showError("Tous les champs sont requis.");
-                    loginBtn.disabled = false;
-                    loginBtn.innerText = 'Accéder';
-                    return;
-                }
-                if(pin.length !== 4) {
-                    showError("Le PIN doit faire 4 chiffres.");
-                    loginBtn.disabled = false;
-                    loginBtn.innerText = 'Accéder';
-                    return;
-                }
-
-                // Générer email automatique (invisible pour l'utilisateur)
-                const autoEmail = `${fname.toLowerCase()}.${lname.toLowerCase()}.${pin}@alsatia.internal`;
-
-                // Créer compte Supabase Auth (en arrière-plan)
-                const { data: authData, error: authError } = await supabaseClient.auth.signUp({
-                    email: autoEmail,
-                    password: pin + pin + pin + pin, // PIN x4 = mot de passe
-                    options: {
-                        data: { first_name: fname, last_name: lname, portal: currentPortal }
-                    }
-                });
-
-                if (authError) throw new Error("Inscription : " + authError.message);
-
-                // Créer profil
-                const { data: profileData, error: profileError } = await supabaseClient
-                    .from('profiles')
-                    .insert([{
-                        first_name: fname,
-                        last_name: lname,
-                        email: autoEmail,
-                        portal: currentPortal,
-                        pin: pin,
-                        auth_user_id: authData.user.id,
-                        status: 'pending'
-                    }])
-                    .select()
-                    .single();
-
-                if(profileError) throw new Error("Profil : " + profileError.message);
-
-                // Ne PAS connecter directement, attendre approbation
-                showError("Compte créé ! En attente d'approbation par l'Institut Alsatia. Vous recevrez un email une fois approuvé.");
-                loginBtn.disabled = false;
-                loginBtn.innerText = 'Accéder';
-                
-                // Recharger la page après 3 secondes
-                setTimeout(() => {
-                    location.reload();
-                }, 3000);
-                return;
-                
-            } else {
-                // UTILISATEUR EXISTANT
-                const { data: profileData, error: profileError } = await supabaseClient
-                    .from('profiles')
-                    .select('*')
-                    .eq('id', userSelect)
-                    .single();
-                
-                if (!profileData || profileData.pin !== pin) {
-                    showError("Code PIN incorrect.");
-                    loginBtn.disabled = false;
-                    loginBtn.innerText = 'Accéder';
-                    return;
-                }
-                
-                // VÉRIFIER LE STATUT DU COMPTE
-                if (profileData.status === 'pending') {
-                    showError("Votre compte est en attente d'approbation par l'Institut Alsatia.");
-                    loginBtn.disabled = false;
-                    loginBtn.innerText = 'Accéder';
-                    return;
-                }
-                
-                if (profileData.status === 'rejected') {
-                    showError("Votre inscription a été refusée. Contactez l'Institut Alsatia.");
-                    loginBtn.disabled = false;
-                    loginBtn.innerText = 'Accéder';
-                    return;
-                }
-                
-                if (profileData.status === 'revoked') {
-                    showError("Votre accès a été révoqué. Contactez l'Institut Alsatia.");
-                    loginBtn.disabled = false;
-                    loginBtn.innerText = 'Accéder';
-                    return;
-                }
-
-                // Si l'utilisateur a déjà un auth_user_id, se connecter avec Auth
-                if (profileData.auth_user_id) {
-                    const { data: authData, error: authError } = await supabaseClient.auth.signInWithPassword({
-                        email: profileData.email,
-                        password: pin + pin + pin + pin
-                    });
-
-                    if (authError) {
-                        // Si échec auth mais PIN correct, créer le compte Auth maintenant
-                        console.log('Création compte Auth pour utilisateur existant...');
-                        const { data: newAuthData, error: newAuthError } = await supabaseClient.auth.signUp({
-                            email: profileData.email,
-                            password: pin + pin + pin + pin,
-                            options: {
-                                data: { 
-                                    first_name: profileData.first_name, 
-                                    last_name: profileData.last_name, 
-                                    portal: profileData.portal 
-                                }
-                            }
-                        });
-                        
-                        if (!newAuthError) {
-                            // Mettre à jour auth_user_id
-                            await supabaseClient
-                                .from('profiles')
-                                .update({ auth_user_id: newAuthData.user.id })
-                                .eq('id', userSelect);
-                        }
-                    }
-                } else {
-                    // Pas de compte Auth, en créer un maintenant
-                    console.log('Création compte Auth pour utilisateur existant...');
-                    const { data: newAuthData, error: newAuthError } = await supabaseClient.auth.signUp({
-                        email: profileData.email,
-                        password: pin + pin + pin + pin,
-                        options: {
-                            data: { 
-                                first_name: profileData.first_name, 
-                                last_name: profileData.last_name, 
-                                portal: profileData.portal 
-                            }
-                        }
-                    });
-                    
-                    if (!newAuthError && newAuthData.user) {
-                        // Mettre à jour auth_user_id
-                        await supabaseClient
-                            .from('profiles')
-                            .update({ auth_user_id: newAuthData.user.id })
-                            .eq('id', userSelect);
-                    }
-                }
-
-                localStorage.setItem('alsatia_user', JSON.stringify(profileData));
-                console.log('✅ Connexion réussie');
-                window.location.href = 'index.html';
-            }
-
-        } catch (err) {
-            console.error('Erreur:', err);
-            showError(err.message);
-            loginBtn.disabled = false;
-            loginBtn.innerText = 'Accéder';
-        }
-    }
+  // Exposer fonctions au HTML inline onclick
+  window.selectPortal = selectPortal;
+  window.checkUserType = checkUserType;
+  window.attemptLogin = attemptLogin;
 </script>
 </body>
 </html>
