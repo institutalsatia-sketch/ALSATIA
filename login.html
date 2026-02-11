@@ -510,37 +510,32 @@
       }
 
       // Charger le profil lié au user Auth (source de vérité)
-      const authUserId = signInData.session.user.id;
-      const { data: profile, error: profErr } = await supabaseClient
-        .from('profiles')
-        .select('id, first_name, last_name, portal, email, job_title, phone, status, access_donors, access_events, access_drive, auth_user_id')
-        .eq('auth_user_id', authUserId)
-        .single();
+      // Charger le profil lié au user Auth (source de vérité)
+const authUserId = signInData.session.user.id;
 
-      if (profErr || !profile) {
-        console.error(profErr);
-        showError("Profil introuvable. Contactez l'Institut Alsatia.");
-        await supabaseClient.auth.signOut();
-        return;
-      }
+// 1) Essai direct (ne pas casser si 0 rows)
+let { data: profile, error: profErr } = await supabaseClient
+  .from('profiles')
+  .select('id, first_name, last_name, portal, email, job_title, phone, status, access_donors, access_events, access_drive, auth_user_id')
+  .eq('auth_user_id', authUserId)
+  .maybeSingle();
 
-      if (profile.status !== 'approved') {
-        showError("Votre compte n'est pas approuvé.");
-        await supabaseClient.auth.signOut();
-        return;
-      }
-
-      localStorage.setItem('alsatia_user', JSON.stringify(profile));
-      window.location.href = 'index.html';
-
-    } catch (e) {
-      console.error(e);
-      showError(e?.message || "Erreur inconnue.");
-    } finally {
-      loginBtn.disabled = false;
-      loginBtn.innerText = 'Accéder';
-    }
+// 2) Si pas trouvé, tenter d'attacher automatiquement le profil via l'email du JWT
+if (!profile) {
+  const { data: claimed, error: claimErr } = await supabaseClient.rpc('claim_my_profile');
+  if (claimErr) {
+    console.error(claimErr);
   }
+  profile = claimed || null;
+}
+
+// 3) Si toujours rien : impossible
+if (!profile) {
+  console.error(profErr);
+  showError("Profil introuvable (non lié au compte Auth). Contactez l'Institut Alsatia.");
+  await supabaseClient.auth.signOut();
+  return;
+}
 
   // Exposer fonctions au HTML inline onclick
   window.selectPortal = selectPortal;
