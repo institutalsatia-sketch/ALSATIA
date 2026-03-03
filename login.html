@@ -357,6 +357,7 @@
         <div id="new-user-fields" class="new-user-fields">
             <input type="text" id="reg-fname" placeholder="Prénom" class="luxe-input">
             <input type="text" id="reg-lname" placeholder="Nom" class="luxe-input">
+            <input type="email" id="reg-email" placeholder="Email (optionnel — pour recevoir la confirmation)" class="luxe-input" style="margin-top:0;">
         </div>
 
         <div id="pin-area" class="pin-area">
@@ -452,7 +453,7 @@
                     .insert([{
                         first_name: fname,
                         last_name: lname,
-                        email: null,
+                        email: document.getElementById('reg-email')?.value?.trim() || null,
                         portal: currentPortal,
                         pin: pin,
                         auth_user_id: authData.user.id,
