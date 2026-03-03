@@ -508,9 +508,12 @@ function renderContacts(users) {
             
             statusActions = `
                 ${accessToggles}
-                <div style="margin-top:16px;">
+                <div style="margin-top:16px; display:flex; flex-direction:column; gap:8px;">
                     <button onclick="window.revokeUser('${u.id}')" style="width:100%; background:#ef4444; color:white; border:none; padding:10px; border-radius:8px; cursor:pointer; font-weight:700; font-size:0.85rem;">
                         🚫 RÉVOQUER L'ACCÈS
+                    </button>
+                    <button onclick="window.deleteUser('${u.id}', '${u.first_name} ${u.last_name}')" style="width:100%; background:#7f1d1d; color:#fecaca; border:2px solid #991b1b; padding:10px; border-radius:8px; cursor:pointer; font-weight:700; font-size:0.8rem; letter-spacing:0.5px;">
+                        🗑️ SUPPRIMER DÉFINITIVEMENT
                     </button>
                 </div>
             `;
@@ -3053,6 +3056,28 @@ window.revokeUser = async (userId) => {
             }
             
             window.showNotice("Révoqué", "L'accès a été révoqué.", "success");
+            loadContacts();
+        },
+        true
+    );
+};
+
+window.deleteUser = async (userId, userName) => {
+    window.alsatiaConfirm(
+        "⚠️ SUPPRESSION DÉFINITIVE",
+        `Vous allez supprimer définitivement le compte de ${userName}. Cette action est IRRÉVERSIBLE. Tous ses messages privés seront aussi supprimés.`,
+        async () => {
+            const { error } = await supabaseClient
+                .from('profiles')
+                .delete()
+                .eq('id', userId);
+
+            if (error) {
+                window.showNotice("Erreur", "Impossible de supprimer ce compte.", "error");
+                return;
+            }
+
+            window.showNotice("Supprimé", `Le compte de ${userName} a été supprimé définitivement.`, "success");
             loadContacts();
         },
         true
