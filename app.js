@@ -79,20 +79,27 @@ window.clearMentionBadge = function() {
 
 window.startGlobalMentionWatcher = function() {
     if (window.mentionWatcherChannel) return;
-    var myLastName = currentUser.last_name.toLowerCase();
-    var myFullName = currentUser.first_name + ' ' + currentUser.last_name;
+    var myLastName = currentUser.last_name.toLowerCase().trim();
+    var myFirstName = currentUser.first_name.toLowerCase().trim();
     window.mentionWatcherChannel = supabaseClient
         .channel('mention-watcher-' + Date.now())
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_global' }, function(p) {
             var msg = p.new;
-            if (!msg || msg.author_full_name === myFullName) return;
+            if (!msg) return;
+            // Ignorer ses propres messages (comparaison souple)
+            var authorNorm = (msg.author_full_name || '').toLowerCase().trim();
+            var myNorm = (myFirstName + ' ' + myLastName).trim();
+            if (authorNorm === myNorm) return;
+            // Détecter @NomDeFamille dans le contenu
             if (msg.content && msg.content.toLowerCase().indexOf('@' + myLastName) !== -1) {
                 mentionUnreadCount++;
                 window.updateMentionBadge();
                 window.showMessageNotification(msg.author_full_name || 'Quelqu\'un', 'mention');
             }
         })
-        .subscribe();
+        .subscribe(function(status) {
+            console.log('mention-watcher status:', status);
+        });
 };
 
 // FIX CHAT REALTIME
