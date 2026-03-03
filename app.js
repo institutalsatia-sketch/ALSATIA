@@ -2471,6 +2471,21 @@ window.uploadPhotos = async (eventId) => {
     const MAX_SIZE = 10 * 1024 * 1024; // 10MB
     let uploaded = 0;
     let failed = 0;
+
+    // Indicateur de chargement
+    const uploadBtn = input.closest('div')?.querySelector('.btn-outline') || document.querySelector(`[onclick*="uploadPhotos('${eventId}')"]`);
+    const originalBtnHTML = uploadBtn ? uploadBtn.innerHTML : null;
+    if (uploadBtn) {
+        uploadBtn.disabled = true;
+        uploadBtn.innerHTML = `
+            <span style="display:inline-flex;align-items:center;gap:8px;">
+                <span style="width:16px;height:16px;border:2px solid rgba(197,160,89,0.3);border-top-color:var(--gold);border-radius:50%;animation:spin 0.8s linear infinite;display:inline-block;"></span>
+                Chargement en cours...
+            </span>`;
+    }
+
+    // Toast de progression
+    window.showNotice('Upload', `Envoi de ${files.length} photo(s)...`, 'info');
     
     for (const file of files) {
         if (file.size > MAX_SIZE) {
@@ -2516,6 +2531,14 @@ window.uploadPhotos = async (eventId) => {
         uploaded++;
     }
     
+    // Restaurer le bouton
+    if (uploadBtn && originalBtnHTML) {
+        uploadBtn.disabled = false;
+        uploadBtn.innerHTML = originalBtnHTML;
+    }
+    // Réinitialiser l'input fichier
+    input.value = '';
+
     if (uploaded > 0) {
         window.showNotice("Uploadé !", `${uploaded} photo(s) ajoutée(s).`, "success");
         window.openEventDetails(eventId); // Recharger la fiche
