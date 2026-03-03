@@ -449,8 +449,22 @@ function renderContacts(users) {
         if (u.status === 'pending') {
             statusBadge = '<div style="display:inline-block; background:#fef3c7; color:#92400e; font-size:0.7rem; font-weight:700; padding:6px 12px; border-radius:20px; margin-bottom:16px;">⏳ EN ATTENTE D\'APPROBATION</div>';
             if (isInstitutAlsatia) {
+                const pendingEmail = u.email ? `
+                    <div style="margin-bottom:12px; background:#fef9ec; border:1.5px solid #fbbf24; border-radius:10px; padding:10px 12px; display:flex; align-items:center; justify-content:space-between; gap:8px;">
+                        <div style="min-width:0;">
+                            <div style="font-size:0.7rem; font-weight:700; color:#92400e; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:2px;">Email de contact</div>
+                            <div style="font-size:0.85rem; color:#1e293b; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${u.email}</div>
+                        </div>
+                        <a href="mailto:${u.email}?subject=Votre compte Alsatia a été approuvé&body=Bonjour ${u.first_name},%0A%0AVotre compte sur le portail Alsatia a été approuvé. Vous pouvez désormais vous connecter.%0A%0ACordialement,%0AL'équipe Alsatia"
+                           style="background:var(--gold); color:white; border:none; padding:8px 12px; border-radius:8px; cursor:pointer; font-weight:700; font-size:0.75rem; text-decoration:none; white-space:nowrap; flex-shrink:0;">
+                            ✉️ Envoyer
+                        </a>
+                    </div>
+                ` : '<div style="margin-bottom:12px; font-size:0.8rem; color:#94a3b8; font-style:italic;">Aucun email renseigné</div>';
+
                 statusActions = `
-                    <div style="display:flex; gap:8px; margin-top:16px;">
+                    ${pendingEmail}
+                    <div style="display:flex; gap:8px; margin-top:4px;">
                         <button onclick="window.approveUser('${u.id}')" style="flex:1; background:#10b981; color:white; border:none; padding:10px; border-radius:8px; cursor:pointer; font-weight:700; font-size:0.85rem;">
                             ✅ APPROUVER
                         </button>
