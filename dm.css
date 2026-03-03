@@ -412,3 +412,40 @@
 .dm-card-relative {
   position: relative !important;
 }
+
+/* =====================================================
+   BADGE MENTION — icône Discussion dans la nav
+   ===================================================== */
+
+/* Badge doré sur l'icône "Discussion" (mentions @nom) */
+.mention-nav-badge {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 900;
+  background: linear-gradient(135deg, var(--gold) 0%, var(--gold-light, #dfc491) 100%);
+  color: white;
+  margin-left: auto;
+  box-shadow: 0 4px 12px rgba(197, 160, 89, 0.45);
+  animation: pulseBadge 2s ease-in-out infinite;
+}
+
+@keyframes pulseBadge {
+  0%, 100% { box-shadow: 0 4px 12px rgba(197, 160, 89, 0.45); }
+  50%       { box-shadow: 0 4px 20px rgba(197, 160, 89, 0.75); }
+}
+
+/* Le badge DM (messages privés) reste rouge, on l'anime aussi */
+.dm-nav-badge {
+  animation: pulseBadgeRed 2s ease-in-out infinite;
+}
+
+@keyframes pulseBadgeRed {
+  0%, 100% { box-shadow: 0 6px 18px rgba(239,68,68,0.22); }
+  50%       { box-shadow: 0 6px 24px rgba(239,68,68,0.5);  }
+}
