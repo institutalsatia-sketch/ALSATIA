@@ -12,6 +12,7 @@ let allDonorsData = [];
 let allUsersForMentions = []; 
 let selectedChatFile = null; // Pour la gestion des pièces jointes dans la messagerie
 let currentChatSubject = 'Général'; // Canal de discussion actif
+let mentionUnreadCount = 0; // Compteur de mentions @nom non lues dans le chat global
 
 const LOGOS = {
     "Institut Alsatia": "logo_alsatia.png",
@@ -19,19 +20,96 @@ const LOGOS = {
     "Collège Saints Louis et Zélie Martin": "martin.png",
     "Academia Alsatia": "academia.png"
 };
+// ==========================================
+// NOTIFICATIONS - MENTIONS et MESSAGES PRIVES
+// ==========================================
+
+window.showMessageNotification = function(fromName, type) {
+    var toastContainer = document.getElementById('notice-toast');
+    if (!toastContainer) return;
+
+    var id = 'notif-' + Date.now();
+    var icon = type === 'mention' ? 'at-sign' : 'message-circle';
+    var label = type === 'mention' ? 'Vous avez ete mentionné(e)' : 'Nouveau message privé';
+    var color = type === 'mention' ? 'var(--gold)' : '#3b82f6';
+
+    var iconDiv = '<div style="width:36px;height:36px;border-radius:10px;background:' + color + '22;border:1.5px solid ' + color + '55;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i data-lucide="' + icon + '" style="width:18px;height:18px;color:' + color + ';"></i></div>';
+    var textDiv = '<div style="flex:1;min-width:0;"><div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:' + color + ';margin-bottom:2px;">' + label + '</div><div style="font-size:0.88rem;font-weight:600;color:white;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">de ' + fromName + '</div></div>';
+    var closeBtn = '<button onclick="document.getElementById(\'' + id + '\').remove()" style="background:none;border:none;cursor:pointer;color:#64748b;padding:4px;border-radius:6px;display:flex;align-items:center;" onmouseover="this.style.color=\'white\'" onmouseout="this.style.color=\'#64748b\'"><i data-lucide="x" style="width:14px;height:14px;"></i></button>';
+
+    var wrapperStyle = 'background:var(--primary);color:white;padding:14px 18px;border-radius:14px;border-left:4px solid ' + color + ';box-shadow:0 8px 24px rgba(0,0,0,0.25);display:flex;align-items:center;gap:12px;min-width:280px;max-width:360px;pointer-events:auto;animation:slideIn 0.4s cubic-bezier(0.175,0.885,0.32,1.275) forwards;';
+    var html = '<div id="' + id + '" style="' + wrapperStyle + '">' + iconDiv + textDiv + closeBtn + '</div>';
+
+    toastContainer.insertAdjacentHTML('beforeend', html);
+    if (window.lucide) lucide.createIcons();
+
+    setTimeout(function() {
+        var el = document.getElementById(id);
+        if (el) {
+            el.style.transition = 'all 0.3s ease';
+            el.style.opacity = '0';
+            el.style.transform = 'translateX(60px)';
+            setTimeout(function() { el.remove(); }, 300);
+        }
+    }, 6000);
+};
+
+window.updateMentionBadge = function() {
+    var navChat = document.getElementById('nav-chat');
+    if (!navChat) return;
+    var badge = navChat.querySelector('.mention-nav-badge');
+    if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'mention-nav-badge';
+        navChat.appendChild(badge);
+    }
+    if (mentionUnreadCount > 0) {
+        badge.style.display = 'inline-flex';
+        badge.textContent = String(Math.min(mentionUnreadCount, 99));
+    } else {
+        badge.style.display = 'none';
+        badge.textContent = '';
+    }
+};
+
+window.clearMentionBadge = function() {
+    mentionUnreadCount = 0;
+    window.updateMentionBadge();
+};
+
+window.startGlobalMentionWatcher = function() {
+    if (window.mentionWatcherChannel) return;
+    var myLastName = currentUser.last_name.toLowerCase();
+    var myFullName = currentUser.first_name + ' ' + currentUser.last_name;
+    window.mentionWatcherChannel = supabaseClient
+        .channel('mention-watcher-' + Date.now())
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_global' }, function(p) {
+            var msg = p.new;
+            if (!msg || msg.author_full_name === myFullName) return;
+            if (msg.content && msg.content.toLowerCase().indexOf('@' + myLastName) !== -1) {
+                mentionUnreadCount++;
+                window.updateMentionBadge();
+                window.showMessageNotification(msg.author_full_name || 'Quelqu\'un', 'mention');
+            }
+        })
+        .subscribe();
+};
+
 // FIX CHAT REALTIME
 window.subscribeToChat = function() {
     if (window.chatChannel) window.chatChannel.unsubscribe();
-    window.chatChannel = supabaseClient.channel('chat-' + Date.now()).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_global', filter: 'subject=eq.' + currentChatSubject }, function(p) { 
-        if (p.new.author_full_name !== currentUser.first_name + ' ' + currentUser.last_name) { 
-            var c = document.getElementById('chat-messages-container'); 
-            if (c) { 
-                c.insertAdjacentHTML('beforeend', renderSingleMessage(p.new)); 
-                c.scrollTop = c.scrollHeight; 
-                if(window.lucide) lucide.createIcons(); 
+    var myFullName = currentUser.first_name + ' ' + currentUser.last_name;
+    window.chatChannel = supabaseClient.channel('chat-' + Date.now())
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_global', filter: 'subject=eq.' + currentChatSubject }, function(p) {
+            if (p.new.author_full_name !== myFullName) {
+                var c = document.getElementById('chat-messages-container');
+                if (c) {
+                    c.insertAdjacentHTML('beforeend', renderSingleMessage(p.new));
+                    c.scrollTop = c.scrollHeight;
+                    if (window.lucide) lucide.createIcons();
+                }
             }
-        }
-    }).subscribe();
+        }).subscribe();
 };
 // ==========================================
 // MOTEUR DE DIALOGUE DE LUXE (INDISPENSABLE)
@@ -219,6 +297,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.loadChatSubjects();
     window.loadChatMessages();
     window.subscribeToChat();
+    window.startGlobalMentionWatcher();
     
     // Initialiser les icônes Lucide
     if(window.lucide) lucide.createIcons();
@@ -305,6 +384,7 @@ window.switchTab = (tabId) => {
     if (tabId === 'events') loadEvents();
     // Activation de la Messagerie
     if (tabId === 'chat') {
+        window.clearMentionBadge();
         window.loadChatSubjects();
         window.loadChatMessages();
         window.subscribeToChat();
