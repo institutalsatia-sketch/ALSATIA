@@ -35,12 +35,70 @@
 <body>
     <!-- Vérification connexion -->
     <script>
-        // Vérifier si l'utilisateur est connecté
-        const alsatiaUser = localStorage.getItem('alsatia_user');
-        if (!alsatiaUser) {
-            // Pas connecté → Rediriger vers login
-            window.location.href = 'login.html';
-        }
+        // ==========================================
+        // VÉRIFICATION DE SESSION AU CHARGEMENT
+        // ==========================================
+        (async function checkSession() {
+            // 1. Vérification locale rapide
+            const raw = localStorage.getItem('alsatia_user');
+            if (!raw) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            let localUser;
+            try {
+                localUser = JSON.parse(raw);
+            } catch (e) {
+                localStorage.clear();
+                window.location.href = 'login.html';
+                return;
+            }
+
+            if (!localUser || !localUser.id) {
+                localStorage.clear();
+                window.location.href = 'login.html';
+                return;
+            }
+
+            // 2. Vérification Supabase : l'utilisateur existe-t-il encore et est-il approuvé ?
+            try {
+                const sb = supabase.createClient(
+                    'https://ptiosrmpliffsjooedle.supabase.co',
+                    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0aW9zcm1wbGlmZnNqb29lZGxlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgzMzY0MzgsImV4cCI6MjA4MzkxMjQzOH0.SdTtCooQsDcCIQdGddnDz2-lMM_X6yfNpVmAW4C7j7o'
+                );
+
+                const { data: profile, error } = await sb
+                    .from('profiles')
+                    .select('id, status, first_name, last_name, portal')
+                    .eq('id', localUser.id)
+                    .single();
+
+                // Utilisateur introuvable en base
+                if (error || !profile) {
+                    console.warn('Session invalide : profil introuvable');
+                    localStorage.clear();
+                    window.location.href = 'login.html';
+                    return;
+                }
+
+                // Compte révoqué, refusé ou en attente
+                if (profile.status !== 'approved') {
+                    console.warn('Session invalide : statut =', profile.status);
+                    localStorage.clear();
+                    window.location.href = 'login.html';
+                    return;
+                }
+
+                // 3. Mettre à jour le localStorage avec les données fraîches
+                const updatedUser = { ...localUser, ...profile };
+                localStorage.setItem('alsatia_user', JSON.stringify(updatedUser));
+
+            } catch (e) {
+                // En cas d'erreur réseau, on laisse passer (mode offline)
+                console.warn('Vérification session impossible (réseau?) :', e.message);
+            }
+        })();
     </script>
     
     <!-- Menu burger mobile -->
