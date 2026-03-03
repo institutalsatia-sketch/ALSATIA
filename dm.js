@@ -546,21 +546,29 @@ console.log('💬 DM.JS CHARGÉ');
         incUnread(row.sender_profile_id);
 
         // Toast "Nouveau message privé de X"
+        // On fetch d'abord le profil si pas en cache, puis on affiche
         const dmCache = getContactCache();
         const senderCached = dmCache[String(row.sender_profile_id)];
-        let senderName = 'Quelqu\'un';
         if (senderCached) {
-          senderName = ((senderCached.first_name || '') + ' ' + (senderCached.last_name || '')).trim() || senderName;
-        }
-        if (typeof window.showMessageNotification === 'function') {
-          window.showMessageNotification(senderName, 'dm');
-        }
-
-        // Optionnel: si on ne connaît pas l'expéditeur en cache, tenter de le fetch (pour affichage nom/entité ailleurs si besoin)
-        const cache = getContactCache();
-        if (!cache[String(row.sender_profile_id)]) {
-          const prof = await fetchProfileMini(row.sender_profile_id);
-          if (prof) cacheContact(prof);
+          const senderName = ((senderCached.first_name || '') + ' ' + (senderCached.last_name || '')).trim() || 'Quelqu\'un';
+          if (typeof window.showMessageNotification === 'function') {
+            window.showMessageNotification(senderName, 'dm');
+          }
+        } else {
+          // Pas en cache : on fetch puis on affiche
+          fetchProfileMini(row.sender_profile_id).then(function(prof) {
+            if (prof) {
+              cacheContact(prof);
+              const senderName = ((prof.first_name || '') + ' ' + (prof.last_name || '')).trim() || 'Quelqu\'un';
+              if (typeof window.showMessageNotification === 'function') {
+                window.showMessageNotification(senderName, 'dm');
+              }
+            } else {
+              if (typeof window.showMessageNotification === 'function') {
+                window.showMessageNotification('Quelqu\'un', 'dm');
+              }
+            }
+          });
         }
       })
       .subscribe((status) => {
