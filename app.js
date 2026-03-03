@@ -303,17 +303,6 @@ window.switchTab = (tabId) => {
     // 2. CHARGEMENT DES DONNÉES SPÉCIFIQUES
     if (tabId === 'donors') window.loadDonors();
     if (tabId === 'events') loadEvents();
-    if (tabId === 'drive') {
-        // Attendre que drive.js soit chargé
-        setTimeout(() => {
-            if (window.initializeDrive) {
-                window.initializeDrive();
-            } else {
-                console.error('❌ window.initializeDrive non disponible');
-            }
-        }, 100);
-    }
-    
     // Activation de la Messagerie
     if (tabId === 'chat') {
         window.loadChatSubjects();
@@ -424,10 +413,6 @@ function renderContacts(users) {
                             <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.85rem;">
                                 <input type="checkbox" ${u.access_events ? 'checked' : ''} onchange="window.toggleAccess('${u.id}', 'access_events', this.checked)" style="width:18px; height:18px; cursor:pointer;">
                                 <span>Événements</span>
-                            </label>
-                            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:0.85rem;">
-                                <input type="checkbox" ${u.access_drive ? 'checked' : ''} onchange="window.toggleAccess('${u.id}', 'access_drive', this.checked)" style="width:18px; height:18px; cursor:pointer;">
-                                <span>Drive</span>
                             </label>
                         </div>
                     </div>
@@ -3002,8 +2987,7 @@ window.toggleAccess = async (userId, accessField, isChecked) => {
         
         const accessName = {
             'access_donors': 'Base Donateurs',
-            'access_events': 'Événements',
-            'access_drive': 'Drive'
+            'access_events': 'Événements'
         }[accessField];
         
         window.showNotice(
@@ -3042,15 +3026,6 @@ function applyAccessPermissions() {
         if (eventsNav) {
             eventsNav.style.display = 'none';
             console.log('❌ Événements masqués');
-        }
-    }
-    
-    // Cacher Drive si pas accès
-    if (!currentUser.access_drive) {
-        const driveNav = document.getElementById('nav-drive');
-        if (driveNav) {
-            driveNav.style.display = 'none';
-            console.log('❌ Drive masqué');
         }
     }
 }
