@@ -545,6 +545,17 @@ console.log('💬 DM.JS CHARGÉ');
         // Incrémenter unread pour l'expéditeur
         incUnread(row.sender_profile_id);
 
+        // Toast "Nouveau message privé de X"
+        const dmCache = getContactCache();
+        const senderCached = dmCache[String(row.sender_profile_id)];
+        let senderName = 'Quelqu\'un';
+        if (senderCached) {
+          senderName = ((senderCached.first_name || '') + ' ' + (senderCached.last_name || '')).trim() || senderName;
+        }
+        if (typeof window.showMessageNotification === 'function') {
+          window.showMessageNotification(senderName, 'dm');
+        }
+
         // Optionnel: si on ne connaît pas l'expéditeur en cache, tenter de le fetch (pour affichage nom/entité ailleurs si besoin)
         const cache = getContactCache();
         if (!cache[String(row.sender_profile_id)]) {
