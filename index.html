@@ -236,6 +236,15 @@
                         <i data-lucide="upload" style="width:16px; height:16px;"></i>
                         Importer Excel
                     </button>
+                    <!-- Bouton suppression en masse — visible uniquement pour Institut Alsatia -->
+                    <button 
+                        id="btn-delete-all-donors"
+                        onclick="window.showDeleteAllDonorsModal()" 
+                        class="btn-outline"
+                        style="display:none; align-items:center; gap:8px; color:#ef4444; border-color:#ef4444;">
+                        <i data-lucide="trash-2" style="width:16px; height:16px;"></i>
+                        Supprimer tout
+                    </button>
                     <button onclick="window.showExportFiltersModal()" class="btn-outline"><i data-lucide="download"></i> Export Excel</button>
                     <button onclick="window.showAddDonorModal()" class="btn-gold"><i data-lucide="user-plus"></i> Nouveau</button>
                 </div>
