@@ -141,7 +141,100 @@
                 <h1 style="font-size: 2.5rem; font-weight: 800; letter-spacing: -1px; margin-bottom:10px; text-align:center;">
                     Bienvenue, <span id="welcome-full-name">...</span>
                 </h1>
-                <p id="welcome-portal-label" style="opacity: 0.7; font-size: 1.1rem; text-align:center; margin-bottom:20px;"></p>
+                <p id="welcome-portal-label" style="opacity: 0.7; font-size: 1.1rem; text-align:center; margin-bottom:30px;"></p>
+
+                <!-- ── BLOC CITATIONS ── -->
+                <div id="quote-card" style="
+                    position: relative;
+                    max-width: 680px;
+                    margin: 0 auto;
+                    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+                    border-radius: 20px;
+                    padding: 36px 40px 30px 40px;
+                    box-shadow: 0 20px 50px rgba(0,0,0,0.25);
+                    overflow: hidden;
+                ">
+                    <!-- Guillemet décoratif -->
+                    <div style="
+                        position: absolute; top: 16px; left: 24px;
+                        font-size: 6rem; line-height: 1;
+                        color: rgba(197,160,89,0.15);
+                        font-family: Georgia, serif;
+                        font-weight: 900;
+                        pointer-events: none;
+                        user-select: none;
+                    ">"</div>
+
+                    <!-- Ligne dorée en haut -->
+                    <div style="
+                        position: absolute; top: 0; left: 0; right: 0; height: 4px;
+                        background: linear-gradient(90deg, #c5a059, #d4a574, #c5a059);
+                    "></div>
+
+                    <!-- Texte de la citation -->
+                    <div id="quote-text" style="
+                        font-size: 1.05rem;
+                        font-weight: 600;
+                        color: rgba(255,255,255,0.92);
+                        line-height: 1.7;
+                        font-style: italic;
+                        text-align: center;
+                        min-height: 60px;
+                        transition: opacity 0.4s ease, transform 0.4s ease;
+                        padding: 0 10px;
+                    "></div>
+
+                    <!-- Auteur -->
+                    <div id="quote-author" style="
+                        margin-top: 18px;
+                        font-size: 0.78rem;
+                        font-weight: 800;
+                        color: #c5a059;
+                        text-transform: uppercase;
+                        letter-spacing: 2px;
+                        text-align: center;
+                        transition: opacity 0.4s ease;
+                    "></div>
+
+                    <!-- Navigation -->
+                    <div style="
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 20px;
+                        margin-top: 24px;
+                        padding-top: 20px;
+                        border-top: 1px solid rgba(197,160,89,0.2);
+                    ">
+                        <button onclick="window.prevQuote()" style="
+                            background: rgba(197,160,89,0.12);
+                            border: 1.5px solid rgba(197,160,89,0.3);
+                            color: #c5a059; width: 38px; height: 38px;
+                            border-radius: 50%; cursor: pointer;
+                            display: flex; align-items: center; justify-content: center;
+                            transition: all 0.2s; font-size: 1rem;
+                        " onmouseover="this.style.background='rgba(197,160,89,0.25)'"
+                           onmouseout="this.style.background='rgba(197,160,89,0.12)'">
+                            ←
+                        </button>
+
+                        <!-- Indicateur points -->
+                        <div id="quote-dots" style="display:flex; gap:6px; align-items:center;"></div>
+
+                        <button onclick="window.nextQuote()" style="
+                            background: rgba(197,160,89,0.12);
+                            border: 1.5px solid rgba(197,160,89,0.3);
+                            color: #c5a059; width: 38px; height: 38px;
+                            border-radius: 50%; cursor: pointer;
+                            display: flex; align-items: center; justify-content: center;
+                            transition: all 0.2s; font-size: 1rem;
+                        " onmouseover="this.style.background='rgba(197,160,89,0.25)'"
+                           onmouseout="this.style.background='rgba(197,160,89,0.12)'">
+                            →
+                        </button>
+                    </div>
+                </div>
+                <!-- ── FIN CITATIONS ── -->
             </div>
         </section>
 
@@ -393,5 +486,160 @@
 
     <script src="app.js"></script>
     <script src="dm.js"></script>
+
+<script>
+// ════════════════════════════════════════════════════════
+// MODULE CITATIONS — Accueil Alsatia
+// ════════════════════════════════════════════════════════
+const ALSATIA_QUOTES = [
+    { text: "Prêchez toujours l'Évangile et, si nécessaire, utilisez des paroles.", author: "Saint François d'Assise" },
+    { text: "L'éducation est une chose du cœur.", author: "Saint Jean Bosco" },
+    { text: "Enseignez par votre vie, sinon vos paroles ne seront que des bruits inutiles.", author: "Saint Augustin" },
+    { text: "Sans affection, il n'y a pas de confiance, et sans confiance, il n'y a pas d'éducation.", author: "Saint Jean Bosco" },
+    { text: "Toute éducation doit être une éducation pour l'éternité.", author: "Sainte Édith Stein" },
+    { text: "Mieux vaut transmettre aux autres les vérités contemplées que de contempler seulement.", author: "Saint Thomas d'Aquin" },
+    { text: "Vous devez avoir pour vos élèves la tendresse d'une mère et la vigilance d'un père.", author: "Saint Jean-Baptiste de La Salle" },
+    { text: "L'éducation consiste en ce que l'homme devienne toujours plus homme.", author: "Saint Jean-Paul II" },
+    { text: "On prend plus de mouches avec une cuillerée de miel qu'avec vingt barils de vinaigre.", author: "Saint François de Sales" },
+    { text: "Cherchez à gagner les cœurs plutôt qu'à contraindre.", author: "Sainte Angèle Merici" },
+    { text: "Nous devons essayer de toucher les cœurs avant d'essayer de remplir les têtes.", author: "Saint Vincent de Paul" },
+    { text: "La famille est la première et fondamentale école de socialité.", author: "Saint Jean-Paul II" },
+    { text: "Savoir pour édifier : c'est de la charité.", author: "Saint Bernard de Clairvaux" },
+    { text: "Soyez bons si vous le pouvez, mais ne soyez jamais tristes.", author: "Saint Philippe Néri" },
+    { text: "Transmettez ce que vous avez reçu, tel que vous l'avez reçu.", author: "Saint Polycarpe" },
+    { text: "Les parents sont les premiers et les principaux éducateurs de leurs enfants.", author: "Saint Josemaría Escrivá" },
+    { text: "Je ne suis pas chargée de vous le faire croire, je suis chargée de vous le dire.", author: "Sainte Bernadette Soubirous" },
+    { text: "L'enseignant doit savoir extraire ce qu'il y a de bon dans chaque enseignement.", author: "Saint Basile le Grand" },
+    { text: "Ne cherchez pas les choses grandioses, faites de petites choses avec un grand amour.", author: "Sainte Mère Teresa" },
+    { text: "L'exemple est plus puissant que les paroles.", author: "Saint Étienne de Hongrie" },
+    { text: "L'éducation est le moteur de l'histoire.", author: "Saint Jean-Paul II" },
+    { text: "Ne formez pas seulement des esprits, formez des caractères.", author: "Saint Jean-Baptiste de La Salle" },
+    { text: "Un maître ne doit pas seulement enseigner, il doit inspirer.", author: "Saint Jean Bosco" },
+    { text: "La patience est le meilleur des enseignements.", author: "Saint François de Sales" },
+    { text: "La vérité ne s'impose que par la force de la vérité elle-même.", author: "Saint Jean-Paul II" },
+    { text: "On ne peut pas enseigner ce que l'on n'aime pas.", author: "Sainte Édith Stein" },
+    { text: "L'amour est le premier acte de transmission.", author: "Saint Augustin" },
+    { text: "Éduquer, c'est aider l'autre à découvrir sa propre dignité.", author: "Sainte Thérèse d'Avila" },
+    { text: "Que votre exemple soit votre premier sermon.", author: "Saint Antoine de Padoue" },
+    { text: "La parole convainc, mais l'exemple entraîne.", author: "Saint Bernard de Clairvaux" },
+    { text: "Celui qui enseigne doit se faire petit avec les petits.", author: "Saint Jean Bosco" },
+    { text: "On n'apprend bien que ce que l'on apprend avec joie.", author: "Saint Thomas d'Aquin" },
+    { text: "Le secret de l'éducation est de respecter l'élève.", author: "Saint Jean Bosco" },
+    { text: "Soyez des modèles que vos enfants peuvent regarder sans rougir.", author: "Saint Jean Chrysostome" },
+    { text: "Rien n'est plus doux que de donner ce que l'on a reçu.", author: "Saint Ignace d'Antioche" },
+    { text: "Il faut plus de patience pour enseigner que pour gouverner.", author: "Saint Philippe Néri" },
+    { text: "L'âme se nourrit de ce qui la réjouit.", author: "Saint Augustin" },
+    { text: "L'éducation est un acte d'espérance.", author: "Saint Jean-Paul II" },
+    { text: "Que votre vie soit une Bible ouverte pour ceux qui ne savent pas lire.", author: "Saint François d'Assise" },
+    { text: "On n'enseigne pas avec l'épée, mais avec la croix.", author: "Saint Boniface" },
+    { text: "La douceur est le chemin le plus court vers l'esprit de l'enfant.", author: "Saint François de Sales" },
+    { text: "La sagesse ne se transmet pas, elle s'éveille.", author: "Saint Grégoire le Grand" },
+    { text: "L'autorité sans amour n'est que tyrannie.", author: "Saint Jean-Baptiste de La Salle" },
+    { text: "Celui qui veut être écouté doit d'abord savoir écouter.", author: "Saint Benoît" },
+    { text: "L'éducation est la clef de la liberté.", author: "Sainte Catherine de Sienne" },
+    { text: "Ne vous lassez jamais de recommencer chaque jour l'œuvre d'éducation.", author: "Saint Jean Bosco" },
+    { text: "La foi se transmet par contagion.", author: "Saint François d'Assise" },
+    { text: "L'intelligence est une lumière qui doit guider le cœur.", author: "Saint Thomas d'Aquin" },
+    { text: "Pour éduquer un enfant, il faut l'aimer.", author: "Saint Marcellin Champagnat" },
+    { text: "La transmission est le pont entre hier et demain.", author: "Saint Jean-Paul II" },
+];
+
+// Mélange Fisher-Yates pour ordre aléatoire à chaque session
+(function shuffleQuotes() {
+    for (let i = ALSATIA_QUOTES.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [ALSATIA_QUOTES[i], ALSATIA_QUOTES[j]] = [ALSATIA_QUOTES[j], ALSATIA_QUOTES[i]];
+    }
+})();
+
+let _quoteIdx = 0;
+let _quoteAnimating = false;
+const DOTS_VISIBLE = 7; // nombre de points affichés
+
+function _renderQuoteDots() {
+    const el = document.getElementById('quote-dots');
+    if (!el) return;
+    const total = ALSATIA_QUOTES.length;
+    // Afficher DOTS_VISIBLE points autour de l'index courant
+    const half = Math.floor(DOTS_VISIBLE / 2);
+    let start = Math.max(0, _quoteIdx - half);
+    let end   = Math.min(total - 1, start + DOTS_VISIBLE - 1);
+    if (end - start < DOTS_VISIBLE - 1) start = Math.max(0, end - DOTS_VISIBLE + 1);
+    let html = '';
+    for (let i = start; i <= end; i++) {
+        const active = i === _quoteIdx;
+        html += `<div style="
+            width: ${active ? '20px' : '6px'};
+            height: 6px;
+            border-radius: 3px;
+            background: ${active ? '#c5a059' : 'rgba(197,160,89,0.3)'};
+            transition: all 0.3s ease;
+            cursor: pointer;
+        " onclick="window.goToQuote(${i})"></div>`;
+    }
+    el.innerHTML = html;
+}
+
+function _showQuote(idx, direction) {
+    if (_quoteAnimating) return;
+    _quoteAnimating = true;
+    _quoteIdx = ((idx % ALSATIA_QUOTES.length) + ALSATIA_QUOTES.length) % ALSATIA_QUOTES.length;
+
+    const textEl   = document.getElementById('quote-text');
+    const authorEl = document.getElementById('quote-author');
+    if (!textEl || !authorEl) { _quoteAnimating = false; return; }
+
+    const slideOut = direction >= 0 ? '-20px' : '20px';
+    const slideIn  = direction >= 0 ? '20px'  : '-20px';
+
+    // Sortie
+    textEl.style.opacity   = '0';
+    textEl.style.transform = `translateX(${slideOut})`;
+    authorEl.style.opacity = '0';
+
+    setTimeout(() => {
+        const q = ALSATIA_QUOTES[_quoteIdx];
+        textEl.innerHTML   = `« ${q.text} »`;
+        authorEl.textContent = `— ${q.author}`;
+
+        textEl.style.transform = `translateX(${slideIn})`;
+        // Force reflow
+        void textEl.offsetHeight;
+
+        textEl.style.transition   = 'opacity 0.35s ease, transform 0.35s ease';
+        authorEl.style.transition = 'opacity 0.35s ease';
+        textEl.style.opacity      = '1';
+        textEl.style.transform    = 'translateX(0)';
+        authorEl.style.opacity    = '1';
+
+        _renderQuoteDots();
+        _quoteAnimating = false;
+    }, 320);
+}
+
+window.nextQuote = () => _showQuote(_quoteIdx + 1, 1);
+window.prevQuote = () => _showQuote(_quoteIdx - 1, -1);
+window.goToQuote = (i) => _showQuote(i, i > _quoteIdx ? 1 : -1);
+
+// Initialisation : lancée depuis initInterface() après chargement
+window.initQuotes = () => {
+    _quoteIdx = 0;
+    const textEl   = document.getElementById('quote-text');
+    const authorEl = document.getElementById('quote-author');
+    if (!textEl || !authorEl) return;
+    const q = ALSATIA_QUOTES[0];
+    textEl.innerHTML    = `« ${q.text} »`;
+    authorEl.textContent = `— ${q.author}`;
+    textEl.style.opacity = '1';
+    textEl.style.transform = 'translateX(0)';
+    authorEl.style.opacity = '1';
+    _renderQuoteDots();
+
+    // Rotation automatique toutes les 12 secondes
+    if (window._quoteTimer) clearInterval(window._quoteTimer);
+    window._quoteTimer = setInterval(() => window.nextQuote(), 12000);
+};
+</script>
+
 </body>
 </html>
