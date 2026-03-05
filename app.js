@@ -363,6 +363,9 @@ function initInterface() {
     // Charger les statistiques
     loadHomeStats();
 
+    // Initialiser le carrousel de citations
+    setTimeout(() => { if (window.initQuotes) window.initQuotes(); }, 100);
+
     if(window.lucide) lucide.createIcons();
 }
 
