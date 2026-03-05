@@ -122,6 +122,7 @@
             <li id="nav-donors" onclick="switchTab('donors')"><i data-lucide="users"></i> Base Donateurs</li>
             <li id="nav-contacts" onclick="switchTab('contacts')"><i data-lucide="contact"></i> Contacts</li>
             <li id="nav-chat" onclick="switchTab('chat')"><i data-lucide="message-square"></i> Discussion</li>
+            <li id="nav-campaigns" onclick="switchTab('campaigns')"><i data-lucide="megaphone"></i> Campagnes</li>
             <li id="nav-events" onclick="switchTab('events')"><i data-lucide="calendar"></i> Événements</li>
             <li id="nav-account" onclick="switchTab('account')"><i data-lucide="user-circle"></i> Mon Compte</li>
         </ul>
@@ -267,6 +268,18 @@
                     <tbody id="donors-list"></tbody>
                 </table>
             </div>
+        </section>
+
+        <section id="tab-campaigns" class="page-content">
+            <div class="header-tab">
+                <h1>Campagnes</h1>
+                <div style="display:flex;gap:10px;">
+                    <button id="btn-new-campaign" onclick="window.showCreateCampaignModal()" class="btn-gold" style="display:none;">
+                        <i data-lucide="plus"></i> Nouvelle campagne
+                    </button>
+                </div>
+            </div>
+            <div id="campaigns-container"></div>
         </section>
 
         <section id="tab-account" class="page-content">
