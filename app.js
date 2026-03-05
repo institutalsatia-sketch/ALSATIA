@@ -346,6 +346,13 @@ function initInterface() {
         navDonors.style.display = (portal === "Institut Alsatia") ? "flex" : "none";
     }
 
+    // Onglet Campagnes (Institut Alsatia uniquement)
+    const navCampaigns = document.getElementById('nav-campaigns');
+    if (navCampaigns) navCampaigns.style.display = (portal === 'Institut Alsatia') ? 'flex' : 'none';
+
+    const btnNewCampaign = document.getElementById('btn-new-campaign');
+    if (btnNewCampaign) btnNewCampaign.style.display = (portal === 'Institut Alsatia') ? 'inline-flex' : 'none';
+
     // Boutons réservés à Institut Alsatia
     const btnImport = document.getElementById('btn-import-donors');
     if (btnImport) btnImport.style.display = (portal === 'Institut Alsatia') ? 'inline-flex' : 'none';
@@ -395,6 +402,7 @@ window.switchTab = (tabId) => {
 
     // 2. CHARGEMENT DES DONNÉES SPÉCIFIQUES
     if (tabId === 'donors') window.loadDonors();
+    if (tabId === 'campaigns') window.loadCampaigns();
     if (tabId === 'events') loadEvents();
     // Activation de la Messagerie
     if (tabId === 'chat') {
@@ -4141,3 +4149,872 @@ document.addEventListener('DOMContentLoaded', () => {
     applyAccessPermissions();
     lucide.createIcons();
 });
+
+// ============================================================
+// MODULE CAMPAGNES — CRM Institut Alsatia
+// ============================================================
+
+const CAMPAIGN_TYPES   = ['Email', 'Courrier postal', 'Appel téléphonique', 'Événement', 'SMS', 'Mixte'];
+const CAMPAIGN_STATUTS = ['Brouillon', 'Active', 'Terminée', 'Archivée'];
+const RECIPIENT_STATUTS = ['Planifié', 'Envoyé', 'Répondu', 'Refusé', 'Sans réponse'];
+const ALL_ENTITIES = [
+    'Institut Alsatia',
+    'Cours Herrade de Landsberg',
+    'Collège Saints Louis et Zélie Martin',
+    'Academia Alsatia'
+];
+
+const STATUT_COLORS = {
+    'Brouillon'    : { bg: '#f1f5f9', color: '#64748b', border: '#cbd5e1' },
+    'Active'       : { bg: '#f0fdf4', color: '#16a34a', border: '#86efac' },
+    'Terminée'     : { bg: '#eff6ff', color: '#1d4ed8', border: '#93c5fd' },
+    'Archivée'     : { bg: '#fafafa', color: '#a3a3a3', border: '#d4d4d4' },
+};
+const RECIPIENT_COLORS = {
+    'Planifié'      : { bg: '#f8fafc', color: '#64748b' },
+    'Envoyé'        : { bg: '#eff6ff', color: '#1d4ed8' },
+    'Répondu'       : { bg: '#f0fdf4', color: '#16a34a' },
+    'Refusé'        : { bg: '#fef2f2', color: '#dc2626' },
+    'Sans réponse'  : { bg: '#fefce8', color: '#ca8a04' },
+};
+const TYPE_ICONS = {
+    'Email'              : 'mail',
+    'Courrier postal'    : 'letter-text',
+    'Appel téléphonique' : 'phone',
+    'Événement'          : 'calendar',
+    'SMS'                : 'message-square',
+    'Mixte'              : 'layers',
+};
+
+// ── CHARGEMENT DE L'ONGLET ─────────────────────────────────
+window.loadCampaigns = async () => {
+    if (currentUser.portal !== 'Institut Alsatia') {
+        const container = document.getElementById('campaigns-container');
+        if (container) container.innerHTML = '<div style="text-align:center;padding:60px;color:#94a3b8;">Accès réservé à Institut Alsatia.</div>';
+        return;
+    }
+    const container = document.getElementById('campaigns-container');
+    if (!container) return;
+    container.innerHTML = `<div style="text-align:center;padding:40px;color:#94a3b8;"><i data-lucide="loader" style="animation:spin 1s linear infinite;width:28px;height:28px;"></i><p style="margin-top:12px;">Chargement des campagnes...</p></div>`;
+    if (window.lucide) lucide.createIcons();
+
+    const { data: campaigns, error } = await supabaseClient
+        .from('campaigns')
+        .select('*, campaign_recipients(id, status, donation_id)')
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        container.innerHTML = `<div style="text-align:center;padding:40px;color:#ef4444;">Erreur de chargement.</div>`;
+        return;
+    }
+
+    if (!campaigns || campaigns.length === 0) {
+        container.innerHTML = `
+            <div style="text-align:center;padding:60px 20px;">
+                <i data-lucide="megaphone" style="width:48px;height:48px;color:#cbd5e1;margin-bottom:16px;"></i>
+                <p style="color:#94a3b8;font-size:1rem;margin-bottom:20px;">Aucune campagne pour le moment.</p>
+                <button onclick="window.showCreateCampaignModal()" class="btn-gold">
+                    <i data-lucide="plus" style="width:16px;height:16px;vertical-align:middle;margin-right:6px;"></i>
+                    Créer la première campagne
+                </button>
+            </div>`;
+        if (window.lucide) lucide.createIcons();
+        return;
+    }
+
+    container.innerHTML = campaigns.map(c => {
+        const total     = c.campaign_recipients?.length || 0;
+        const sent      = c.campaign_recipients?.filter(r => ['Envoyé','Répondu','Sans réponse'].includes(r.status)).length || 0;
+        const responded = c.campaign_recipients?.filter(r => r.status === 'Répondu').length || 0;
+        const rate      = sent > 0 ? Math.round((responded / sent) * 100) : 0;
+        const sc        = STATUT_COLORS[c.status] || STATUT_COLORS['Brouillon'];
+        const icon      = TYPE_ICONS[c.type] || 'megaphone';
+
+        return `
+        <div class="campaign-card" onclick="window.openCampaign('${c.id}')" style="background:white;border:1.5px solid #e2e8f0;border-radius:16px;padding:20px 24px;margin-bottom:14px;cursor:pointer;transition:all 0.2s;box-shadow:0 2px 8px rgba(0,0,0,0.04);"
+            onmouseover="this.style.boxShadow='0 6px 20px rgba(0,0,0,0.1)';this.style.borderColor='var(--gold)'"
+            onmouseout="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.04)';this.style.borderColor='#e2e8f0'">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+                <div style="display:flex;align-items:center;gap:14px;flex:1;min-width:0;">
+                    <div style="width:44px;height:44px;border-radius:12px;background:rgba(197,160,89,0.1);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        <i data-lucide="${icon}" style="width:20px;height:20px;color:var(--gold);"></i>
+                    </div>
+                    <div style="min-width:0;">
+                        <h3 style="font-size:1rem;font-weight:800;color:var(--primary);margin:0 0 4px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${c.name}</h3>
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                            <span style="font-size:0.72rem;color:#64748b;">${c.type || '—'}</span>
+                            ${(c.target_entities||[]).map(e => `<span style="background:rgba(197,160,89,0.12);color:var(--primary);padding:1px 7px;border-radius:5px;font-size:0.68rem;font-weight:700;">${e.split(' ')[0]}</span>`).join('')}
+                        </div>
+                    </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+                    <span style="background:${sc.bg};color:${sc.color};border:1px solid ${sc.border};padding:4px 12px;border-radius:20px;font-size:0.72rem;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;">${c.status}</span>
+                    <i data-lucide="chevron-right" style="width:18px;height:18px;color:#94a3b8;"></i>
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid #f1f5f9;">
+                <div style="text-align:center;">
+                    <div style="font-size:1.3rem;font-weight:900;color:var(--primary);">${total}</div>
+                    <div style="font-size:0.65rem;color:#94a3b8;text-transform:uppercase;font-weight:600;">Destinataires</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:1.3rem;font-weight:900;color:#1d4ed8;">${sent}</div>
+                    <div style="font-size:0.65rem;color:#94a3b8;text-transform:uppercase;font-weight:600;">Envoyés</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:1.3rem;font-weight:900;color:#16a34a;">${responded}</div>
+                    <div style="font-size:0.65rem;color:#94a3b8;text-transform:uppercase;font-weight:600;">Réponses</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:1.3rem;font-weight:900;color:${rate>=20?'#16a34a':rate>=10?'#ca8a04':'#ef4444'};">${rate}%</div>
+                    <div style="font-size:0.65rem;color:#94a3b8;text-transform:uppercase;font-weight:600;">Taux réponse</div>
+                </div>
+            </div>
+            ${c.goal_amount ? `
+            <div style="margin-top:12px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+                    <span style="font-size:0.72rem;color:#64748b;font-weight:600;">Objectif : ${Number(c.goal_amount).toLocaleString('fr-FR')} €</span>
+                </div>
+            </div>` : ''}
+            ${c.start_date || c.end_date ? `
+            <div style="margin-top:8px;font-size:0.72rem;color:#94a3b8;">
+                <i data-lucide="calendar" style="width:12px;height:12px;vertical-align:middle;margin-right:4px;"></i>
+                ${c.start_date ? new Date(c.start_date).toLocaleDateString('fr-FR') : '—'} → ${c.end_date ? new Date(c.end_date).toLocaleDateString('fr-FR') : '—'}
+            </div>` : ''}
+        </div>`;
+    }).join('');
+
+    if (window.lucide) lucide.createIcons();
+};
+
+// ── CRÉATION D'UNE CAMPAGNE ────────────────────────────────
+window.showCreateCampaignModal = (editData = null) => {
+    if (currentUser.portal !== 'Institut Alsatia') {
+        window.showNotice("Accès refusé", "Réservé à Institut Alsatia.", "error");
+        return;
+    }
+    const isEdit = !!editData;
+    const d = editData || {};
+    const currentYear = new Date().getFullYear();
+
+    showCustomModal(`
+        <div class="modal-header-luxe">
+            <h3 class="luxe-title">
+                <i data-lucide="${isEdit ? 'edit' : 'megaphone'}" style="width:20px;height:20px;vertical-align:middle;margin-right:8px;color:var(--gold);"></i>
+                ${isEdit ? 'MODIFIER LA CAMPAGNE' : 'NOUVELLE CAMPAGNE'}
+            </h3>
+            <button onclick="closeCustomModal()" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-scroll-body">
+
+            <p class="mini-label">NOM DE LA CAMPAGNE *</p>
+            <input type="text" id="camp-name" class="luxe-input" placeholder="Ex: Appel aux dons Gala 2025" value="${d.name||''}" style="margin-bottom:14px;">
+
+            <p class="mini-label">DESCRIPTION</p>
+            <textarea id="camp-desc" class="luxe-input" placeholder="Objet, contexte, message principal..." style="height:80px;margin-bottom:14px;">${d.description||''}</textarea>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+                <div>
+                    <p class="mini-label">TYPE *</p>
+                    <select id="camp-type" class="luxe-input">
+                        ${CAMPAIGN_TYPES.map(t => `<option ${d.type===t?'selected':''}>${t}</option>`).join('')}
+                    </select>
+                </div>
+                <div>
+                    <p class="mini-label">STATUT</p>
+                    <select id="camp-status" class="luxe-input">
+                        ${CAMPAIGN_STATUTS.map(s => `<option ${d.status===s?'selected':''}>${s}</option>`).join('')}
+                    </select>
+                </div>
+            </div>
+
+            <p class="mini-label">ENTITÉS CIBLÉES</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+                ${ALL_ENTITIES.map(e => `
+                    <label style="display:flex;align-items:center;gap:8px;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:8px;cursor:pointer;font-size:0.82rem;font-weight:600;transition:all 0.15s;"
+                        onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='#e2e8f0'">
+                        <input type="checkbox" name="camp-entity" value="${e}" ${(d.target_entities||[]).includes(e)?'checked':''} style="accent-color:var(--gold);width:15px;height:15px;">
+                        ${e.split(' ').slice(0,2).join(' ')}
+                    </label>`).join('')}
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px;">
+                <div>
+                    <p class="mini-label">DATE DÉBUT</p>
+                    <input type="date" id="camp-start" class="luxe-input" value="${d.start_date||''}">
+                </div>
+                <div>
+                    <p class="mini-label">DATE FIN</p>
+                    <input type="date" id="camp-end" class="luxe-input" value="${d.end_date||''}">
+                </div>
+                <div>
+                    <p class="mini-label">OBJECTIF (€)</p>
+                    <input type="number" id="camp-goal" class="luxe-input" placeholder="0" min="0" value="${d.goal_amount||''}">
+                </div>
+            </div>
+
+            <button onclick="window.saveCampaign(${isEdit ? `'${d.id}'` : 'null'})" class="btn-gold-fill" style="width:100%;height:50px;font-size:1rem;letter-spacing:1px;">
+                <i data-lucide="${isEdit ? 'save' : 'plus-circle'}" style="width:18px;height:18px;vertical-align:middle;margin-right:8px;"></i>
+                ${isEdit ? 'ENREGISTRER' : 'CRÉER LA CAMPAGNE'}
+            </button>
+        </div>
+    `);
+    if (window.lucide) lucide.createIcons();
+};
+
+window.saveCampaign = async (id) => {
+    const name = document.getElementById('camp-name').value.trim();
+    if (!name) return window.showNotice("Erreur", "Le nom est obligatoire.", "error");
+
+    const entities = [...document.querySelectorAll('input[name="camp-entity"]:checked')].map(c => c.value);
+    if (!entities.length) return window.showNotice("Erreur", "Sélectionnez au moins une entité.", "error");
+
+    const payload = {
+        name,
+        description : document.getElementById('camp-desc').value.trim() || null,
+        type        : document.getElementById('camp-type').value,
+        status      : document.getElementById('camp-status').value,
+        target_entities: entities,
+        start_date  : document.getElementById('camp-start').value || null,
+        end_date    : document.getElementById('camp-end').value || null,
+        goal_amount : parseFloat(document.getElementById('camp-goal').value) || null,
+        created_by  : `${currentUser.first_name} ${currentUser.last_name}`
+    };
+
+    const { error } = id
+        ? await supabaseClient.from('campaigns').update(payload).eq('id', id)
+        : await supabaseClient.from('campaigns').insert([payload]);
+
+    if (error) return window.showNotice("Erreur", error.message, "error");
+
+    window.showNotice("Succès ✅", id ? "Campagne mise à jour." : "Campagne créée.", "success");
+    closeCustomModal();
+    window.loadCampaigns();
+};
+
+// ── FICHE CAMPAGNE ─────────────────────────────────────────
+window.openCampaign = async (campaignId) => {
+    const [{ data: campaign, error: ce }, { data: recipients, error: re }] = await Promise.all([
+        supabaseClient.from('campaigns').select('*').eq('id', campaignId).single(),
+        supabaseClient.from('campaign_recipients')
+            .select('*, donors(id,last_name,first_name,company_name,email,phone,address,zip_code,city,entity), donations(amount,date)')
+            .eq('campaign_id', campaignId)
+            .order('created_at', { ascending: false })
+    ]);
+    if (ce || re) return window.showNotice("Erreur", "Impossible de charger la campagne.", "error");
+
+    const sc       = STATUT_COLORS[campaign.status] || STATUT_COLORS['Brouillon'];
+    const total    = recipients.length;
+    const planned  = recipients.filter(r => r.status === 'Planifié').length;
+    const sent     = recipients.filter(r => ['Envoyé','Répondu','Sans réponse'].includes(r.status)).length;
+    const responded= recipients.filter(r => r.status === 'Répondu').length;
+    const refused  = recipients.filter(r => r.status === 'Refusé').length;
+    const noAnswer = recipients.filter(r => r.status === 'Sans réponse').length;
+    const totalRaised = recipients
+        .filter(r => r.donations)
+        .reduce((sum, r) => sum + parseFloat(r.donations?.amount || 0), 0);
+    const avgDon   = responded > 0 ? (totalRaised / responded) : 0;
+    const rate     = sent > 0 ? Math.round((responded / sent) * 100) : 0;
+    const goalPct  = campaign.goal_amount ? Math.min(100, Math.round((totalRaised / campaign.goal_amount) * 100)) : null;
+    const remaining= campaign.goal_amount ? Math.max(0, campaign.goal_amount - totalRaised) : null;
+
+    // Calcul jours restants
+    let daysInfo = '';
+    if (campaign.end_date) {
+        const diff = Math.ceil((new Date(campaign.end_date) - new Date()) / 86400000);
+        daysInfo = diff > 0
+            ? `<span style="background:#fef3c7;color:#92400e;padding:3px 10px;border-radius:12px;font-size:0.72rem;font-weight:700;">⏳ ${diff} jour${diff>1?'s':''} restant${diff>1?'s':''}</span>`
+            : `<span style="background:#fef2f2;color:#dc2626;padding:3px 10px;border-radius:12px;font-size:0.72rem;font-weight:700;">⛔ Terminée depuis ${Math.abs(diff)} j</span>`;
+    }
+
+    showCustomModal(`
+        <div class="modal-header-luxe">
+            <h3 class="luxe-title" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                <i data-lucide="${TYPE_ICONS[campaign.type]||'megaphone'}" style="width:20px;height:20px;vertical-align:middle;margin-right:8px;color:var(--gold);"></i>
+                ${campaign.name}
+            </h3>
+            <button onclick="closeCustomModal()" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-scroll-body">
+
+            <!-- Barre actions -->
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px;flex-wrap:wrap;">
+                <span style="background:${sc.bg};color:${sc.color};border:1px solid ${sc.border};padding:4px 12px;border-radius:20px;font-size:0.72rem;font-weight:800;text-transform:uppercase;">${campaign.status}</span>
+                <span style="font-size:0.78rem;color:#64748b;font-weight:600;">${campaign.type}</span>
+                ${daysInfo}
+                <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;">
+                    <button onclick="window.showCreateCampaignModal(${JSON.stringify(campaign).replace(/"/g,'&quot;')})" class="btn-outline" style="padding:5px 10px;font-size:0.72rem;">
+                        <i data-lucide="edit" style="width:13px;height:13px;vertical-align:middle;margin-right:3px;"></i>Modifier
+                    </button>
+                    <button onclick="window.showAddRecipientsModal('${campaignId}')" class="btn-gold" style="padding:5px 10px;font-size:0.72rem;">
+                        <i data-lucide="user-plus" style="width:13px;height:13px;vertical-align:middle;margin-right:3px;"></i>Contacts
+                    </button>
+                    <button onclick="window.showExportCampaignModal('${campaignId}')" class="btn-outline" style="padding:5px 10px;font-size:0.72rem;">
+                        <i data-lucide="download" style="width:13px;height:13px;vertical-align:middle;margin-right:3px;"></i>Export
+                    </button>
+                    <button onclick="window.deleteCampaign('${campaignId}')" style="padding:5px 8px;border:1.5px solid #ef4444;color:#ef4444;background:white;border-radius:8px;cursor:pointer;font-size:0.72rem;">
+                        <i data-lucide="trash-2" style="width:13px;height:13px;vertical-align:middle;"></i>
+                    </button>
+                </div>
+            </div>
+
+            ${campaign.description ? `<p style="font-size:0.83rem;color:#64748b;margin-bottom:16px;padding:10px 14px;background:#f8fafc;border-radius:8px;border-left:3px solid var(--gold);">${campaign.description}</p>` : ''}
+
+            <!-- TABLEAU DE BORD ─────────────────────────────── -->
+
+            <!-- Ligne 1 : KPIs principaux -->
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px;">
+                <div style="background:linear-gradient(135deg,#1e3a5f,#0f2744);border-radius:12px;padding:14px;text-align:center;">
+                    <div style="font-size:2rem;font-weight:900;color:white;">${total}</div>
+                    <div style="font-size:0.65rem;color:rgba(255,255,255,0.7);text-transform:uppercase;font-weight:700;margin-top:2px;">Destinataires</div>
+                </div>
+                <div style="background:linear-gradient(135deg,#1d4ed8,#1e40af);border-radius:12px;padding:14px;text-align:center;">
+                    <div style="font-size:2rem;font-weight:900;color:white;">${sent}</div>
+                    <div style="font-size:0.65rem;color:rgba(255,255,255,0.7);text-transform:uppercase;font-weight:700;margin-top:2px;">Envoyés</div>
+                </div>
+                <div style="background:linear-gradient(135deg,#16a34a,#15803d);border-radius:12px;padding:14px;text-align:center;">
+                    <div style="font-size:2rem;font-weight:900;color:white;">${responded}</div>
+                    <div style="font-size:0.65rem;color:rgba(255,255,255,0.7);text-transform:uppercase;font-weight:700;margin-top:2px;">Réponses</div>
+                </div>
+            </div>
+
+            <!-- Ligne 2 : Stats secondaires -->
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;">
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px;text-align:center;">
+                    <div style="font-size:1.4rem;font-weight:900;color:${rate>=20?'#16a34a':rate>=10?'#ca8a04':'#94a3b8'};">${rate}%</div>
+                    <div style="font-size:0.62rem;color:#94a3b8;text-transform:uppercase;font-weight:600;">Taux réponse</div>
+                </div>
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px;text-align:center;">
+                    <div style="font-size:1.4rem;font-weight:900;color:#ca8a04;">${noAnswer}</div>
+                    <div style="font-size:0.62rem;color:#94a3b8;text-transform:uppercase;font-weight:600;">Sans réponse</div>
+                </div>
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px;text-align:center;">
+                    <div style="font-size:1.4rem;font-weight:900;color:#ef4444;">${refused}</div>
+                    <div style="font-size:0.62rem;color:#94a3b8;text-transform:uppercase;font-weight:600;">Refusés</div>
+                </div>
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px;text-align:center;">
+                    <div style="font-size:1.4rem;font-weight:900;color:var(--gold);">${planned}</div>
+                    <div style="font-size:0.62rem;color:#94a3b8;text-transform:uppercase;font-weight:600;">Planifiés</div>
+                </div>
+            </div>
+
+            <!-- Barre de progression envoi -->
+            ${total > 0 ? `
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin-bottom:14px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                    <span style="font-size:0.75rem;font-weight:700;color:var(--primary);">Progression des envois</span>
+                    <span style="font-size:0.75rem;color:#64748b;">${sent} / ${total} envoyés</span>
+                </div>
+                <div style="background:#e2e8f0;border-radius:20px;height:8px;overflow:hidden;">
+                    <div style="height:100%;width:${Math.round((sent/total)*100)}%;background:linear-gradient(90deg,var(--gold),#b8903f);border-radius:20px;"></div>
+                </div>
+            </div>` : ''}
+
+            <!-- Financier -->
+            <div style="display:grid;grid-template-columns:${campaign.goal_amount ? '1fr 1fr 1fr' : '1fr 1fr'};gap:10px;margin-bottom:14px;">
+                <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:12px;text-align:center;">
+                    <div style="font-size:1.2rem;font-weight:900;color:#16a34a;">${totalRaised.toLocaleString('fr-FR')} €</div>
+                    <div style="font-size:0.62rem;color:#16a34a;text-transform:uppercase;font-weight:700;">Collecté</div>
+                </div>
+                <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:12px;text-align:center;">
+                    <div style="font-size:1.2rem;font-weight:900;color:#16a34a;">${avgDon > 0 ? avgDon.toLocaleString('fr-FR', {maximumFractionDigits:0}) : '—'} ${avgDon > 0 ? '€' : ''}</div>
+                    <div style="font-size:0.62rem;color:#16a34a;text-transform:uppercase;font-weight:700;">Don moyen</div>
+                </div>
+                ${campaign.goal_amount ? `
+                <div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:10px;padding:12px;text-align:center;">
+                    <div style="font-size:1.2rem;font-weight:900;color:#1d4ed8;">${remaining > 0 ? remaining.toLocaleString('fr-FR')+' €' : '✅ Atteint'}</div>
+                    <div style="font-size:0.62rem;color:#1d4ed8;text-transform:uppercase;font-weight:700;">Reste à collecter</div>
+                </div>` : ''}
+            </div>
+
+            ${campaign.goal_amount ? `
+            <div style="margin-bottom:16px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+                    <span style="font-size:0.75rem;font-weight:700;color:var(--primary);">Objectif : ${Number(campaign.goal_amount).toLocaleString('fr-FR')} €</span>
+                    <span style="font-size:0.75rem;font-weight:900;color:${goalPct>=100?'#16a34a':'var(--gold)'};">${goalPct}%</span>
+                </div>
+                <div style="background:#e2e8f0;border-radius:20px;height:12px;overflow:hidden;">
+                    <div style="height:100%;width:${goalPct}%;background:linear-gradient(90deg,${goalPct>=100?'#22c55e,#16a34a':'var(--gold),#b8903f'});border-radius:20px;transition:width 0.8s;"></div>
+                </div>
+            </div>` : ''}
+
+            <!-- Entités ciblées + dates -->
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center;">
+                ${(campaign.target_entities||[]).map(e => `<span style="background:rgba(197,160,89,0.12);color:var(--primary);padding:3px 10px;border-radius:6px;font-size:0.72rem;font-weight:700;">${e}</span>`).join('')}
+                ${campaign.start_date || campaign.end_date ? `<span style="font-size:0.72rem;color:#94a3b8;margin-left:4px;"><i data-lucide="calendar" style="width:12px;height:12px;vertical-align:middle;margin-right:3px;"></i>${campaign.start_date ? new Date(campaign.start_date).toLocaleDateString('fr-FR') : '—'} → ${campaign.end_date ? new Date(campaign.end_date).toLocaleDateString('fr-FR') : '—'}</span>` : ''}
+            </div>
+
+            <!-- ─────────────────────────────────────────────── -->
+            <!-- Liste destinataires -->
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <p class="mini-label" style="margin:0;">DESTINATAIRES (${total})</p>
+                <div style="display:flex;gap:6px;align-items:center;">
+                    <input type="text" id="search-recip-${campaignId}" placeholder="Rechercher..." onkeyup="window.filterRecipients('${campaignId}')"
+                        style="padding:4px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.75rem;height:30px;width:130px;">
+                    <select id="filter-recip-status" class="luxe-input" style="padding:4px 8px;font-size:0.75rem;height:30px;" onchange="window.filterRecipients('${campaignId}')">
+                        <option value="ALL">Tous statuts</option>
+                        ${RECIPIENT_STATUTS.map(s => `<option>${s}</option>`).join('')}
+                    </select>
+                </div>
+            </div>
+
+            <div id="recipients-list-${campaignId}" style="max-height:300px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:10px;">
+                ${_renderRecipients(recipients, campaignId)}
+            </div>
+        </div>
+    `);
+    window._campaignRecipients = recipients;
+    window._currentCampaignId  = campaignId;
+    if (window.lucide) lucide.createIcons();
+};
+
+function _renderRecipients(recipients, campaignId) {
+    if (!recipients.length) return `<div style="text-align:center;padding:30px;color:#94a3b8;font-size:0.85rem;">Aucun destinataire — cliquez sur "Ajouter contacts"</div>`;
+    return `<table style="width:100%;border-collapse:collapse;font-size:0.78rem;">
+        <thead style="background:var(--surface);position:sticky;top:0;z-index:1;">
+            <tr>
+                <th style="padding:8px 12px;text-align:left;border-bottom:1px solid #e2e8f0;color:var(--gold);font-weight:700;">CONTACT</th>
+                <th style="padding:8px;text-align:left;border-bottom:1px solid #e2e8f0;color:var(--gold);">ENTITÉ</th>
+                <th style="padding:8px;text-align:left;border-bottom:1px solid #e2e8f0;color:var(--gold);">STATUT</th>
+                <th style="padding:8px;text-align:left;border-bottom:1px solid #e2e8f0;color:var(--gold);">DON ASSOCIÉ</th>
+                <th style="padding:8px;border-bottom:1px solid #e2e8f0;color:var(--gold);">NOTES</th>
+                <th style="padding:8px;border-bottom:1px solid #e2e8f0;"></th>
+            </tr>
+        </thead>
+        <tbody>
+        ${recipients.map(r => {
+            const d = r.donors || {};
+            const name = d.company_name || `${d.last_name||''} ${d.first_name||''}`.trim() || '—';
+            const rc = RECIPIENT_COLORS[r.status] || RECIPIENT_COLORS['Planifié'];
+            return `
+            <tr style="border-bottom:1px solid #f1f5f9;" id="recip-row-${r.id}">
+                <td style="padding:8px 12px;">
+                    <div style="font-weight:700;color:var(--primary);">${name}</div>
+                    <div style="font-size:0.7rem;color:#94a3b8;">${d.email||''}</div>
+                </td>
+                <td style="padding:8px;">
+                    <span style="background:rgba(197,160,89,0.1);color:var(--primary);padding:2px 6px;border-radius:5px;font-size:0.68rem;font-weight:700;">${(d.entity||'').split(' ')[0]}</span>
+                </td>
+                <td style="padding:8px;">
+                    <select onchange="window.updateRecipientStatus('${r.id}','${campaignId}',this.value)"
+                        style="background:${rc.bg};color:${rc.color};border:1px solid ${rc.color}33;padding:3px 6px;border-radius:6px;font-size:0.72rem;font-weight:700;cursor:pointer;">
+                        ${RECIPIENT_STATUTS.map(s => `<option ${r.status===s?'selected':''}>${s}</option>`).join('')}
+                    </select>
+                </td>
+                <td style="padding:8px;">
+                    ${r.donations ? `<span style="color:#16a34a;font-weight:700;">${Number(r.donations.amount).toLocaleString('fr-FR')} €</span><br><span style="font-size:0.68rem;color:#94a3b8;">${new Date(r.donations.date).toLocaleDateString('fr-FR')}</span>`
+                        : `<button onclick="window.linkDonationToRecipient('${r.id}','${d.id}','${campaignId}')" style="font-size:0.7rem;padding:3px 8px;border:1px dashed #94a3b8;background:white;border-radius:5px;cursor:pointer;color:#64748b;">Lier un don</button>`}
+                </td>
+                <td style="padding:8px;">
+                    <input type="text" value="${r.notes||''}" placeholder="Note..."
+                        style="width:100px;padding:3px 6px;border:1px solid #e2e8f0;border-radius:5px;font-size:0.72rem;"
+                        onblur="window.updateRecipientNotes('${r.id}',this.value)">
+                </td>
+                <td style="padding:8px;text-align:right;">
+                    <i data-lucide="trash-2" style="width:13px;height:13px;color:#ef4444;cursor:pointer;" onclick="window.removeRecipient('${r.id}','${campaignId}')"></i>
+                </td>
+            </tr>`;
+        }).join('')}
+        </tbody>
+    </table>`;
+}
+
+window.filterRecipients = (campaignId) => {
+    const filterVal = document.getElementById('filter-recip-status')?.value || 'ALL';
+    const search    = (document.getElementById(`search-recip-${campaignId}`)?.value || '').toLowerCase();
+    let all = window._campaignRecipients || [];
+
+    if (filterVal !== 'ALL') all = all.filter(r => r.status === filterVal);
+    if (search) all = all.filter(r => {
+        const d = r.donors || {};
+        const txt = `${d.last_name||''} ${d.first_name||''} ${d.company_name||''} ${d.email||''}`.toLowerCase();
+        return txt.includes(search);
+    });
+
+    const el = document.getElementById(`recipients-list-${campaignId}`);
+    if (el) { el.innerHTML = _renderRecipients(all, campaignId); if(window.lucide) lucide.createIcons(); }
+};
+
+// ── AJOUT DE DESTINATAIRES (ciblage) ──────────────────────
+window.showAddRecipientsModal = async (campaignId) => {
+    // Charger les donateurs non déjà dans la campagne
+    const [{ data: allDonors }, { data: existing }] = await Promise.all([
+        supabaseClient.from('donors').select('id,last_name,first_name,company_name,entity,email,phone').order('last_name'),
+        supabaseClient.from('campaign_recipients').select('donor_id').eq('campaign_id', campaignId)
+    ]);
+
+    const existingIds = new Set((existing||[]).map(r => r.donor_id));
+    const available = (allDonors||[]).filter(d => !existingIds.has(d.id));
+
+    showCustomModal(`
+        <div class="modal-header-luxe">
+            <h3 class="luxe-title">
+                <i data-lucide="users" style="width:20px;height:20px;vertical-align:middle;margin-right:8px;color:var(--gold);"></i>
+                AJOUTER DES DESTINATAIRES
+            </h3>
+            <button onclick="closeCustomModal()" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-scroll-body">
+
+            <!-- Filtres de ciblage -->
+            <div style="background:rgba(197,160,89,0.06);border:1px solid rgba(197,160,89,0.3);border-radius:12px;padding:14px;margin-bottom:16px;">
+                <p style="font-size:0.75rem;font-weight:800;color:var(--primary);text-transform:uppercase;margin-bottom:10px;">🎯 Ciblage automatique</p>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                    <div>
+                        <p class="mini-label" style="font-size:0.68rem;">ENTITÉ</p>
+                        <select id="target-entity" class="luxe-input" style="height:34px;font-size:0.8rem;">
+                            <option value="ALL">Toutes</option>
+                            ${ALL_ENTITIES.map(e => `<option>${e}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <p class="mini-label" style="font-size:0.68rem;">N'A PAS DONNÉ DEPUIS</p>
+                        <select id="target-no-donation-since" class="luxe-input" style="height:34px;font-size:0.8rem;">
+                            <option value="">— Ignorer ce filtre —</option>
+                            <option value="1">1 an</option>
+                            <option value="2">2 ans</option>
+                            <option value="3">3 ans et plus</option>
+                        </select>
+                    </div>
+                    <div>
+                        <p class="mini-label" style="font-size:0.68rem;">DON MINIMUM (€)</p>
+                        <input type="number" id="target-min-donation" class="luxe-input" style="height:34px;font-size:0.8rem;" placeholder="0">
+                    </div>
+                    <div>
+                        <p class="mini-label" style="font-size:0.68rem;">RECHERCHE NOM</p>
+                        <input type="text" id="target-search" class="luxe-input" style="height:34px;font-size:0.8rem;" placeholder="Filtrer...">
+                    </div>
+                </div>
+                <button onclick="window.applyTargetFilters()" class="btn-gold" style="width:100%;height:36px;font-size:0.8rem;">
+                    <i data-lucide="filter" style="width:14px;height:14px;vertical-align:middle;margin-right:6px;"></i>
+                    APPLIQUER LES FILTRES
+                </button>
+            </div>
+
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <p class="mini-label" style="margin:0;" id="available-count">${available.length} contacts disponibles</p>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <label style="font-size:0.75rem;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;">
+                        <input type="checkbox" id="select-all-recip" onchange="window.toggleSelectAll(this.checked)" style="accent-color:var(--gold);"> Tout sélectionner
+                    </label>
+                </div>
+            </div>
+
+            <div id="donors-to-add" style="max-height:280px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:14px;">
+                ${_renderDonorsToAdd(available)}
+            </div>
+
+            <button onclick="window.addSelectedRecipients('${campaignId}')" class="btn-gold-fill" style="width:100%;height:48px;font-size:0.95rem;">
+                <i data-lucide="user-plus" style="width:18px;height:18px;vertical-align:middle;margin-right:8px;"></i>
+                AJOUTER LES CONTACTS SÉLECTIONNÉS
+            </button>
+        </div>
+    `);
+    window._availableDonors = available;
+    if (window.lucide) lucide.createIcons();
+};
+
+function _renderDonorsToAdd(donors) {
+    if (!donors.length) return `<div style="padding:20px;text-align:center;color:#94a3b8;font-size:0.82rem;">Aucun contact disponible avec ces filtres.</div>`;
+    return donors.map(d => {
+        const name = d.company_name || `${d.last_name||''} ${d.first_name||''}`.trim();
+        return `
+        <label style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid #f1f5f9;cursor:pointer;"
+            onmouseover="this.style.background='#fafafa'" onmouseout="this.style.background='white'">
+            <input type="checkbox" class="recip-checkbox" value="${d.id}" style="accent-color:var(--gold);width:15px;height:15px;flex-shrink:0;">
+            <div style="flex:1;min-width:0;">
+                <div style="font-weight:700;font-size:0.83rem;color:var(--primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>
+                <div style="font-size:0.7rem;color:#94a3b8;">${d.email||''} ${d.entity ? '· '+d.entity.split(' ')[0] : ''}</div>
+            </div>
+        </label>`;
+    }).join('');
+}
+
+window.applyTargetFilters = async () => {
+    let donors = window._availableDonors || [];
+    const entity  = document.getElementById('target-entity')?.value;
+    const search  = document.getElementById('target-search')?.value?.toLowerCase() || '';
+    const minDon  = parseFloat(document.getElementById('target-min-donation')?.value) || 0;
+    const noSince = parseInt(document.getElementById('target-no-donation-since')?.value) || 0;
+
+    if (entity && entity !== 'ALL') donors = donors.filter(d => d.entity === entity);
+    if (search) donors = donors.filter(d => {
+        const n = (d.last_name+' '+d.first_name+' '+(d.company_name||'')).toLowerCase();
+        return n.includes(search);
+    });
+
+    // Filtre don minimum : charger les dons si nécessaire
+    if (minDon > 0 || noSince > 0) {
+        const ids = donors.map(d => d.id);
+        const { data: dons } = await supabaseClient
+            .from('donations')
+            .select('donor_id, amount, date')
+            .in('donor_id', ids);
+        const donsByDonor = {};
+        (dons||[]).forEach(don => {
+            if (!donsByDonor[don.donor_id]) donsByDonor[don.donor_id] = [];
+            donsByDonor[don.donor_id].push(don);
+        });
+
+        if (minDon > 0) {
+            donors = donors.filter(d => {
+                const total = (donsByDonor[d.id]||[]).reduce((s,x) => s + parseFloat(x.amount||0), 0);
+                return total >= minDon;
+            });
+        }
+        if (noSince > 0) {
+            const cutoff = new Date();
+            cutoff.setFullYear(cutoff.getFullYear() - noSince);
+            donors = donors.filter(d => {
+                const lastDon = (donsByDonor[d.id]||[]).map(x => new Date(x.date)).sort((a,b) => b-a)[0];
+                return !lastDon || lastDon < cutoff;
+            });
+        }
+    }
+
+    const container = document.getElementById('donors-to-add');
+    const countEl   = document.getElementById('available-count');
+    if (container) { container.innerHTML = _renderDonorsToAdd(donors); if(window.lucide) lucide.createIcons(); }
+    if (countEl) countEl.textContent = `${donors.length} contacts disponibles`;
+};
+
+window.toggleSelectAll = (checked) => {
+    document.querySelectorAll('.recip-checkbox').forEach(cb => cb.checked = checked);
+};
+
+window.addSelectedRecipients = async (campaignId) => {
+    const selected = [...document.querySelectorAll('.recip-checkbox:checked')].map(cb => cb.value);
+    if (!selected.length) return window.showNotice("Erreur", "Sélectionnez au moins un contact.", "error");
+
+    const rows = selected.map(donor_id => ({ campaign_id: campaignId, donor_id, status: 'Planifié' }));
+    const BATCH = 100;
+    for (let i = 0; i < rows.length; i += BATCH) {
+        const { error } = await supabaseClient.from('campaign_recipients').insert(rows.slice(i, i + BATCH));
+        if (error) return window.showNotice("Erreur", error.message, "error");
+    }
+
+    window.showNotice("Ajoutés ✅", `${selected.length} contact${selected.length>1?'s':''} ajouté${selected.length>1?'s':''} à la campagne.`, "success");
+    closeCustomModal();
+    window.openCampaign(campaignId);
+};
+
+// ── MISE À JOUR STATUT DESTINATAIRE ───────────────────────
+window.updateRecipientStatus = async (recipId, campaignId, newStatus) => {
+    const payload = { status: newStatus };
+    if (newStatus === 'Envoyé') payload.sent_at = new Date().toISOString();
+    await supabaseClient.from('campaign_recipients').update(payload).eq('id', recipId);
+    // Mise à jour visuelle de la couleur du select
+    const rc = RECIPIENT_COLORS[newStatus] || RECIPIENT_COLORS['Planifié'];
+    const sel = document.querySelector(`#recip-row-${recipId} select`);
+    if (sel) { sel.style.background = rc.bg; sel.style.color = rc.color; }
+};
+
+window.updateRecipientNotes = async (recipId, notes) => {
+    await supabaseClient.from('campaign_recipients').update({ notes: notes||null }).eq('id', recipId);
+};
+
+window.removeRecipient = async (recipId, campaignId) => {
+    await supabaseClient.from('campaign_recipients').delete().eq('id', recipId);
+    const row = document.getElementById(`recip-row-${recipId}`);
+    if (row) row.remove();
+    window._campaignRecipients = (window._campaignRecipients||[]).filter(r => r.id !== recipId);
+};
+
+// ── LIER UN DON À UN DESTINATAIRE ─────────────────────────
+window.linkDonationToRecipient = async (recipId, donorId, campaignId) => {
+    const { data: dons } = await supabaseClient
+        .from('donations')
+        .select('id, amount, date, campaign')
+        .eq('donor_id', donorId)
+        .order('date', { ascending: false })
+        .limit(10);
+
+    if (!dons?.length) return window.showNotice("Info", "Ce contact n'a aucun don enregistré.", "info");
+
+    showCustomModal(`
+        <div class="modal-header-luxe">
+            <h3 class="luxe-title">LIER UN DON À CE CONTACT</h3>
+            <button onclick="window.openCampaign('${campaignId}')" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-scroll-body">
+            <p style="font-size:0.82rem;color:#64748b;margin-bottom:14px;">Sélectionnez le don correspondant à cette campagne :</p>
+            ${dons.map(don => `
+                <div onclick="window.confirmLinkDonation('${recipId}','${don.id}','${campaignId}')"
+                    style="padding:12px 16px;border:1.5px solid #e2e8f0;border-radius:10px;margin-bottom:8px;cursor:pointer;transition:all 0.15s;"
+                    onmouseover="this.style.borderColor='var(--gold)';this.style.background='rgba(197,160,89,0.05)'"
+                    onmouseout="this.style.borderColor='#e2e8f0';this.style.background='white'">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <span style="font-weight:700;font-size:1rem;color:#16a34a;">${Number(don.amount).toLocaleString('fr-FR')} €</span>
+                        <span style="font-size:0.78rem;color:#64748b;">${new Date(don.date).toLocaleDateString('fr-FR')}</span>
+                    </div>
+                    ${don.campaign ? `<div style="font-size:0.72rem;color:#94a3b8;margin-top:2px;">${don.campaign}</div>` : ''}
+                </div>`).join('')}
+        </div>
+    `);
+    if (window.lucide) lucide.createIcons();
+};
+
+window.confirmLinkDonation = async (recipId, donationId, campaignId) => {
+    await supabaseClient.from('campaign_recipients').update({ donation_id: donationId, status: 'Répondu' }).eq('id', recipId);
+    window.showNotice("Lié ✅", "Don rattaché à la campagne.", "success");
+    window.openCampaign(campaignId);
+};
+
+// ── EXPORT CAMPAGNE ────────────────────────────────────────
+window.showExportCampaignModal = (campaignId) => {
+    showCustomModal(`
+        <div class="modal-header-luxe">
+            <h3 class="luxe-title">
+                <i data-lucide="download" style="width:20px;height:20px;vertical-align:middle;margin-right:8px;color:var(--gold);"></i>
+                EXPORTER LA CAMPAGNE
+            </h3>
+            <button onclick="window.openCampaign('${campaignId}')" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-scroll-body">
+            <p style="font-size:0.83rem;color:#64748b;margin-bottom:18px;">Choisissez les formats à inclure dans le fichier Excel :</p>
+
+            <div style="display:grid;gap:10px;margin-bottom:20px;">
+                <label style="display:flex;align-items:center;gap:12px;padding:12px 16px;border:1.5px solid #e2e8f0;border-radius:10px;cursor:pointer;"
+                    onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='#e2e8f0'">
+                    <input type="checkbox" id="exp-full" checked style="accent-color:var(--gold);width:16px;height:16px;">
+                    <div>
+                        <div style="font-weight:700;font-size:0.85rem;">Liste complète</div>
+                        <div style="font-size:0.72rem;color:#64748b;">Tous les champs + statuts + dons associés + notes</div>
+                    </div>
+                </label>
+                <label style="display:flex;align-items:center;gap:12px;padding:12px 16px;border:1.5px solid #e2e8f0;border-radius:10px;cursor:pointer;"
+                    onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='#e2e8f0'">
+                    <input type="checkbox" id="exp-mail" checked style="accent-color:var(--gold);width:16px;height:16px;">
+                    <div>
+                        <div style="font-weight:700;font-size:0.85rem;">Liste courrier postal</div>
+                        <div style="font-size:0.72rem;color:#64748b;">Civilité / Nom / Adresse / CP / Ville / Pays — prête à imprimer</div>
+                    </div>
+                </label>
+                <label style="display:flex;align-items:center;gap:12px;padding:12px 16px;border:1.5px solid #e2e8f0;border-radius:10px;cursor:pointer;"
+                    onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='#e2e8f0'">
+                    <input type="checkbox" id="exp-email" checked style="accent-color:var(--gold);width:16px;height:16px;">
+                    <div>
+                        <div style="font-weight:700;font-size:0.85rem;">Liste emails</div>
+                        <div style="font-size:0.72rem;color:#64748b;">Nom / Email — compatible Brevo, Mailchimp, Sarbacane</div>
+                    </div>
+                </label>
+                <label style="display:flex;align-items:center;gap:12px;padding:12px 16px;border:1.5px solid #e2e8f0;border-radius:10px;cursor:pointer;"
+                    onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='#e2e8f0'">
+                    <input type="checkbox" id="exp-donors" style="accent-color:var(--gold);width:16px;height:16px;">
+                    <div>
+                        <div style="font-weight:700;font-size:0.85rem;">Donateurs ayant répondu uniquement</div>
+                        <div style="font-size:0.72rem;color:#64748b;">Filtré sur statut = "Répondu" + montant collecté</div>
+                    </div>
+                </label>
+            </div>
+
+            <button onclick="window.execExportCampaign('${campaignId}')" class="btn-gold-fill" style="width:100%;height:48px;font-size:0.95rem;">
+                <i data-lucide="download" style="width:18px;height:18px;vertical-align:middle;margin-right:8px;"></i>
+                TÉLÉCHARGER LE FICHIER EXCEL
+            </button>
+        </div>
+    `);
+    if (window.lucide) lucide.createIcons();
+};
+
+window.execExportCampaign = async (campaignId) => {
+    const [{ data: campaign }, { data: recipients }] = await Promise.all([
+        supabaseClient.from('campaigns').select('*').eq('id', campaignId).single(),
+        supabaseClient.from('campaign_recipients')
+            .select('*, donors(*), donations(amount,date)')
+            .eq('campaign_id', campaignId)
+    ]);
+
+    const inclFull   = document.getElementById('exp-full')?.checked !== false;
+    const inclMail   = document.getElementById('exp-mail')?.checked !== false;
+    const inclEmail  = document.getElementById('exp-email')?.checked !== false;
+    const inclDonors = document.getElementById('exp-donors')?.checked;
+
+    const wb = XLSX.utils.book_new();
+
+    // Onglet 1 : Liste complète
+    if (inclFull) {
+        const ws1 = XLSX.utils.json_to_sheet(recipients.map(r => ({
+            'Nom'             : r.donors?.last_name || '',
+            'Prénom'          : r.donors?.first_name || '',
+            'Entreprise'      : r.donors?.company_name || '',
+            'Entité'          : r.donors?.entity || '',
+            'Email'           : r.donors?.email || '',
+            'Téléphone'       : r.donors?.phone || '',
+            'Adresse'         : r.donors?.address || '',
+            'CP'              : r.donors?.zip_code || '',
+            'Ville'           : r.donors?.city || '',
+            'Statut campagne' : r.status || '',
+            'Envoyé le'       : r.sent_at ? new Date(r.sent_at).toLocaleDateString('fr-FR') : '',
+            'Don associé (€)' : r.donations?.amount || '',
+            'Date du don'     : r.donations?.date ? new Date(r.donations.date).toLocaleDateString('fr-FR') : '',
+            'Notes'           : r.notes || ''
+        })));
+        XLSX.utils.book_append_sheet(wb, ws1, 'Destinataires complet');
+    }
+
+    // Onglet 2 : Liste courrier postal
+    if (inclMail) {
+        const withAddr = recipients.filter(r => r.donors?.address || r.donors?.zip_code);
+        const ws2 = XLSX.utils.json_to_sheet(withAddr.map(r => ({
+            'Civilité' : '',
+            'Nom'      : (r.donors?.company_name || `${r.donors?.last_name||''} ${r.donors?.first_name||''}`.trim()),
+            'Adresse'  : r.donors?.address || '',
+            'CP'       : r.donors?.zip_code || '',
+            'Ville'    : (r.donors?.city || '').toUpperCase(),
+            'Pays'     : 'France'
+        })));
+        XLSX.utils.book_append_sheet(wb, ws2, 'Courrier postal');
+    }
+
+    // Onglet 3 : Liste emails
+    if (inclEmail) {
+        const withEmail = recipients.filter(r => r.donors?.email);
+        const ws3 = XLSX.utils.json_to_sheet(withEmail.map(r => ({
+            'Nom'    : r.donors?.last_name || r.donors?.company_name || '',
+            'Prénom' : r.donors?.first_name || '',
+            'Email'  : r.donors?.email || '',
+            'Entité' : r.donors?.entity || ''
+        })));
+        XLSX.utils.book_append_sheet(wb, ws3, 'Emails (Brevo-Mailchimp)');
+    }
+
+    // Onglet 4 : Répondants uniquement
+    if (inclDonors) {
+        const responded = recipients.filter(r => r.status === 'Répondu');
+        const ws4 = XLSX.utils.json_to_sheet(responded.map(r => ({
+            'Nom'            : r.donors?.last_name || r.donors?.company_name || '',
+            'Prénom'         : r.donors?.first_name || '',
+            'Email'          : r.donors?.email || '',
+            'Téléphone'      : r.donors?.phone || '',
+            'Don associé (€)': r.donations?.amount || '',
+            'Date du don'    : r.donations?.date ? new Date(r.donations.date).toLocaleDateString('fr-FR') : '',
+            'Notes'          : r.notes || ''
+        })));
+        XLSX.utils.book_append_sheet(wb, ws4, 'Donateurs répondants');
+    }
+
+    if (wb.SheetNames.length === 0) {
+        return window.showNotice("Erreur", "Sélectionnez au moins un format.", "error");
+    }
+
+    const fileName = `Campagne_${campaign.name.replace(/[^a-zA-Z0-9]/g,'_')}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    window.showNotice("Export prêt ✅", fileName, "success");
+    closeCustomModal();
+};
+
+// ── SUPPRESSION CAMPAGNE ───────────────────────────────────
+window.deleteCampaign = (campaignId) => {
+    window.alsatiaConfirm(
+        "SUPPRIMER LA CAMPAGNE",
+        "Cette action supprimera la campagne et tous ses destinataires. Les dons liés ne seront pas supprimés.",
+        async () => {
+            await supabaseClient.from('campaign_recipients').delete().eq('campaign_id', campaignId);
+            await supabaseClient.from('campaigns').delete().eq('id', campaignId);
+            window.showNotice("Supprimée ✅", "Campagne supprimée.", "success");
+            closeCustomModal();
+            window.loadCampaigns();
+        }
+    );
+};
