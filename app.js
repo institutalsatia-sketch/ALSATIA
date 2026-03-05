@@ -979,7 +979,7 @@ window.openDonorFile = async (id) => {
             </div>
             <div style="max-height:240px; overflow-y:auto; border:1px solid #eee; margin-top:10px; border-radius:8px;">
                 <table class="luxe-table">
-                    <thead><tr><th>DATE</th><th>MONTANT</th><th>MODE</th><th>CAMPAGNE</th><th>N° REÇU</th><th>REMERCIÉ ?</th><th style="text-align:right;">ACTION</th></tr></thead>
+                    <thead><tr><th>DATE DON</th><th>MONTANT</th><th>MODE</th><th>CAMPAGNE</th><th>N° REÇU</th><th>REMERCIÉ ?</th><th>DATE REMERCT</th><th>MOYEN REMERCT</th><th style="text-align:right;">ACTION</th></tr></thead>
                     <tbody>
                         ${dons.length === 0 ? '<tr><td colspan="5" style="text-align:center; padding:15px; color:#999;">Aucun don enregistré</td></tr>' : ''}
                         ${dons.map(don => `
@@ -996,6 +996,19 @@ window.openDonorFile = async (id) => {
                                 </td>
                                 <td style="text-align:center;">
                                     <input type="checkbox" ${don.thanked ? 'checked' : ''} onchange="window.toggleThanked('${don.id}', this.checked)">
+                                </td>
+                                <td>
+                                    <input type="date" id="thank-date-${don.id}"
+                                        value="${don.thank_date || ''}"
+                                        style="padding:3px 6px; border:1px solid #e2e8f0; border-radius:6px; font-size:0.78rem; width:120px;"
+                                        onchange="window.updateThankInfo('${don.id}')">
+                                </td>
+                                <td>
+                                    <input type="text" id="thank-means-${don.id}"
+                                        value="${don.thank_means || ''}"
+                                        placeholder="Courrier, email..."
+                                        style="padding:3px 6px; border:1px solid #e2e8f0; border-radius:6px; font-size:0.78rem; width:110px;"
+                                        onchange="window.updateThankInfo('${don.id}')">
                                 </td>
                                 <td style="text-align:right;">
                                     <i data-lucide="trash-2" style="width:14px; color:#ef4444; cursor:pointer;" onclick="window.askDeleteDonation('${don.id}')"></i>
@@ -1035,8 +1048,35 @@ window.updateReceiptNumber = async (donId) => {
  * 6. LOGIQUE DES DONS (suite)
  */
 window.toggleThanked = async (donId, isChecked) => {
-    await supabaseClient.from('donations').update({ thanked: isChecked }).eq('id', donId);
-    loadDonors(); 
+    const payload = { thanked: isChecked };
+    // Si on coche "remercié" et qu'aucune date n'est encore saisie → pré-remplir avec aujourd'hui
+    if (isChecked) {
+        const dateInput = document.getElementById(`thank-date-${donId}`);
+        if (dateInput && !dateInput.value) {
+            const today = new Date().toISOString().split('T')[0];
+            dateInput.value = today;
+            payload.thank_date = today;
+        }
+    }
+    await supabaseClient.from('donations').update(payload).eq('id', donId);
+    loadDonors();
+};
+
+/**
+ * Sauvegarde la date et le moyen de remerciement d'un don
+ */
+window.updateThankInfo = async (donId) => {
+    const dateVal  = document.getElementById(`thank-date-${donId}`)?.value  || null;
+    const meansVal = document.getElementById(`thank-means-${donId}`)?.value?.trim() || null;
+    const { error } = await supabaseClient
+        .from('donations')
+        .update({ thank_date: dateVal, thank_means: meansVal })
+        .eq('id', donId);
+    if (error) {
+        window.showNotice("Erreur", "Impossible de sauvegarder.", "error");
+    } else {
+        window.showNotice("Enregistré ✅", "Remerciement mis à jour.", "success");
+    }
 };
 
 window.addDonationPrompt = (donorId) => {
@@ -1091,12 +1131,24 @@ window.addDonationPrompt = (donorId) => {
             <p class="mini-label">OBJET / CAMPAGNE DU DON</p>
             <input type="text" id="don-campaign" class="luxe-input" placeholder="Ex: Gala 2025, Fête de fin d'année..." style="margin-bottom:14px;">
 
-            <!-- Remercié -->
-            <div style="display:flex; align-items:center; gap:12px; background:rgba(197,160,89,0.06); border:1px dashed var(--gold); border-radius:10px; padding:12px 16px; margin-bottom:20px;">
-                <input type="checkbox" id="don-thanked" style="width:18px;height:18px;accent-color:var(--gold);cursor:pointer;">
-                <label for="don-thanked" style="cursor:pointer; font-size:0.88rem; font-weight:600; color:var(--primary);">
-                    Le donateur a déjà été remercié pour ce don
-                </label>
+            <!-- Remerciement -->
+            <div style="background:rgba(197,160,89,0.06); border:1px dashed var(--gold); border-radius:10px; padding:14px 16px; margin-bottom:20px;">
+                <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+                    <input type="checkbox" id="don-thanked" style="width:18px;height:18px;accent-color:var(--gold);cursor:pointer;" onchange="window.toggleNewDonThanked(this.checked)">
+                    <label for="don-thanked" style="cursor:pointer; font-size:0.88rem; font-weight:600; color:var(--primary);">
+                        Le donateur a déjà été remercié pour ce don
+                    </label>
+                </div>
+                <div id="don-thank-details" style="display:none; display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                    <div>
+                        <p class="mini-label">DATE DU REMERCIEMENT</p>
+                        <input type="date" id="don-thank-date" class="luxe-input" value="${new Date().toISOString().split('T')[0]}">
+                    </div>
+                    <div>
+                        <p class="mini-label">MOYEN UTILISÉ</p>
+                        <input type="text" id="don-thank-means" class="luxe-input" placeholder="Courrier, email, appel...">
+                    </div>
+                </div>
             </div>
 
             <button onclick="window.execAddDonation('${donorId}')" class="btn-gold-fill" style="width:100%; height:48px; font-size:0.95rem; letter-spacing:1px;">
@@ -1106,6 +1158,11 @@ window.addDonationPrompt = (donorId) => {
         </div>
     `);
     if(window.lucide) lucide.createIcons();
+};
+
+window.toggleNewDonThanked = (checked) => {
+    const details = document.getElementById('don-thank-details');
+    if (details) details.style.display = checked ? 'grid' : 'none';
 };
 
 window.execAddDonation = async (donorId) => {
@@ -1122,7 +1179,13 @@ window.execAddDonation = async (donorId) => {
         tax_receipt_number: document.getElementById('don-receipt').value.trim() || null,
         fiscal_receipt_id: document.getElementById('don-fiscal-id').value.trim() || null,
         campaign: document.getElementById('don-campaign').value.trim() || null,
-        thanked: document.getElementById('don-thanked').checked
+        thanked: document.getElementById('don-thanked').checked,
+        thank_date:  document.getElementById('don-thanked').checked
+            ? (document.getElementById('don-thank-date')?.value || null)
+            : null,
+        thank_means: document.getElementById('don-thanked').checked
+            ? (document.getElementById('don-thank-means')?.value?.trim() || null)
+            : null
     }]);
 
     if (error) return window.showNotice("Erreur", error.message, "error");
@@ -1330,7 +1393,9 @@ window.executeExportToExcel = async () => {
                         'Campagne': don.campaign || '',
                         'N° Reçu Fiscal': don.tax_receipt_number || '',
                         'ID Reçu Interne': don.fiscal_receipt_id || '',
-                        'Remercié': don.thanked ? 'Oui' : 'Non'
+                        'Remercié': don.thanked ? 'Oui' : 'Non',
+                        'Date remerciement': don.thank_date ? new Date(don.thank_date).toLocaleDateString('fr-FR') : '',
+                        'Moyen remerciement': don.thank_means || ''
                     });
                 }
             });
@@ -1399,7 +1464,9 @@ window.exportDonorToExcel = async (donorId) => {
             'Campagne': don.campaign || '',
             'N° Reçu Fiscal': don.tax_receipt_number || '',
             'ID Reçu Interne': don.fiscal_receipt_id || '',
-            'Remercié': don.thanked ? 'Oui' : 'Non'
+            'Remercié': don.thanked ? 'Oui' : 'Non',
+            'Date remerciement': don.thank_date ? new Date(don.thank_date).toLocaleDateString('fr-FR') : '',
+            'Moyen remerciement': don.thank_means || ''
         }))
         : [{ 'Aucun don enregistré': '' }];
     
