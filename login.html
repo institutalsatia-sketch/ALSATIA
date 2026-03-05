@@ -17,305 +17,202 @@
             --border: #e2e8f0;
             --danger: #ef4444;
         }
-        
         * { box-sizing: border-box; }
-        
         body { 
             background: linear-gradient(135deg, var(--primary) 0%, #1e293b 100%); 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            min-height: 100vh; 
-            margin: 0; 
+            display: flex; align-items: center; justify-content: center; 
+            min-height: 100vh; margin: 0; 
             font-family: 'Inter', sans-serif;
             padding: 20px;
         }
-        
         .login-card { 
-            background: white; 
-            padding: 50px 40px; 
-            border-radius: 24px; 
+            background: white; padding: 50px 40px; border-radius: 24px; 
             box-shadow: 0 25px 50px rgba(0,0,0,0.5); 
-            width: 100%; 
-            max-width: 480px; 
-            text-align: center;
-            position: relative;
-            overflow: hidden;
+            width: 100%; max-width: 480px; text-align: center;
+            position: relative; overflow: hidden;
         }
-        
         .login-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 6px;
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 6px;
             background: linear-gradient(90deg, var(--gold) 0%, var(--gold-light) 100%);
         }
-        
         .logo-gold { 
             background: linear-gradient(135deg, var(--gold) 0%, var(--gold-light) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
             background-clip: text;
-            font-size: 2rem; 
-            font-weight: 800; 
-            margin-bottom: 10px; 
-            text-transform: uppercase; 
-            letter-spacing: 4px;
+            font-size: 2rem; font-weight: 800; margin-bottom: 10px; 
+            text-transform: uppercase; letter-spacing: 4px;
         }
-        
-        .subtitle {
-            color: var(--text-muted);
-            font-size: 0.85rem;
-            margin-bottom: 35px;
-            font-weight: 500;
+        .subtitle { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 35px; font-weight: 500; }
+
+        /* ── POPUP CONFIRMATION ── */
+        .popup-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(15,23,42,0.65); backdrop-filter: blur(4px);
+            z-index: 1000; align-items: center; justify-content: center;
         }
-        
+        .popup-overlay.visible { display: flex; }
+        .popup-box {
+            background: white; border-radius: 20px; padding: 40px 36px;
+            max-width: 400px; width: 90%; text-align: center;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.4);
+            animation: popIn 0.35s cubic-bezier(0.34,1.56,0.64,1);
+        }
+        @keyframes popIn {
+            from { opacity:0; transform: scale(0.8) translateY(20px); }
+            to   { opacity:1; transform: scale(1) translateY(0); }
+        }
+        .popup-icon {
+            width: 64px; height: 64px; border-radius: 50%;
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 18px auto; font-size: 1.8rem;
+        }
+        .popup-title {
+            font-size: 1.15rem; font-weight: 800; color: var(--primary);
+            margin-bottom: 10px; letter-spacing: -0.3px;
+        }
+        .popup-msg {
+            font-size: 0.85rem; color: var(--text-muted); line-height: 1.6;
+            margin-bottom: 24px;
+        }
+        .popup-btn {
+            background: linear-gradient(135deg, var(--gold), var(--gold-light));
+            color: white; border: none; padding: 12px 32px;
+            border-radius: 10px; font-weight: 800; font-size: 0.9rem;
+            cursor: pointer; letter-spacing: 0.5px;
+            transition: all 0.2s;
+        }
+        .popup-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(197,160,89,0.35); }
+
+        /* ── ERREUR ── */
         #login-error { 
             display: none; 
             background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
-            color: var(--danger); 
-            padding: 14px 18px; 
-            border-radius: 12px; 
-            font-size: 0.85rem; 
-            margin-bottom: 20px; 
-            border: 2px solid #fecaca;
-            font-weight: 600;
-            animation: shake 0.4s ease-in-out;
+            color: var(--danger); padding: 14px 18px; border-radius: 12px; 
+            font-size: 0.85rem; margin-bottom: 20px; border: 2px solid #fecaca;
+            font-weight: 600; animation: shake 0.4s ease-in-out;
         }
-        
         @keyframes shake {
             0%, 100% { transform: translateX(0); }
             25% { transform: translateX(-10px); }
             75% { transform: translateX(10px); }
         }
-
         .section-title {
-            color: var(--text-main);
-            font-size: 0.75rem;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 20px;
-            opacity: 0.7;
+            color: var(--text-main); font-size: 0.75rem; font-weight: 800;
+            text-transform: uppercase; letter-spacing: 1px; margin-bottom: 20px; opacity: 0.7;
+        }
+        .portal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .portal-btn { 
+            background: white; border: 2px solid var(--border); padding: 20px 15px; 
+            border-radius: 16px; cursor: pointer; 
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-weight: 700; text-align: center; display: flex; flex-direction: column;
+            align-items: center; gap: 12px; position: relative; overflow: hidden;
+            color: var(--text-main); font-size: 0.85rem;
+        }
+        .portal-btn::before {
+            content: ''; position: absolute; inset: 0;
+            background: linear-gradient(135deg, var(--gold), var(--gold-light));
+            opacity: 0; transition: opacity 0.3s;
+        }
+        .portal-btn:hover { border-color: var(--gold); transform: translateY(-4px); box-shadow: 0 12px 24px rgba(197,160,89,0.2); }
+        .portal-btn:hover::before { opacity: 0.05; }
+        .portal-logo { width: 60px; height: 60px; object-fit: contain; position: relative; z-index: 1; }
+        .portal-name { font-size: 0.75rem; line-height: 1.3; position: relative; z-index: 1; }
+
+        .step-2, .pin-area, .new-user-fields { 
+            display: none; margin-top: 20px; animation: fadeInUp 0.4s ease-out; 
+        }
+        @keyframes fadeInUp { 
+            from { opacity: 0; transform: translateY(20px); } 
+            to   { opacity: 1; transform: translateY(0); } 
+        }
+        .back-btn {
+            background: none; border: none; color: var(--gold); cursor: pointer;
+            font-weight: 700; margin-bottom: 20px; font-size: 0.85rem;
+            padding: 8px 16px; border-radius: 8px; transition: all 0.2s;
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        .back-btn:hover { background: rgba(197,160,89,0.1); transform: translateX(-3px); }
+
+        /* ── ENTÊTE ÉTAPE 2 : logo + nom portail ── */
+        .portal-header {
+            display: flex; align-items: center; justify-content: center;
+            gap: 14px; margin-bottom: 24px;
+            padding: 14px 20px;
+            background: linear-gradient(135deg, var(--gold), var(--gold-light));
+            border-radius: 14px;
+            box-shadow: 0 6px 16px rgba(197,160,89,0.3);
+        }
+        .portal-header-logo { width: 44px; height: 44px; object-fit: contain; }
+        .portal-header-name {
+            color: white; font-weight: 800; font-size: 0.9rem;
+            text-transform: uppercase; letter-spacing: 1px; line-height: 1.3;
+            text-align: left;
         }
 
-        .portal-grid { 
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-        }
-        
-        .portal-btn { 
-            background: white;
-            border: 2px solid var(--border); 
-            padding: 20px 15px; 
-            border-radius: 16px; 
-            cursor: pointer; 
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            font-weight: 700; 
-            text-align: center; 
-            display: flex; 
-            flex-direction: column;
-            align-items: center; 
-            gap: 12px;
-            position: relative;
-            overflow: hidden;
-            color: var(--text-main);
-            font-size: 0.85rem;
-        }
-        
-        .portal-btn::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: linear-gradient(135deg, var(--gold) 0%, var(--gold-light) 100%);
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-        
-        .portal-btn:hover {
-            border-color: var(--gold);
-            transform: translateY(-4px);
-            box-shadow: 0 12px 24px rgba(197, 160, 89, 0.2);
-        }
-        
-        .portal-btn:hover::before {
-            opacity: 0.05;
-        }
-        
-        .portal-logo {
-            width: 60px;
-            height: 60px;
-            object-fit: contain;
-            position: relative;
-            z-index: 1;
-        }
-        
-        .portal-name {
-            font-size: 0.75rem;
-            line-height: 1.3;
-            position: relative;
-            z-index: 1;
-        }
-        
-        .step-2, .pin-area, .new-user-fields { 
-            display: none; 
-            margin-top: 20px; 
-            animation: fadeInUp 0.4s ease-out; 
-        }
-        
-        @keyframes fadeInUp { 
-            from { 
-                opacity: 0; 
-                transform: translateY(20px); 
-            } 
-            to { 
-                opacity: 1; 
-                transform: translateY(0); 
-            } 
-        }
-        
-        .back-btn {
-            background: none;
-            border: none;
-            color: var(--gold);
-            cursor: pointer;
-            font-weight: 700;
-            margin-bottom: 20px;
-            font-size: 0.85rem;
-            padding: 8px 16px;
-            border-radius: 8px;
-            transition: all 0.2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-        }
-        
-        .back-btn:hover {
-            background: rgba(197, 160, 89, 0.1);
-            transform: translateX(-3px);
-        }
-        
-        .current-portal {
-            background: linear-gradient(135deg, var(--gold) 0%, var(--gold-light) 100%);
-            color: white;
-            padding: 12px 20px;
-            border-radius: 12px;
-            font-weight: 800;
-            font-size: 0.85rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 25px;
-            box-shadow: 0 4px 12px rgba(197, 160, 89, 0.3);
-        }
-        
         .luxe-input { 
-            width: 100%; 
-            padding: 14px 16px; 
-            border: 2px solid var(--border); 
-            border-radius: 12px; 
-            margin-bottom: 15px; 
-            box-sizing: border-box; 
-            font-size: 1rem; 
-            outline: none;
-            font-family: 'Inter', sans-serif;
-            transition: all 0.2s;
-            background: white;
+            width: 100%; padding: 14px 16px; border: 2px solid var(--border); 
+            border-radius: 12px; margin-bottom: 15px; box-sizing: border-box; 
+            font-size: 1rem; outline: none; font-family: 'Inter', sans-serif;
+            transition: all 0.2s; background: white;
         }
-        
-        .luxe-input:focus { 
-            border-color: var(--gold);
-            box-shadow: 0 0 0 3px rgba(197, 160, 89, 0.1);
+        .luxe-input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(197,160,89,0.1); }
+
+        /* ── PIN centré ── */
+        .pin-area {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            margin-top: 20px;
+            animation: fadeInUp 0.4s ease-out;
         }
-        
-        #pin-input { 
-            font-size: 1.8rem; 
-            text-align: center; 
-            border-color: var(--gold); 
-            font-weight: 800;
-            padding: 18px;
-        }
-        
         .pin-label {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 12px;
+            font-size: 0.75rem; color: var(--text-muted); font-weight: 700;
+            text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px;
+            text-align: center;
         }
-        
+        #pin-input { 
+            font-size: 1.8rem; text-align: center; border-color: var(--gold); 
+            font-weight: 800; padding: 18px; width: 180px; margin: 0 auto 0 auto;
+        }
         .btn-access { 
-            background: linear-gradient(135deg, var(--gold) 0%, var(--gold-light) 100%);
-            color: white; 
-            border: none; 
-            width: 100%; 
-            padding: 16px; 
-            border-radius: 12px; 
-            font-weight: 800; 
-            cursor: pointer; 
-            text-transform: uppercase; 
-            margin-top: 15px; 
-            transition: all 0.3s;
-            font-size: 1rem;
-            letter-spacing: 1px;
-            box-shadow: 0 4px 12px rgba(197, 160, 89, 0.3);
+            background: linear-gradient(135deg, var(--gold), var(--gold-light));
+            color: white; border: none; width: 100%; padding: 16px; border-radius: 12px; 
+            font-weight: 800; cursor: pointer; text-transform: uppercase; margin-top: 18px; 
+            transition: all 0.3s; font-size: 1rem; letter-spacing: 1px;
+            box-shadow: 0 4px 12px rgba(197,160,89,0.3);
         }
-        
-        .btn-access:hover { 
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(197, 160, 89, 0.4);
-        }
-        
-        .btn-access:active {
-            transform: translateY(0);
-        }
-        
-        .btn-access:disabled { 
-            opacity: 0.6; 
-            cursor: not-allowed;
-            transform: none;
-        }
-        
-        .new-user-badge {
-            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-            color: #92400e;
-            padding: 3px 10px;
-            border-radius: 6px;
-            font-size: 0.7rem;
-            font-weight: 800;
-            margin-left: 8px;
-            letter-spacing: 0.5px;
-        }
-        
+        .btn-access:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(197,160,89,0.4); }
+        .btn-access:active { transform: translateY(0); }
+        .btn-access:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
         @media (max-width: 600px) {
-            .portal-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .login-card {
-                padding: 40px 30px;
-            }
-            
-            /* PIN adapté mobile */
-            #pin-input {
-                font-size: 1.4rem !important;
-                padding: 12px !important;
-            }
-            
-            .luxe-input {
-                font-size: 1rem !important;
-                padding: 12px 14px !important;
-            }
+            .portal-grid { grid-template-columns: 1fr; }
+            .login-card { padding: 40px 30px; }
+            #pin-input { font-size: 1.4rem !important; padding: 12px !important; }
+            .luxe-input { font-size: 1rem !important; padding: 12px 14px !important; }
         }
     </style>
 </head>
 <body>
+
+<!-- ── POPUP CONFIRMATION NOUVEAU MEMBRE ── -->
+<div class="popup-overlay" id="popup-pending">
+    <div class="popup-box">
+        <div class="popup-icon">⏳</div>
+        <div class="popup-title">Compte créé avec succès !</div>
+        <div class="popup-msg">
+            Votre demande d'accès a bien été transmise.<br>
+            Elle sera examinée par l'Institut Alsatia.<br><br>
+            <strong>Vous pourrez vous connecter dès votre approbation.</strong>
+        </div>
+        <button class="popup-btn" onclick="document.getElementById('popup-pending').classList.remove('visible'); location.reload();">
+            Compris, merci !
+        </button>
+    </div>
+</div>
 
 <div class="login-card">
     <div class="logo-gold">ALSATIA</div>
@@ -323,46 +220,55 @@
     
     <div id="login-error"></div>
 
+    <!-- ÉTAPE 1 : choix du portail -->
     <div id="step-1">
         <p class="section-title">Sélectionnez votre portail</p>
         <div class="portal-grid">
-            <button class="portal-btn" onclick="selectPortal('Institut Alsatia')">
+            <button class="portal-btn" onclick="selectPortal('Institut Alsatia','logo_alsatia.png')">
                 <img src="logo_alsatia.png" alt="Institut Alsatia" class="portal-logo">
                 <span class="portal-name">Institut<br>Alsatia</span>
             </button>
-            <button class="portal-btn" onclick="selectPortal('Cours Herrade de Landsberg')">
+            <button class="portal-btn" onclick="selectPortal('Cours Herrade de Landsberg','herrade.png')">
                 <img src="herrade.png" alt="Herrade de Landsberg" class="portal-logo">
                 <span class="portal-name">Cours Herrade<br>de Landsberg</span>
             </button>
-            <button class="portal-btn" onclick="selectPortal('Collège Saints Louis et Zélie Martin')">
+            <button class="portal-btn" onclick="selectPortal('Collège Saints Louis et Zélie Martin','martin.png')">
                 <img src="martin.png" alt="Collège Saints Martin" class="portal-logo">
                 <span class="portal-name">Collège Saints<br>Martin</span>
             </button>
-            <button class="portal-btn" onclick="selectPortal('Academia Alsatia')">
+            <button class="portal-btn" onclick="selectPortal('Academia Alsatia','academia.png')">
                 <img src="academia.png" alt="Academia Alsatia" class="portal-logo">
                 <span class="portal-name">Academia<br>Alsatia</span>
             </button>
         </div>
     </div>
 
+    <!-- ÉTAPE 2 : connexion -->
     <div id="step-2" class="step-2">
         <button onclick="location.reload()" class="back-btn">← Retour</button>
-        <div id="portal-name" class="current-portal"></div>
+
+        <!-- Logo + nom du portail -->
+        <div class="portal-header">
+            <img id="portal-header-logo" src="" alt="" class="portal-header-logo">
+            <div class="portal-header-name" id="portal-name"></div>
+        </div>
         
         <select id="user-select" class="luxe-input" onchange="checkUserType()">
             <option value="">— Qui êtes-vous ? —</option>
             <option value="NEW">+ Nouveau membre</option>
         </select>
 
+        <!-- Champs nouveau membre -->
         <div id="new-user-fields" class="new-user-fields">
-            <input type="text" id="reg-fname" placeholder="Prénom" class="luxe-input">
-            <input type="text" id="reg-lname" placeholder="Nom" class="luxe-input">
-            <input type="email" id="reg-email" placeholder="Email (optionnel — pour recevoir la confirmation)" class="luxe-input" style="margin-top:0;">
+            <input type="text" id="reg-fname" placeholder="Prénom" class="luxe-input" autocomplete="off">
+            <input type="text" id="reg-lname" placeholder="Nom" class="luxe-input" autocomplete="off">
+            <input type="email" id="reg-email" placeholder="Email (optionnel)" class="luxe-input" autocomplete="off">
         </div>
 
+        <!-- Zone PIN — centrée -->
         <div id="pin-area" class="pin-area">
             <p class="pin-label">Code PIN (4 chiffres)</p>
-            <input type="password" id="pin-input" maxlength="4" placeholder="••••" autocomplete="off">
+            <input type="password" id="pin-input" maxlength="4" placeholder="••••" autocomplete="off" class="luxe-input">
             <button onclick="attemptLogin()" class="btn-access" id="login-btn">Accéder</button>
         </div>
     </div>
@@ -374,22 +280,45 @@
     const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
     let currentPortal = "";
+    let currentPortalLogo = "";
 
     function showError(msg) {
         const errDiv = document.getElementById('login-error');
         errDiv.innerText = msg;
         errDiv.style.display = 'block';
-        setTimeout(() => errDiv.style.display = 'none', 4000);
+        setTimeout(() => errDiv.style.display = 'none', 5000);
     }
 
-    async function selectPortal(portal) {
+    function showPopupPending() {
+        document.getElementById('popup-pending').classList.add('visible');
+    }
+
+    async function selectPortal(portal, logo) {
         currentPortal = portal;
+        currentPortalLogo = logo;
+
         document.getElementById('step-1').style.display = 'none';
         document.getElementById('step-2').style.display = 'block';
+
+        // Afficher logo + nom dans l'entête
+        document.getElementById('portal-header-logo').src = logo;
+        document.getElementById('portal-header-logo').alt = portal;
         document.getElementById('portal-name').innerText = portal;
 
-        const { data, error } = await supabaseClient.from('profiles').select('*').eq('portal', portal).order('last_name');
+        // Réinitialiser les champs nouveau membre
+        document.getElementById('reg-fname').value = '';
+        document.getElementById('reg-lname').value = '';
+        document.getElementById('reg-email').value = '';
+        document.getElementById('pin-input').value = '';
+
+        const { data, error } = await supabaseClient
+            .from('profiles').select('*')
+            .eq('portal', portal).order('last_name');
+
         const select = document.getElementById('user-select');
+        // Garder uniquement les 2 premières options
+        while (select.options.length > 2) select.remove(2);
+
         if (data) {
             data.forEach(user => {
                 const opt = document.createElement('option');
@@ -403,7 +332,9 @@
     function checkUserType() {
         const val = document.getElementById('user-select').value;
         document.getElementById('new-user-fields').style.display = (val === 'NEW') ? 'block' : 'none';
-        document.getElementById('pin-area').style.display = (val !== "") ? 'block' : 'none';
+        const pinArea = document.getElementById('pin-area');
+        pinArea.style.display = (val !== '') ? 'flex' : 'none';
+        if (val !== '') document.getElementById('pin-input').value = '';
     }
 
     async function attemptLogin() {
@@ -416,166 +347,91 @@
 
         try {
             if (userSelect === 'NEW') {
-                // NOUVEL UTILISATEUR
                 const fname = document.getElementById('reg-fname').value.trim();
                 const lname = document.getElementById('reg-lname').value.trim();
                 
-                if(!fname || !lname || !pin) {
+                if (!fname || !lname || !pin) {
                     showError("Tous les champs sont requis.");
-                    loginBtn.disabled = false;
-                    loginBtn.innerText = 'Accéder';
-                    return;
+                    loginBtn.disabled = false; loginBtn.innerText = 'Accéder'; return;
                 }
-                if(pin.length !== 4) {
-                    showError("Le PIN doit faire 4 chiffres.");
-                    loginBtn.disabled = false;
-                    loginBtn.innerText = 'Accéder';
-                    return;
+                if (pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+                    showError("Le PIN doit être composé de 4 chiffres.");
+                    loginBtn.disabled = false; loginBtn.innerText = 'Accéder'; return;
                 }
 
-                // Générer email automatique (invisible pour l'utilisateur)
-                const autoEmail = `${fname.toLowerCase()}.${lname.toLowerCase()}.${pin}@alsatia.internal`;
+                const autoEmail = `${fname.toLowerCase().replace(/\s/g,'')}.${lname.toLowerCase().replace(/\s/g,'')}.${pin}@alsatia.internal`;
 
-                // Créer compte Supabase Auth (en arrière-plan)
                 const { data: authData, error: authError } = await supabaseClient.auth.signUp({
                     email: autoEmail,
-                    password: pin + pin + pin + pin, // PIN x4 = mot de passe
-                    options: {
-                        data: { first_name: fname, last_name: lname, portal: currentPortal }
-                    }
+                    password: pin + pin + pin + pin,
+                    options: { data: { first_name: fname, last_name: lname, portal: currentPortal } }
                 });
-
                 if (authError) throw new Error("Inscription : " + authError.message);
 
-                // Créer profil
-                const { data: profileData, error: profileError } = await supabaseClient
+                const { error: profileError } = await supabaseClient
                     .from('profiles')
                     .insert([{
-                        first_name: fname,
-                        last_name: lname,
+                        first_name: fname, last_name: lname,
                         email: document.getElementById('reg-email')?.value?.trim() || null,
-                        portal: currentPortal,
-                        pin: pin,
-                        auth_user_id: authData.user.id,
-                        status: 'pending'
-                    }])
-                    .select()
-                    .single();
+                        portal: currentPortal, pin: pin,
+                        auth_user_id: authData.user.id, status: 'pending'
+                    }]);
+                if (profileError) throw new Error("Profil : " + profileError.message);
 
-                if(profileError) throw new Error("Profil : " + profileError.message);
+                loginBtn.disabled = false; loginBtn.innerText = 'Accéder';
+                showPopupPending();
 
-                // Ne PAS connecter directement, attendre approbation
-                showError("Compte créé ! En attente d'approbation par l'Institut Alsatia. Vous recevrez un email une fois approuvé.");
-                loginBtn.disabled = false;
-                loginBtn.innerText = 'Accéder';
-                
-                // Recharger la page après 3 secondes
-                setTimeout(() => {
-                    location.reload();
-                }, 3000);
-                return;
-                
             } else {
-                // UTILISATEUR EXISTANT
-                const { data: profileData, error: profileError } = await supabaseClient
-                    .from('profiles')
-                    .select('*')
-                    .eq('id', userSelect)
-                    .single();
+                const { data: profileData } = await supabaseClient
+                    .from('profiles').select('*').eq('id', userSelect).single();
                 
                 if (!profileData || profileData.pin !== pin) {
                     showError("Code PIN incorrect.");
-                    loginBtn.disabled = false;
-                    loginBtn.innerText = 'Accéder';
-                    return;
+                    loginBtn.disabled = false; loginBtn.innerText = 'Accéder'; return;
                 }
-                
-                // VÉRIFIER LE STATUT DU COMPTE
                 if (profileData.status === 'pending') {
-                    showError("Votre compte est en attente d'approbation par l'Institut Alsatia.");
-                    loginBtn.disabled = false;
-                    loginBtn.innerText = 'Accéder';
-                    return;
+                    showError("Votre compte est en attente d'approbation.");
+                    loginBtn.disabled = false; loginBtn.innerText = 'Accéder'; return;
                 }
-                
                 if (profileData.status === 'rejected') {
                     showError("Votre inscription a été refusée. Contactez l'Institut Alsatia.");
-                    loginBtn.disabled = false;
-                    loginBtn.innerText = 'Accéder';
-                    return;
+                    loginBtn.disabled = false; loginBtn.innerText = 'Accéder'; return;
                 }
-                
                 if (profileData.status === 'revoked') {
                     showError("Votre accès a été révoqué. Contactez l'Institut Alsatia.");
-                    loginBtn.disabled = false;
-                    loginBtn.innerText = 'Accéder';
-                    return;
+                    loginBtn.disabled = false; loginBtn.innerText = 'Accéder'; return;
                 }
 
-                // Si l'utilisateur a déjà un auth_user_id, se connecter avec Auth
                 if (profileData.auth_user_id) {
-                    const { data: authData, error: authError } = await supabaseClient.auth.signInWithPassword({
+                    const { error: authError } = await supabaseClient.auth.signInWithPassword({
                         email: profileData.email,
                         password: pin + pin + pin + pin
                     });
-
                     if (authError) {
-                        // Si échec auth mais PIN correct, créer le compte Auth maintenant
-                        console.log('Création compte Auth pour utilisateur existant...');
-                        const { data: newAuthData, error: newAuthError } = await supabaseClient.auth.signUp({
-                            email: profileData.email,
-                            password: pin + pin + pin + pin,
-                            options: {
-                                data: { 
-                                    first_name: profileData.first_name, 
-                                    last_name: profileData.last_name, 
-                                    portal: profileData.portal 
-                                }
-                            }
+                        const autoEmail = `${profileData.first_name.toLowerCase().replace(/\s/g,'')}.${profileData.last_name.toLowerCase().replace(/\s/g,'')}.${pin}@alsatia.internal`;
+                        const { data: newAuth } = await supabaseClient.auth.signUp({
+                            email: autoEmail, password: pin + pin + pin + pin,
+                            options: { data: { first_name: profileData.first_name, last_name: profileData.last_name, portal: profileData.portal } }
                         });
-                        
-                        if (!newAuthError) {
-                            // Mettre à jour auth_user_id
-                            await supabaseClient
-                                .from('profiles')
-                                .update({ auth_user_id: newAuthData.user.id })
-                                .eq('id', userSelect);
-                        }
+                        if (newAuth?.user) await supabaseClient.from('profiles').update({ auth_user_id: newAuth.user.id }).eq('id', userSelect);
                     }
                 } else {
-                    // Pas de compte Auth, en créer un maintenant
-                    console.log('Création compte Auth pour utilisateur existant...');
-                    const { data: newAuthData, error: newAuthError } = await supabaseClient.auth.signUp({
-                        email: profileData.email,
-                        password: pin + pin + pin + pin,
-                        options: {
-                            data: { 
-                                first_name: profileData.first_name, 
-                                last_name: profileData.last_name, 
-                                portal: profileData.portal 
-                            }
-                        }
+                    const autoEmail = `${profileData.first_name.toLowerCase().replace(/\s/g,'')}.${profileData.last_name.toLowerCase().replace(/\s/g,'')}.${pin}@alsatia.internal`;
+                    const { data: newAuth } = await supabaseClient.auth.signUp({
+                        email: autoEmail, password: pin + pin + pin + pin,
+                        options: { data: { first_name: profileData.first_name, last_name: profileData.last_name, portal: profileData.portal } }
                     });
-                    
-                    if (!newAuthError && newAuthData.user) {
-                        // Mettre à jour auth_user_id
-                        await supabaseClient
-                            .from('profiles')
-                            .update({ auth_user_id: newAuthData.user.id })
-                            .eq('id', userSelect);
-                    }
+                    if (newAuth?.user) await supabaseClient.from('profiles').update({ auth_user_id: newAuth.user.id }).eq('id', userSelect);
                 }
 
                 localStorage.setItem('alsatia_user', JSON.stringify(profileData));
-                console.log('✅ Connexion réussie');
                 window.location.href = 'index.html';
             }
 
         } catch (err) {
             console.error('Erreur:', err);
             showError(err.message);
-            loginBtn.disabled = false;
-            loginBtn.innerText = 'Accéder';
+            loginBtn.disabled = false; loginBtn.innerText = 'Accéder';
         }
     }
 </script>
