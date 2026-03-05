@@ -226,7 +226,16 @@
         <section id="tab-donors" class="page-content">
             <div class="header-tab">
                 <h1>Base Donateurs</h1>
-                <div style="display:flex; gap:10px;">
+                <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                    <!-- Bouton import Excel — visible uniquement pour Institut Alsatia via initInterface() -->
+                    <button 
+                        id="btn-import-donors"
+                        onclick="window.showImportDonorsModal()" 
+                        class="btn-gold"
+                        style="display:none; align-items:center; gap:8px; background:linear-gradient(135deg, #1e3a5f 0%, #0f2744 100%); border:2px solid #3b82f6;">
+                        <i data-lucide="upload" style="width:16px; height:16px;"></i>
+                        Importer Excel
+                    </button>
                     <button onclick="window.showExportFiltersModal()" class="btn-outline"><i data-lucide="download"></i> Export Excel</button>
                     <button onclick="window.showAddDonorModal()" class="btn-gold"><i data-lucide="user-plus"></i> Nouveau</button>
                 </div>
