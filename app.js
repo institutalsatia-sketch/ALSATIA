@@ -1417,21 +1417,313 @@ function loadUsersForMentions() { console.log("Module CRM Alsatia v2.0 chargé."
 
 // ==========================================
 // IMPORT EXCEL — DONATEURS (Institut Alsatia uniquement)
+// Optimisé pour le fichier "Tableau_amis_et_donateurs.xlsx"
 // ==========================================
 
-const VALID_ENTITIES_IMPORT = [
-    'Institut Alsatia',
-    'Academia Alsatia',
-    'Cours Herrade de Landsberg',
-    'Collège Saints Louis et Zélie Martin'
-];
-
-// Stockage temporaire des données prévisualisées
-window._importPreviewData = [];
+// ─── UTILITAIRES ──────────────────────────────────────────────────────────────
 
 /**
- * OUVRIR LA MODALE D'IMPORT
+ * Nettoie une valeur brute : supprime espaces, \n, retours chariot
  */
+function _raw(v) {
+    if (v === null || v === undefined) return '';
+    return String(v).replace(/\r?\n/g, ' ').trim();
+}
+
+/**
+ * Prend le premier email si plusieurs sont séparés par \n
+ */
+function _firstEmail(v) {
+    if (!v) return null;
+    const first = String(v).split(/\r?\n/)[0].trim().toLowerCase();
+    return first || null;
+}
+
+/**
+ * Évalue les formules simples du type =300+150, =8*8, =SUM(...)
+ * Retourne un nombre ou null
+ */
+function _evalAmount(v) {
+    if (v === null || v === undefined || v === '') return null;
+    if (typeof v === 'number') return v > 0 ? v : null;
+    const s = String(v).trim();
+    if (s === '' || s === '-') return null;
+    // Ignorer les formules SUM globales (lignes totaux)
+    if (s.toUpperCase().includes('SUM(')) return null;
+    // Évaluer formules simples : =300+150, =8*8, =4200
+    if (s.startsWith('=')) {
+        try {
+            // Remplacer les opérateurs autorisés uniquement
+            const expr = s.slice(1).replace(/[^0-9+\-*/.()]/g, '');
+            // eslint-disable-next-line no-new-func
+            const result = Function('"use strict"; return (' + expr + ')')();
+            return typeof result === 'number' && isFinite(result) && result > 0 ? result : null;
+        } catch { return null; }
+    }
+    const n = parseFloat(s.replace(',', '.'));
+    return !isNaN(n) && n > 0 ? n : null;
+}
+
+/**
+ * Détermine l'entité(s) à partir des colonnes "donateur école" / "donateur collège"
+ * Retourne un tableau d'entités (un donateur peut appartenir aux deux)
+ */
+function _resolveEntities(ecole, college) {
+    const isEcole   = _raw(ecole).toLowerCase()   === 'x';
+    const isCollege = _raw(college).toLowerCase() === 'x';
+    const entities = [];
+    if (isEcole)   entities.push('Institut Alsatia');
+    if (isCollege) entities.push('Collège Saints Louis et Zélie Martin');
+    if (!entities.length) entities.push('Institut Alsatia'); // valeur par défaut
+    return entities;
+}
+
+/**
+ * Formate une date ISO à partir d'une valeur quelconque
+ */
+function _toISODate(v) {
+    if (!v) return null;
+    if (v instanceof Date) return v.toISOString().split('T')[0];
+    const s = String(v).trim();
+    if (s.match(/^\d{4}-\d{2}-\d{2}/)) return s.substring(0, 10);
+    const parts = s.split('/');
+    if (parts.length === 3) return `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+    return null;
+}
+
+// Stockage temporaire
+window._importPreviewData = [];
+window._importDonsData    = [];
+
+// ─── PARSERS PAR ONGLET ───────────────────────────────────────────────────────
+
+/**
+ * Parse l'onglet "Suivi donateurs et amis" (et "donateurs IFI", "archives donateurs")
+ * Structure : Nom(2) Prénom(3) école(0) collège(1) type(4) lien(5) tel(6) mail(7)
+ *             adresse(8) 2022(9) 2023(10) 2024(11) 2025(12) 2026(13)
+ *             reçu(14) paiement(15) statut(18) dernière action(19) prochaine(20)
+ *             remercié(21) notes(22)
+ */
+function _parseSheetPersonnes(rows, sourceLabel) {
+    const donors = [];
+    const dons   = [];
+
+    rows.forEach((r, i) => {
+        const nom = _raw(r[2]);
+        if (!nom || nom.toLowerCase() === 'nom') return; // skip vide ou en-tête
+
+        const entities = _resolveEntities(r[0], r[1]);
+        const prenom   = _raw(r[3]);
+        const phone    = _raw(r[6]);
+        const email    = _firstEmail(r[7]);
+        const address  = _raw(r[8]);
+        const remercie = _raw(r[21]).toLowerCase();
+        const thanked  = ['oui', 'o', 'yes', '1'].includes(remercie);
+
+        // Construire les notes en regroupant les infos de suivi
+        const noteParts = [];
+        if (_raw(r[4]))  noteParts.push(`Type: ${_raw(r[4])}`);
+        if (_raw(r[5]))  noteParts.push(`Lien: ${_raw(r[5])}`);
+        if (_raw(r[18])) noteParts.push(`Statut: ${_raw(r[18])}`);
+        if (_raw(r[19])) noteParts.push(`Dernière action: ${_raw(r[19])}`);
+        if (_raw(r[20])) noteParts.push(`Prochaine action: ${_raw(r[20])}`);
+        if (_raw(r[22])) noteParts.push(_raw(r[22]));
+        const notes = noteParts.join(' | ') || null;
+
+        const receiptNumber = _raw(r[14]) || null;
+        const paymentMode   = _raw(r[15]) || null;
+
+        // Un donateur peut être dans les deux entités → on crée une entrée par entité
+        entities.forEach(entity => {
+            const donorKey = `${nom.toUpperCase()}__${entity}__${sourceLabel}__${i}`;
+            donors.push({
+                _key: donorKey,
+                last_name: nom.toUpperCase(),
+                first_name: prenom || null,
+                company_name: null,
+                entity,
+                email,
+                phone: phone || null,
+                address: address || null,
+                zip_code: null,
+                city: null,
+                origin: sourceLabel,
+                notes,
+                last_modified_by: 'Import Excel'
+            });
+
+            // Colonnes années → dons individuels
+            const YEARS = [
+                { col: 9,  year: 2022 },
+                { col: 10, year: 2023 },
+                { col: 11, year: 2024 },
+                { col: 12, year: 2025 },
+                { col: 13, year: 2026 },
+            ];
+            YEARS.forEach(({ col, year }) => {
+                const amount = _evalAmount(r[col]);
+                if (amount !== null) {
+                    dons.push({
+                        _donor_key: donorKey,
+                        amount,
+                        date: `${year}-01-01`,
+                        payment_mode: paymentMode,
+                        tax_receipt_number: receiptNumber,
+                        fiscal_receipt_id: null,
+                        campaign: null,
+                        thanked: thanked && year === Math.max(...YEARS.filter(y => _evalAmount(r[y.col])).map(y => y.year)),
+                        _valid: true
+                    });
+                }
+            });
+        });
+    });
+
+    return { donors, dons };
+}
+
+/**
+ * Parse l'onglet "suivi entreprises"
+ * Structure : école(0) collège(1) entité/nom(2) type(3) lien(4) tel(5) mail(6)
+ *             adresse(7) 2022(13) 2023(14) 2024(15) 2025(16) remercié(17) notes(18)
+ */
+function _parseSheetEntreprises(rows) {
+    const donors = [];
+    const dons   = [];
+
+    rows.forEach((r, i) => {
+        const nom = _raw(r[2]);
+        if (!nom) return;
+
+        const entities = _resolveEntities(r[0], r[1]);
+
+        const noteParts = [];
+        if (_raw(r[3])) noteParts.push(`Type: ${_raw(r[3])}`);
+        if (_raw(r[4])) noteParts.push(`Lien: ${_raw(r[4])}`);
+        if (_raw(r[10])) noteParts.push(`Statut: ${_raw(r[10])}`);
+        if (_raw(r[11])) noteParts.push(`Dernière action: ${_raw(r[11])}`);
+        if (_raw(r[12])) noteParts.push(`Prochaine action: ${_raw(r[12])}`);
+        if (_raw(r[18])) noteParts.push(_raw(r[18]));
+
+        const remercie = _raw(r[17]).toLowerCase();
+
+        entities.forEach(entity => {
+            const donorKey = `ENT__${nom.toUpperCase()}__${entity}__${i}`;
+            donors.push({
+                _key: donorKey,
+                last_name: nom.toUpperCase(),
+                first_name: null,
+                company_name: nom,
+                entity,
+                email: _firstEmail(r[6]),
+                phone: _raw(r[5]) || null,
+                address: _raw(r[7]) || null,
+                zip_code: null,
+                city: null,
+                origin: 'Suivi entreprises',
+                notes: noteParts.join(' | ') || null,
+                last_modified_by: 'Import Excel'
+            });
+
+            const YEARS = [
+                { col: 13, year: 2022 },
+                { col: 14, year: 2023 },
+                { col: 15, year: 2024 },
+                { col: 16, year: 2025 },
+            ];
+            YEARS.forEach(({ col, year }) => {
+                const amount = _evalAmount(r[col]);
+                if (amount !== null) {
+                    dons.push({
+                        _donor_key: donorKey,
+                        amount,
+                        date: `${year}-01-01`,
+                        payment_mode: null,
+                        tax_receipt_number: null,
+                        fiscal_receipt_id: null,
+                        campaign: null,
+                        thanked: ['oui','o','yes','1'].includes(remercie),
+                        _valid: true
+                    });
+                }
+            });
+        });
+    });
+
+    return { donors, dons };
+}
+
+/**
+ * Parse l'onglet "congregations religieuses"
+ * Structure : entité/nom(0) lien(1) tel(2) mail(3) adresse(4)
+ *             2022(10) 2023(11) 2024(12) 2025(13) remercié(14) notes(15)
+ */
+function _parseSheetCongregations(rows) {
+    const donors = [];
+    const dons   = [];
+
+    rows.forEach((r, i) => {
+        const nom = _raw(r[0]);
+        if (!nom) return;
+
+        // Nettoyer les noms qui ont des sauts de ligne (ex: "moines du Barroux\nartisanat...")
+        const nomClean = nom.split('\n')[0].trim().toUpperCase();
+
+        const noteParts = [];
+        if (_raw(r[1]))  noteParts.push(`Lien: ${_raw(r[1])}`);
+        if (_raw(r[7]))  noteParts.push(`Statut: ${_raw(r[7])}`);
+        if (_raw(r[8]))  noteParts.push(`Dernière action: ${_raw(r[8])}`);
+        if (_raw(r[9]))  noteParts.push(`Prochaine action: ${_raw(r[9])}`);
+        if (_raw(r[15])) noteParts.push(_raw(r[15]));
+
+        const remercie = _raw(r[14]).toLowerCase();
+        const donorKey = `CONG__${nomClean}__${i}`;
+
+        donors.push({
+            _key: donorKey,
+            last_name: nomClean,
+            first_name: null,
+            company_name: nom.split('\n')[0].trim(),
+            entity: 'Institut Alsatia',
+            email: _firstEmail(r[3]),
+            phone: _raw(r[2]) || null,
+            address: _raw(r[4]) || null,
+            zip_code: null,
+            city: null,
+            origin: 'Congrégations religieuses',
+            notes: noteParts.join(' | ') || null,
+            last_modified_by: 'Import Excel'
+        });
+
+        const YEARS = [
+            { col: 10, year: 2022 },
+            { col: 11, year: 2023 },
+            { col: 12, year: 2024 },
+            { col: 13, year: 2025 },
+        ];
+        YEARS.forEach(({ col, year }) => {
+            const amount = _evalAmount(r[col]);
+            if (amount !== null) {
+                dons.push({
+                    _donor_key: donorKey,
+                    amount,
+                    date: `${year}-01-01`,
+                    payment_mode: null,
+                    tax_receipt_number: null,
+                    fiscal_receipt_id: null,
+                    campaign: null,
+                    thanked: ['oui','o','yes','1'].includes(remercie),
+                    _valid: true
+                });
+            }
+        });
+    });
+
+    return { donors, dons };
+}
+
+// ─── MODALE D'IMPORT ──────────────────────────────────────────────────────────
+
 window.showImportDonorsModal = () => {
     if (currentUser.portal !== 'Institut Alsatia') {
         window.showNotice("Accès refusé", "Cette fonctionnalité est réservée à Institut Alsatia.", "error");
@@ -1448,152 +1740,58 @@ window.showImportDonorsModal = () => {
         </div>
         <div class="modal-scroll-body">
 
-            <!-- BULLE D'INFO TEMPLATE -->
-            <div style="background:rgba(197,160,89,0.07); border:1.5px solid var(--gold); border-radius:14px; padding:18px 20px; margin-bottom:22px;">
-                <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
-                    <i data-lucide="info" style="width:20px;height:20px;color:var(--gold);flex-shrink:0;"></i>
-                    <span style="font-weight:800; font-size:0.85rem; color:var(--primary); text-transform:uppercase; letter-spacing:0.8px;">Format du fichier Excel attendu</span>
+            <!-- INFO FORMAT ATTENDU -->
+            <div style="background:rgba(197,160,89,0.07); border:1.5px solid var(--gold); border-radius:14px; padding:16px 18px; margin-bottom:20px;">
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                    <i data-lucide="file-spreadsheet" style="width:20px;height:20px;color:var(--gold);flex-shrink:0;"></i>
+                    <span style="font-weight:800; font-size:0.85rem; color:var(--primary); text-transform:uppercase; letter-spacing:0.8px;">Format reconnu automatiquement</span>
                 </div>
-
-                <p style="font-size:0.82rem; color:var(--primary); margin:0 0 12px 0; font-weight:600;">Le fichier doit avoir <b>2 onglets</b> :</p>
-
-                <!-- Onglet 1 : Donateurs -->
-                <div style="background:white; border-radius:10px; padding:14px; margin-bottom:10px; border:1px solid #e2e8f0;">
-                    <div style="font-weight:800; font-size:0.8rem; color:#10b981; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">
-                        📋 Onglet 1 — "Donateurs" (colonnes attendues)
+                <p style="font-size:0.82rem; color:var(--primary); margin:0 0 10px 0; line-height:1.6;">
+                    L'import lit <b>tous les onglets</b> de votre fichier et les fusionne automatiquement :
+                </p>
+                <div style="display:grid; gap:6px; font-size:0.78rem;">
+                    <div style="display:flex; align-items:center; gap:8px; padding:6px 10px; background:white; border-radius:8px; border:1px solid #e2e8f0;">
+                        <span style="background:#10b981; color:white; border-radius:4px; padding:2px 7px; font-weight:700; font-size:0.7rem;">TAB 1</span>
+                        <span style="font-weight:600;">Suivi donateurs et amis</span>
+                        <span style="color:#64748b; margin-left:auto;">Nom, Prénom, contacts, dons 2022→2026</span>
                     </div>
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; font-size:0.75rem;">
-                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
-                            <span style="color:#ef4444;font-weight:900;">*</span>
-                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-weight:700;">last_name</code>
-                            <span style="color:#64748b;">Nom (obligatoire)</span>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
-                            <span style="color:#94a3b8;">○</span>
-                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">first_name</code>
-                            <span style="color:#64748b;">Prénom</span>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
-                            <span style="color:#94a3b8;">○</span>
-                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">company_name</code>
-                            <span style="color:#64748b;">Entreprise</span>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
-                            <span style="color:#94a3b8;">○</span>
-                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">email</code>
-                            <span style="color:#64748b;">Email</span>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
-                            <span style="color:#94a3b8;">○</span>
-                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">phone</code>
-                            <span style="color:#64748b;">Téléphone</span>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
-                            <span style="color:#94a3b8;">○</span>
-                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">address</code>
-                            <span style="color:#64748b;">Adresse</span>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
-                            <span style="color:#94a3b8;">○</span>
-                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">zip_code</code>
-                            <span style="color:#64748b;">Code postal</span>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
-                            <span style="color:#94a3b8;">○</span>
-                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">city</code>
-                            <span style="color:#64748b;">Ville</span>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
-                            <span style="color:#94a3b8;">○</span>
-                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">entity</code>
-                            <span style="color:#64748b;">École / Entité</span>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
-                            <span style="color:#94a3b8;">○</span>
-                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">origin</code>
-                            <span style="color:#64748b;">Origine</span>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;grid-column:1/-1;">
-                            <span style="color:#94a3b8;">○</span>
-                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">notes</code>
-                            <span style="color:#64748b;">Notes internes</span>
-                        </div>
+                    <div style="display:flex; align-items:center; gap:8px; padding:6px 10px; background:white; border-radius:8px; border:1px solid #e2e8f0;">
+                        <span style="background:#10b981; color:white; border-radius:4px; padding:2px 7px; font-weight:700; font-size:0.7rem;">TAB 2</span>
+                        <span style="font-weight:600;">Donateurs IFI</span>
+                        <span style="color:#64748b; margin-left:auto;">Même structure</span>
                     </div>
-                    <p style="font-size:0.72rem; color:#64748b; margin:10px 0 0 0; font-style:italic;">
-                        💡 Si la colonne <code>entity</code> est absente ou invalide → valeur par défaut : <b>Institut Alsatia</b>
-                    </p>
+                    <div style="display:flex; align-items:center; gap:8px; padding:6px 10px; background:white; border-radius:8px; border:1px solid #e2e8f0;">
+                        <span style="background:#3b82f6; color:white; border-radius:4px; padding:2px 7px; font-weight:700; font-size:0.7rem;">TAB 3</span>
+                        <span style="font-weight:600;">Suivi entreprises</span>
+                        <span style="color:#64748b; margin-left:auto;">Entité = nom entreprise</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; padding:6px 10px; background:white; border-radius:8px; border:1px solid #e2e8f0;">
+                        <span style="background:#8b5cf6; color:white; border-radius:4px; padding:2px 7px; font-weight:700; font-size:0.7rem;">TAB 4</span>
+                        <span style="font-weight:600;">Congrégations religieuses</span>
+                        <span style="color:#64748b; margin-left:auto;">Entité = nom congrégation</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px; padding:6px 10px; background:white; border-radius:8px; border:1px solid #e2e8f0;">
+                        <span style="background:#f59e0b; color:white; border-radius:4px; padding:2px 7px; font-weight:700; font-size:0.7rem;">TAB 5</span>
+                        <span style="font-weight:600;">Archives donateurs</span>
+                        <span style="color:#64748b; margin-left:auto;">Même structure, importé avec note</span>
+                    </div>
                 </div>
-
-                <!-- Onglet 2 : Dons -->
-                <div style="background:white; border-radius:10px; padding:14px; border:1px solid #e2e8f0;">
-                    <div style="font-weight:800; font-size:0.8rem; color:#3b82f6; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">
-                        💰 Onglet 2 — "Dons" (colonnes attendues)
-                    </div>
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; font-size:0.75rem;">
-                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
-                            <span style="color:#ef4444;font-weight:900;">*</span>
-                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-weight:700;">last_name</code>
-                            <span style="color:#64748b;">Nom du donateur</span>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
-                            <span style="color:#ef4444;font-weight:900;">*</span>
-                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-weight:700;">amount</code>
-                            <span style="color:#64748b;">Montant en €</span>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
-                            <span style="color:#94a3b8;">○</span>
-                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">date</code>
-                            <span style="color:#64748b;">Date (JJ/MM/AAAA)</span>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
-                            <span style="color:#94a3b8;">○</span>
-                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">payment_mode</code>
-                            <span style="color:#64748b;">Mode de paiement</span>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
-                            <span style="color:#94a3b8;">○</span>
-                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">campaign</code>
-                            <span style="color:#64748b;">Campagne / Objet</span>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
-                            <span style="color:#94a3b8;">○</span>
-                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">tax_receipt_number</code>
-                            <span style="color:#64748b;">N° reçu fiscal</span>
-                        </div>
-                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;grid-column:1/-1;">
-                            <span style="color:#94a3b8;">○</span>
-                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">thanked</code>
-                            <span style="color:#64748b;">Remercié ? (Oui / Non)</span>
-                        </div>
-                    </div>
-                    <p style="font-size:0.72rem; color:#64748b; margin:10px 0 0 0; font-style:italic;">
-                        💡 La colonne <b>last_name</b> dans l'onglet Dons sert à rattacher chaque don au bon donateur importé.
-                    </p>
-                </div>
-
-                <div style="display:flex; align-items:center; gap:8px; margin-top:12px; padding:10px 12px; background:#eff6ff; border-radius:8px; border:1px solid #bfdbfe;">
-                    <i data-lucide="download" style="width:16px;height:16px;color:#3b82f6;flex-shrink:0;"></i>
-                    <span style="font-size:0.78rem; color:#1e40af; font-weight:600;">
-                        Téléchargez un fichier template vide : 
-                        <span onclick="window.downloadImportTemplate()" style="text-decoration:underline; cursor:pointer;">
-                            Template_Import_Donateurs.xlsx
-                        </span>
-                    </span>
+                <div style="margin-top:10px; padding:8px 12px; background:#fef3c7; border-radius:8px; font-size:0.75rem; color:#92400e;">
+                    <b>💡 Dons par année :</b> les colonnes <code>2022 montant donné</code>, <code>2023</code>, <code>2024</code>, <code>2025</code>, <code>2026</code> sont converties en <b>un don individuel par année</b>.<br>
+                    Les formules Excel (ex: <code>=300+150</code>) sont calculées automatiquement.
                 </div>
             </div>
 
-            <!-- Sélection fichier -->
+            <!-- SÉLECTION FICHIER -->
             <p class="mini-label">SÉLECTIONNER LE FICHIER EXCEL (.xlsx / .xls)</p>
             <input type="file" id="import-excel-file" accept=".xlsx,.xls"
                 style="width:100%; padding:12px; border:2px dashed var(--gold); border-radius:12px; background:rgba(197,160,89,0.03); color:var(--primary); margin-bottom:20px; cursor:pointer; font-size:0.9rem;">
 
-            <!-- Zone de prévisualisation -->
             <div id="import-preview" style="display:none; margin-bottom:16px;"></div>
 
-            <!-- Boutons -->
             <button onclick="window.previewImportDonors()" class="btn-gold" style="width:100%; height:46px; margin-bottom:10px;">
                 <i data-lucide="eye" style="width:16px;height:16px;vertical-align:middle;margin-right:8px;"></i>
-                PRÉVISUALISER LES DONNÉES
+                ANALYSER LE FICHIER
             </button>
             <button id="btn-confirm-import" onclick="window.execImportDonors()" class="btn-gold-fill" style="width:100%; height:50px; display:none; font-size:1rem; letter-spacing:1px;">
                 <i data-lucide="upload-cloud" style="width:18px;height:18px;vertical-align:middle;margin-right:8px;"></i>
@@ -1604,51 +1802,8 @@ window.showImportDonorsModal = () => {
     if (window.lucide) lucide.createIcons();
 };
 
-/**
- * TÉLÉCHARGER UN TEMPLATE VIDE
- */
-window.downloadImportTemplate = () => {
-    const wb = XLSX.utils.book_new();
+// ─── PRÉVISUALISATION ─────────────────────────────────────────────────────────
 
-    // Onglet Donateurs
-    const donorsTemplate = [{
-        last_name: 'DUPONT',
-        first_name: 'Jean',
-        company_name: '',
-        email: 'jean.dupont@email.com',
-        phone: '06 12 34 56 78',
-        address: '12 rue de la Paix',
-        zip_code: '67000',
-        city: 'Strasbourg',
-        entity: 'Institut Alsatia',
-        origin: 'Gala 2025',
-        notes: ''
-    }];
-
-    // Onglet Dons
-    const donsTemplate = [{
-        last_name: 'DUPONT',
-        amount: 500,
-        date: '15/06/2024',
-        payment_mode: 'Virement bancaire',
-        campaign: 'Gala 2025',
-        tax_receipt_number: 'RF-2025-001',
-        fiscal_receipt_id: 'REC-0001',
-        thanked: 'Oui'
-    }];
-
-    const ws1 = XLSX.utils.json_to_sheet(donorsTemplate);
-    XLSX.utils.book_append_sheet(wb, ws1, 'Donateurs');
-    const ws2 = XLSX.utils.json_to_sheet(donsTemplate);
-    XLSX.utils.book_append_sheet(wb, ws2, 'Dons');
-
-    XLSX.writeFile(wb, 'Template_Import_Donateurs.xlsx');
-    window.showNotice("Template téléchargé !", "Remplissez le fichier puis importez-le.", "success");
-};
-
-/**
- * PRÉVISUALISER LES DONNÉES DU FICHIER
- */
 window.previewImportDonors = () => {
     const fileInput = document.getElementById('import-excel-file');
     if (!fileInput || !fileInput.files[0]) {
@@ -1660,121 +1815,90 @@ window.previewImportDonors = () => {
     reader.onload = (e) => {
         try {
             const workbook = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+            const allDonors = [];
+            const allDons   = [];
 
-            // --- LECTURE ONGLET DONATEURS ---
-            const donorSheetName = workbook.SheetNames.find(n =>
-                n.toLowerCase().includes('donat') || n.toLowerCase().includes('contact') || n === workbook.SheetNames[0]
-            );
-            const donorSheet = workbook.Sheets[donorSheetName];
-            const donorRows = XLSX.utils.sheet_to_json(donorSheet, { defval: '' });
+            // Lire chaque onglet selon son type
+            workbook.SheetNames.forEach(sheetName => {
+                const sheet = workbook.Sheets[sheetName];
+                const rows  = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null });
+                // Supprimer la ligne d'en-tête
+                const dataRows = rows.slice(1);
+                const nameLower = sheetName.toLowerCase();
 
-            if (!donorRows.length) {
-                window.showNotice("Fichier vide", "Aucune ligne trouvée dans l'onglet Donateurs.", "error");
-                return;
-            }
+                let result = { donors: [], dons: [] };
 
-            // Normaliser les donateurs
-            window._importPreviewData = donorRows.map((r, i) => {
-                const raw = (v) => (v || '').toString().trim();
-                const lastName = raw(r['last_name'] || r['Last_Name'] || r['NOM'] || r['Nom']).toUpperCase();
-                const entityRaw = raw(r['entity'] || r['Entity'] || r['ENTITÉ'] || r['entite'] || r['Entité']);
-                const entity = VALID_ENTITIES_IMPORT.includes(entityRaw) ? entityRaw : 'Institut Alsatia';
-                return {
-                    last_name: lastName,
-                    first_name: raw(r['first_name'] || r['PRÉNOM'] || r['Prénom']),
-                    company_name: raw(r['company_name'] || r['ENTREPRISE'] || r['Entreprise']) || null,
-                    email: raw(r['email'] || r['Email'] || r['EMAIL']).toLowerCase() || null,
-                    phone: raw(r['phone'] || r['TÉLÉPHONE'] || r['Téléphone'] || r['Tel']) || null,
-                    address: raw(r['address'] || r['ADRESSE'] || r['Adresse']) || null,
-                    zip_code: raw(r['zip_code'] || r['CP'] || r['Code Postal'] || r['code_postal']) || null,
-                    city: raw(r['city'] || r['VILLE'] || r['Ville']) || null,
-                    entity,
-                    origin: raw(r['origin'] || r['ORIGINE'] || r['Origine']) || null,
-                    notes: raw(r['notes'] || r['NOTES'] || r['Notes']) || null,
-                    last_modified_by: `${currentUser.first_name} ${currentUser.last_name}`,
-                    _rowIndex: i + 2,
-                    _valid: !!lastName
-                };
+                if (nameLower.includes('entreprise')) {
+                    result = _parseSheetEntreprises(dataRows);
+                } else if (nameLower.includes('congregation') || nameLower.includes('congrégation')) {
+                    result = _parseSheetCongregations(dataRows);
+                } else if (nameLower.includes('donat') || nameLower.includes('suivi') || nameLower.includes('archive') || nameLower.includes('ifi')) {
+                    const label = nameLower.includes('archive') ? 'Archives' :
+                                  nameLower.includes('ifi')     ? 'IFI'      : 'Import Excel';
+                    result = _parseSheetPersonnes(dataRows, label);
+                }
+                // Onglets non reconnus → ignorés silencieusement
+
+                allDonors.push(...result.donors);
+                allDons.push(...result.dons);
             });
 
-            // --- LECTURE ONGLET DONS (optionnel) ---
-            window._importDonsData = [];
-            if (workbook.SheetNames.length >= 2) {
-                const donsSheetName = workbook.SheetNames.find(n =>
-                    n.toLowerCase().includes('don') && !n.toLowerCase().includes('donat')
-                ) || workbook.SheetNames[1];
+            // Dédupliquer les donateurs (même nom+entité dans plusieurs onglets)
+            const seen = new Set();
+            const uniqueDonors = allDonors.filter(d => {
+                const key = `${d.last_name}__${d.entity}`;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
 
-                if (donsSheetName !== donorSheetName) {
-                    const donsSheet = workbook.Sheets[donsSheetName];
-                    const donsRows = XLSX.utils.sheet_to_json(donsSheet, { defval: '' });
-                    const raw = (v) => (v || '').toString().trim();
+            window._importPreviewData = uniqueDonors;
+            window._importDonsData    = allDons;
 
-                    window._importDonsData = donsRows
-                        .filter(r => raw(r['last_name'] || r['NOM'] || r['Nom']) && raw(r['amount'] || r['MONTANT'] || r['Montant']))
-                        .map(r => {
-                            const lastName = raw(r['last_name'] || r['NOM'] || r['Nom']).toUpperCase();
-                            const amountRaw = raw(r['amount'] || r['MONTANT'] || r['Montant']).replace(',', '.').replace(/[^0-9.]/g, '');
-                            const amount = parseFloat(amountRaw);
+            const totalDons = allDons.filter(d => d._valid).length;
+            const sheets    = workbook.SheetNames;
 
-                            // Parsing date flexible
-                            let dateStr = raw(r['date'] || r['DATE'] || r['Date']);
-                            let parsedDate = null;
-                            if (dateStr) {
-                                // Tentative DD/MM/YYYY
-                                const parts = dateStr.split('/');
-                                if (parts.length === 3) {
-                                    parsedDate = `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
-                                } else if (dateStr.match(/^\d{4}-\d{2}-\d{2}/)) {
-                                    parsedDate = dateStr.substring(0, 10);
-                                } else if (r['date'] instanceof Date) {
-                                    parsedDate = r['date'].toISOString().split('T')[0];
-                                }
-                            }
-                            if (!parsedDate) parsedDate = new Date().toISOString().split('T')[0];
+            // Résumé par onglet
+            const sheetSummary = workbook.SheetNames.map(n => {
+                const nl = n.toLowerCase();
+                let parsed;
+                if (nl.includes('entreprise'))                          parsed = _parseSheetEntreprises(XLSX.utils.sheet_to_json(workbook.Sheets[n], {header:1,defval:null}).slice(1));
+                else if (nl.includes('congregation')||nl.includes('congrégation')) parsed = _parseSheetCongregations(XLSX.utils.sheet_to_json(workbook.Sheets[n], {header:1,defval:null}).slice(1));
+                else if (nl.includes('donat')||nl.includes('suivi')||nl.includes('archive')||nl.includes('ifi')) parsed = _parseSheetPersonnes(XLSX.utils.sheet_to_json(workbook.Sheets[n], {header:1,defval:null}).slice(1), n);
+                else return null;
+                return { name: n, donors: parsed.donors.length, dons: parsed.dons.length };
+            }).filter(Boolean);
 
-                            const thankedRaw = raw(r['thanked'] || r['REMERCIÉ'] || r['Remercié']).toLowerCase();
-
-                            return {
-                                _donor_last_name: lastName,
-                                amount: isNaN(amount) ? null : amount,
-                                date: parsedDate,
-                                payment_mode: raw(r['payment_mode'] || r['MODE'] || r['Mode de paiement']) || null,
-                                campaign: raw(r['campaign'] || r['CAMPAGNE'] || r['Campagne']) || null,
-                                tax_receipt_number: raw(r['tax_receipt_number'] || r['N° REÇU'] || r['Reçu fiscal']) || null,
-                                fiscal_receipt_id: raw(r['fiscal_receipt_id'] || r['ID REÇU'] || r['ID Reçu']) || null,
-                                thanked: ['oui', 'yes', '1', 'true', 'o'].includes(thankedRaw),
-                                _valid: !isNaN(amount) && amount > 0
-                            };
-                        });
-                }
-            }
-
-            const valid = window._importPreviewData.filter(r => r._valid);
-            const invalid = window._importPreviewData.filter(r => !r._valid);
-            const validDons = window._importDonsData.filter(d => d._valid);
-
+            // Afficher le résumé
             const previewEl = document.getElementById('import-preview');
             previewEl.style.display = 'block';
             previewEl.innerHTML = `
-                <!-- Compteurs -->
-                <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:16px;">
-                    <div style="background:#f0fdf4; border:1px solid #22c55e; border-radius:10px; padding:12px; text-align:center;">
-                        <div style="font-size:1.6rem; font-weight:900; color:#16a34a;">${valid.length}</div>
-                        <div style="font-size:0.7rem; color:#16a34a; font-weight:700; text-transform:uppercase;">Donateurs valides</div>
+                <!-- Compteurs globaux -->
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
+                    <div style="background:#f0fdf4; border:1px solid #22c55e; border-radius:10px; padding:14px; text-align:center;">
+                        <div style="font-size:2rem; font-weight:900; color:#16a34a;">${uniqueDonors.length}</div>
+                        <div style="font-size:0.72rem; color:#16a34a; font-weight:700; text-transform:uppercase;">Contacts à importer</div>
                     </div>
-                    <div style="background:${invalid.length > 0 ? '#fef2f2' : '#f8fafc'}; border:1px solid ${invalid.length > 0 ? '#ef4444' : '#e2e8f0'}; border-radius:10px; padding:12px; text-align:center;">
-                        <div style="font-size:1.6rem; font-weight:900; color:${invalid.length > 0 ? '#dc2626' : '#94a3b8'};">${invalid.length}</div>
-                        <div style="font-size:0.7rem; color:${invalid.length > 0 ? '#dc2626' : '#94a3b8'}; font-weight:700; text-transform:uppercase;">Sans nom (ignorés)</div>
-                    </div>
-                    <div style="background:#eff6ff; border:1px solid #3b82f6; border-radius:10px; padding:12px; text-align:center;">
-                        <div style="font-size:1.6rem; font-weight:900; color:#1d4ed8;">${validDons.length}</div>
-                        <div style="font-size:0.7rem; color:#1d4ed8; font-weight:700; text-transform:uppercase;">Dons à importer</div>
+                    <div style="background:#eff6ff; border:1px solid #3b82f6; border-radius:10px; padding:14px; text-align:center;">
+                        <div style="font-size:2rem; font-weight:900; color:#1d4ed8;">${totalDons}</div>
+                        <div style="font-size:0.72rem; color:#1d4ed8; font-weight:700; text-transform:uppercase;">Dons à importer</div>
                     </div>
                 </div>
 
-                <!-- Aperçu donateurs -->
-                <p style="font-size:0.75rem; font-weight:700; color:var(--primary); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Aperçu des donateurs :</p>
-                <div style="max-height:160px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:12px;">
+                <!-- Résumé par onglet -->
+                <p style="font-size:0.75rem; font-weight:700; color:var(--primary); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Détail par onglet :</p>
+                <div style="border:1px solid #e2e8f0; border-radius:8px; overflow:hidden; margin-bottom:14px;">
+                    ${sheetSummary.map((s, i) => `
+                        <div style="display:flex; align-items:center; padding:10px 14px; ${i < sheetSummary.length-1 ? 'border-bottom:1px solid #f1f5f9;' : ''}; background:${i%2===0?'white':'#fafafa'};">
+                            <span style="flex:1; font-weight:600; font-size:0.83rem; color:var(--primary);">${s.name}</span>
+                            <span style="background:#f0fdf4; color:#16a34a; padding:3px 10px; border-radius:12px; font-size:0.72rem; font-weight:700; margin-right:8px;">${s.donors} contacts</span>
+                            <span style="background:#eff6ff; color:#1d4ed8; padding:3px 10px; border-radius:12px; font-size:0.72rem; font-weight:700;">${s.dons} dons</span>
+                        </div>`).join('')}
+                </div>
+
+                <!-- Aperçu des premiers contacts -->
+                <p style="font-size:0.75rem; font-weight:700; color:var(--primary); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Aperçu des contacts :</p>
+                <div style="max-height:180px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px;">
                     <table style="width:100%; border-collapse:collapse; font-size:0.78rem;">
                         <thead style="background:var(--surface); position:sticky; top:0;">
                             <tr>
@@ -1785,7 +1909,7 @@ window.previewImportDonors = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            ${valid.slice(0, 8).map(r => `
+                            ${uniqueDonors.slice(0, 10).map(r => `
                                 <tr style="border-bottom:1px solid #f1f5f9;">
                                     <td style="padding:6px 8px; font-weight:700; color:var(--primary);">${r.last_name}</td>
                                     <td style="padding:6px 8px;">${r.first_name || '—'}</td>
@@ -1794,43 +1918,17 @@ window.previewImportDonors = () => {
                                         <span style="background:rgba(197,160,89,0.12); color:var(--primary); padding:2px 7px; border-radius:6px; font-size:0.7rem; font-weight:600;">${r.entity}</span>
                                     </td>
                                 </tr>`).join('')}
-                            ${valid.length > 8 ? `<tr><td colspan="4" style="padding:8px; text-align:center; color:#94a3b8; font-style:italic; font-size:0.75rem;">... et ${valid.length - 8} autres</td></tr>` : ''}
+                            ${uniqueDonors.length > 10 ? `<tr><td colspan="4" style="padding:8px; text-align:center; color:#94a3b8; font-style:italic; font-size:0.75rem;">... et ${uniqueDonors.length - 10} autres contacts</td></tr>` : ''}
                         </tbody>
                     </table>
                 </div>
-
-                ${validDons.length > 0 ? `
-                <!-- Aperçu dons -->
-                <p style="font-size:0.75rem; font-weight:700; color:var(--primary); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Aperçu des dons :</p>
-                <div style="max-height:130px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:12px;">
-                    <table style="width:100%; border-collapse:collapse; font-size:0.78rem;">
-                        <thead style="background:var(--surface); position:sticky; top:0;">
-                            <tr>
-                                <th style="padding:8px; text-align:left; border-bottom:1px solid #e2e8f0; color:#3b82f6;">DONATEUR</th>
-                                <th style="padding:8px; text-align:left; border-bottom:1px solid #e2e8f0; color:#3b82f6;">MONTANT</th>
-                                <th style="padding:8px; text-align:left; border-bottom:1px solid #e2e8f0; color:#3b82f6;">DATE</th>
-                                <th style="padding:8px; text-align:left; border-bottom:1px solid #e2e8f0; color:#3b82f6;">CAMPAGNE</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${validDons.slice(0, 6).map(d => `
-                                <tr style="border-bottom:1px solid #f1f5f9;">
-                                    <td style="padding:6px 8px; font-weight:600;">${d._donor_last_name}</td>
-                                    <td style="padding:6px 8px; font-weight:700; color:#10b981;">${d.amount?.toLocaleString('fr-FR')} €</td>
-                                    <td style="padding:6px 8px; color:#64748b;">${new Date(d.date).toLocaleDateString('fr-FR')}</td>
-                                    <td style="padding:6px 8px; color:#64748b;">${d.campaign || '—'}</td>
-                                </tr>`).join('')}
-                            ${validDons.length > 6 ? `<tr><td colspan="4" style="padding:8px; text-align:center; color:#94a3b8; font-style:italic; font-size:0.75rem;">... et ${validDons.length - 6} autres dons</td></tr>` : ''}
-                        </tbody>
-                    </table>
-                </div>
-                ` : ''}
             `;
 
-            if (valid.length > 0) {
+            if (uniqueDonors.length > 0) {
                 const btn = document.getElementById('btn-confirm-import');
                 btn.style.display = 'block';
-                btn.innerHTML = `<i data-lucide="upload-cloud" style="width:18px;height:18px;vertical-align:middle;margin-right:8px;"></i>IMPORTER ${valid.length} DONATEUR${valid.length > 1 ? 'S' : ''}${validDons.length > 0 ? ` + ${validDons.length} DON${validDons.length > 1 ? 'S' : ''}` : ''}`;
+                btn.innerHTML = `<i data-lucide="upload-cloud" style="width:18px;height:18px;vertical-align:middle;margin-right:8px;"></i>IMPORTER ${uniqueDonors.length} CONTACTS + ${totalDons} DONS`;
+                if(window.lucide) lucide.createIcons();
             }
 
             if (window.lucide) lucide.createIcons();
@@ -1843,12 +1941,11 @@ window.previewImportDonors = () => {
     reader.readAsArrayBuffer(fileInput.files[0]);
 };
 
-/**
- * EXÉCUTER L'IMPORT
- */
+// ─── EXÉCUTION DE L'IMPORT ────────────────────────────────────────────────────
+
 window.execImportDonors = async () => {
-    const toInsert = (window._importPreviewData || []).filter(r => r._valid).map(({ _rowIndex, _valid, ...d }) => d);
-    const donsToInsert = (window._importDonsData || []).filter(d => d._valid);
+    const toInsert = (window._importPreviewData || []);
+    const donsAll  = (window._importDonsData    || []).filter(d => d._valid);
 
     if (!toInsert.length) {
         window.showNotice("Erreur", "Aucune donnée valide à importer.", "error");
@@ -1856,50 +1953,60 @@ window.execImportDonors = async () => {
     }
 
     const btn = document.getElementById('btn-confirm-import');
-    if (btn) { btn.disabled = true; btn.innerHTML = '<i data-lucide="loader" style="width:16px;vertical-align:middle;margin-right:8px;animation:spin 1s linear infinite;"></i>Import en cours...'; if(window.lucide) lucide.createIcons(); }
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i data-lucide="loader" style="width:16px;vertical-align:middle;margin-right:8px;animation:spin 1s linear infinite;"></i>Import en cours...';
+        if (window.lucide) lucide.createIcons();
+    }
 
-    const BATCH_SIZE = 100;
+    const BATCH = 100;
     let insertedDonors = 0;
-    let errorsDonors = 0;
+    let insertedDons   = 0;
+    let errorsDonors   = 0;
+    let errorsDons     = 0;
 
-    // Map pour retrouver les IDs des donateurs insérés (nom → id)
-    const donorIdMap = {};
+    // Map _key → donor_id pour rattacher les dons
+    const keyToId = {};
 
-    // Insérer les donateurs par batch
-    for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
-        const batch = toInsert.slice(i, i + BATCH_SIZE);
-        const { data, error } = await supabaseClient.from('donors').insert(batch).select('id, last_name');
+    // Insérer les donateurs (sans le champ _key)
+    for (let i = 0; i < toInsert.length; i += BATCH) {
+        const batch = toInsert.slice(i, i + BATCH);
+        const keys  = batch.map(d => d._key);
+        const clean = batch.map(({ _key, ...d }) => d);
+
+        const { data, error } = await supabaseClient
+            .from('donors')
+            .insert(clean)
+            .select('id, last_name, entity');
+
         if (error) {
-            console.error('Erreur batch import donateurs:', error);
+            console.error('Erreur import donateurs:', error);
             errorsDonors += batch.length;
         } else {
             insertedDonors += batch.length;
-            // Construire le mapping nom → id
+            // Construire le mapping _key → id en utilisant l'ordre d'insertion
             if (data) {
-                data.forEach(d => {
-                    donorIdMap[d.last_name.toUpperCase()] = d.id;
+                data.forEach((row, idx) => {
+                    keyToId[keys[idx]] = row.id;
                 });
             }
         }
     }
 
-    // Insérer les dons en rattachant les donor_id
-    let insertedDons = 0;
-    let errorsDons = 0;
-
-    if (donsToInsert.length > 0 && Object.keys(donorIdMap).length > 0) {
-        const donsWithIds = donsToInsert
-            .filter(d => donorIdMap[d._donor_last_name])
-            .map(({ _donor_last_name, _valid, ...d }) => ({
+    // Insérer les dons en rattachant les donor_id via _key
+    if (donsAll.length > 0) {
+        const donsWithIds = donsAll
+            .filter(d => keyToId[d._donor_key])
+            .map(({ _donor_key, _valid, ...d }) => ({
                 ...d,
-                donor_id: donorIdMap[_donor_last_name]
+                donor_id: keyToId[_donor_key]
             }));
 
-        for (let i = 0; i < donsWithIds.length; i += BATCH_SIZE) {
-            const batch = donsWithIds.slice(i, i + BATCH_SIZE);
+        for (let i = 0; i < donsWithIds.length; i += BATCH) {
+            const batch = donsWithIds.slice(i, i + BATCH);
             const { error } = await supabaseClient.from('donations').insert(batch);
             if (error) {
-                console.error('Erreur batch import dons:', error);
+                console.error('Erreur import dons:', error);
                 errorsDons += batch.length;
             } else {
                 insertedDons += batch.length;
@@ -1908,22 +2015,25 @@ window.execImportDonors = async () => {
     }
 
     window._importPreviewData = [];
-    window._importDonsData = [];
+    window._importDonsData    = [];
     closeCustomModal();
 
-    // Message de résultat
     if (errorsDonors === 0 && errorsDons === 0) {
-        const msg = insertedDons > 0
-            ? `${insertedDonors} donateur${insertedDonors > 1 ? 's' : ''} et ${insertedDons} don${insertedDons > 1 ? 's' : ''} importés avec succès.`
-            : `${insertedDonors} donateur${insertedDonors > 1 ? 's' : ''} importé${insertedDonors > 1 ? 's' : ''} avec succès.`;
-        window.showNotice("Import réussi ✅", msg, "success");
+        window.showNotice(
+            "Import réussi ✅",
+            `${insertedDonors} contact${insertedDonors > 1 ? 's' : ''} et ${insertedDons} don${insertedDons > 1 ? 's' : ''} importés avec succès.`,
+            "success"
+        );
     } else {
-        window.showNotice("Import partiel ⚠️", `${insertedDonors} donateurs, ${insertedDons} dons importés. ${errorsDonors + errorsDons} erreur(s). Consultez la console.`, "warning");
+        window.showNotice(
+            "Import partiel ⚠️",
+            `${insertedDonors} contacts, ${insertedDons} dons importés. ${errorsDonors + errorsDons} erreur(s) — consultez la console.`,
+            "warning"
+        );
     }
 
     window.loadDonors();
 };
-
 // ==========================================
 // GESTION DU COMPTE UTILISATEUR
 // ==========================================
