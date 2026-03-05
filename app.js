@@ -346,6 +346,12 @@ function initInterface() {
         navDonors.style.display = (portal === "Institut Alsatia") ? "flex" : "none";
     }
 
+    // Bouton import Excel (Institut Alsatia uniquement)
+    const btnImport = document.getElementById('btn-import-donors');
+    if (btnImport) {
+        btnImport.style.display = (portal === 'Institut Alsatia') ? 'inline-flex' : 'none';
+    }
+
     // Charger les statistiques
     loadHomeStats();
 
@@ -815,10 +821,15 @@ window.showAddDonorModal = () => {
     const userPortal = currentUser.portal;
     showCustomModal(`
         <div class="modal-header-luxe">
-            <h3 class="luxe-title">NOUVEAU CONTACT CRM</h3>
+            <h3 class="luxe-title">
+                <i data-lucide="user-plus" style="width:20px;height:20px;vertical-align:middle;margin-right:8px;color:var(--gold);"></i>
+                NOUVEAU CONTACT CRM
+            </h3>
             <button onclick="closeCustomModal()" class="close-btn">&times;</button>
         </div>
         <div class="modal-scroll-body">
+
+            <!-- Entité -->
             <p class="mini-label">AFFECTATION ÉCOLE *</p>
             <select id="n-d-entity" class="luxe-input" style="border:1px solid var(--gold); margin-bottom:15px;">
                 <option ${userPortal === 'Institut Alsatia' ? 'selected' : ''}>Institut Alsatia</option>
@@ -826,46 +837,80 @@ window.showAddDonorModal = () => {
                 <option ${userPortal === 'Cours Herrade de Landsberg' ? 'selected' : ''}>Cours Herrade de Landsberg</option>
                 <option ${userPortal === 'Collège Saints Louis et Zélie Martin' ? 'selected' : ''}>Collège Saints Louis et Zélie Martin</option>
             </select>
+
+            <!-- Nom + Prénom -->
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:15px;">
-                <div><p class="mini-label">NOM *</p><input type="text" id="n-d-last" class="luxe-input"></div>
-                <div><p class="mini-label">PRÉNOM</p><input type="text" id="n-d-first" class="luxe-input"></div>
+                <div><p class="mini-label">NOM *</p><input type="text" id="n-d-last" class="luxe-input" placeholder="DUPONT"></div>
+                <div><p class="mini-label">PRÉNOM</p><input type="text" id="n-d-first" class="luxe-input" placeholder="Jean"></div>
             </div>
-            <p class="mini-label">ENTREPRISE (Optionnel)</p>
-            <input type="text" id="n-d-company" class="luxe-input" style="margin-bottom:15px;">
-            <p class="mini-label">COORDONNÉES</p>
-            <input type="email" id="n-d-email" class="luxe-input" placeholder="Email" style="margin-bottom:8px;">
-            <input type="text" id="n-d-phone" class="luxe-input" placeholder="Téléphone" style="margin-bottom:15px;">
+
+            <!-- Entreprise -->
+            <p class="mini-label">ENTREPRISE / ASSOCIATION (Optionnel)</p>
+            <input type="text" id="n-d-company" class="luxe-input" placeholder="Société XYZ" style="margin-bottom:15px;">
+
+            <!-- Email + Téléphone -->
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:15px;">
+                <div><p class="mini-label">EMAIL</p><input type="email" id="n-d-email" class="luxe-input" placeholder="jean@email.com"></div>
+                <div><p class="mini-label">TÉLÉPHONE</p><input type="text" id="n-d-phone" class="luxe-input" placeholder="06 12 34 56 78"></div>
+            </div>
+
+            <!-- Adresse -->
+            <p class="mini-label">ADRESSE</p>
+            <input type="text" id="n-d-address" class="luxe-input" placeholder="12 rue de la Paix" style="margin-bottom:10px;">
             <div style="display:grid; grid-template-columns:1fr 2fr; gap:10px; margin-bottom:15px;">
-                <div><p class="mini-label">CP</p><input type="text" id="n-d-zip" class="luxe-input"></div>
-                <div><p class="mini-label">VILLE</p><input type="text" id="n-d-city" class="luxe-input"></div>
+                <div><p class="mini-label">CODE POSTAL</p><input type="text" id="n-d-zip" class="luxe-input" placeholder="67000"></div>
+                <div><p class="mini-label">VILLE</p><input type="text" id="n-d-city" class="luxe-input" placeholder="Strasbourg"></div>
             </div>
-            <p class="mini-label">NOTES / ORIGINE (ex: Gala 2025)</p>
-            <textarea id="n-d-notes" class="luxe-input" style="height:60px;"></textarea>
-            <button onclick="window.execCreateDonor()" class="btn-gold-fill" style="width:100%; margin-top:20px;">CRÉER LE CONTACT</button>
+
+            <!-- Origine -->
+            <p class="mini-label">ORIGINE DU CONTACT</p>
+            <select id="n-d-origin" class="luxe-input" style="margin-bottom:15px;">
+                <option value="">— Non renseigné —</option>
+                <option>Gala annuel</option>
+                <option>Recommandation</option>
+                <option>Événement</option>
+                <option>Site web</option>
+                <option>Courrier</option>
+                <option>Ancien élève</option>
+                <option>Parent d'élève</option>
+                <option>Autre</option>
+            </select>
+
+            <!-- Notes -->
+            <p class="mini-label">NOTES INTERNES</p>
+            <textarea id="n-d-notes" class="luxe-input" rows="3" placeholder="Informations complémentaires..." style="margin-bottom:20px;"></textarea>
+
+            <button onclick="window.execCreateDonor()" class="btn-gold-fill" style="width:100%; height:48px; letter-spacing:1px;">
+                <i data-lucide="save" style="width:18px;height:18px;vertical-align:middle;margin-right:8px;"></i>
+                CRÉER LE CONTACT
+            </button>
         </div>
     `);
+    if(window.lucide) lucide.createIcons();
 };
 
 window.execCreateDonor = async () => {
     const last = document.getElementById('n-d-last').value.trim();
     const ent = document.getElementById('n-d-entity').value;
-    if(!last || !ent) return window.showNotice("Erreur", "Le Nom et l'Entité sont obligatoires.");
+    if(!last || !ent) return window.showNotice("Erreur", "Le Nom et l'Entité sont obligatoires.", "error");
 
     const { error } = await supabaseClient.from('donors').insert([{
         last_name: last.toUpperCase(),
         first_name: document.getElementById('n-d-first').value.trim(),
-        company_name: document.getElementById('n-d-company').value.trim(),
+        company_name: document.getElementById('n-d-company').value.trim() || null,
         entity: ent,
-        email: document.getElementById('n-d-email').value,
-        phone: document.getElementById('n-d-phone').value,
-        zip_code: document.getElementById('n-d-zip').value,
-        city: document.getElementById('n-d-city').value,
-        notes: document.getElementById('n-d-notes').value,
+        email: document.getElementById('n-d-email').value.trim().toLowerCase() || null,
+        phone: document.getElementById('n-d-phone').value.trim() || null,
+        address: document.getElementById('n-d-address').value.trim() || null,
+        zip_code: document.getElementById('n-d-zip').value.trim() || null,
+        city: document.getElementById('n-d-city').value.trim() || null,
+        origin: document.getElementById('n-d-origin').value || null,
+        notes: document.getElementById('n-d-notes').value.trim() || null,
         last_modified_by: `${currentUser.first_name} ${currentUser.last_name}`
     }]);
 
-    if(error) return window.showNotice("Erreur", error.message);
-    window.showNotice("Succès", "Donateur enregistré.");
+    if(error) return window.showNotice("Erreur", error.message, "error");
+    window.showNotice("Succès ✅", "Contact créé avec succès.", "success");
     closeCustomModal();
     loadDonors();
 };
@@ -912,6 +957,7 @@ window.openDonorFile = async (id) => {
                 <input type="text" id="edit-company" class="luxe-input" value="${donor.company_name || ''}" placeholder="Entreprise" style="margin-bottom:8px;">
                 <input type="email" id="edit-email" class="luxe-input" value="${donor.email || ''}" placeholder="Email" style="margin-bottom:8px;">
                 <input type="text" id="edit-phone" class="luxe-input" value="${donor.phone || ''}" placeholder="Tél" style="margin-bottom:8px;">
+                <input type="text" id="edit-address" class="luxe-input" value="${donor.address || ''}" placeholder="Adresse" style="margin-bottom:8px;">
                 <div style="display:grid; grid-template-columns:1fr 2fr; gap:8px;">
                     <input type="text" id="edit-zip" class="luxe-input" value="${donor.zip_code || ''}" placeholder="CP">
                     <input type="text" id="edit-city" class="luxe-input" value="${donor.city || ''}" placeholder="VILLE">
@@ -932,13 +978,15 @@ window.openDonorFile = async (id) => {
             </div>
             <div style="max-height:240px; overflow-y:auto; border:1px solid #eee; margin-top:10px; border-radius:8px;">
                 <table class="luxe-table">
-                    <thead><tr><th>DATE</th><th>MONTANT</th><th>N° REÇU</th><th>REMERCIÉ ?</th><th style="text-align:right;">ACTION</th></tr></thead>
+                    <thead><tr><th>DATE</th><th>MONTANT</th><th>MODE</th><th>CAMPAGNE</th><th>N° REÇU</th><th>REMERCIÉ ?</th><th style="text-align:right;">ACTION</th></tr></thead>
                     <tbody>
                         ${dons.length === 0 ? '<tr><td colspan="5" style="text-align:center; padding:15px; color:#999;">Aucun don enregistré</td></tr>' : ''}
                         ${dons.map(don => `
                             <tr style="${!don.thanked ? 'background:rgba(239, 68, 68, 0.05);' : ''}">
-                                <td>${new Date(don.date).toLocaleDateString()}</td>
-                                <td style="font-weight:700;">${don.amount}€</td>
+                                <td>${new Date(don.date).toLocaleDateString('fr-FR')}</td>
+                                <td style="font-weight:700;">${Number(don.amount).toLocaleString('fr-FR')} €</td>
+                                <td><span style="font-size:0.75rem; color:#64748b;">${don.payment_mode || '—'}</span></td>
+                                <td><span style="font-size:0.75rem; color:#64748b;">${don.campaign || '—'}</span></td>
                                 <td>
                                     <div style="display:flex; align-items:center; gap:6px;">
                                         <input type="text" id="receipt-${don.id}" value="${don.tax_receipt_number || ''}" placeholder="RF-2024-001" style="padding:4px 8px; border:1px solid #e2e8f0; border-radius:6px; font-size:0.85rem; width:100%; max-width:120px;">
@@ -992,37 +1040,94 @@ window.toggleThanked = async (donId, isChecked) => {
 
 window.addDonationPrompt = (donorId) => {
     showCustomModal(`
-        <h3 class="luxe-title">ENREGISTRER UN DON</h3>
-        <p class="mini-label">MONTANT (€)</p>
-        <input type="number" id="don-amt" class="luxe-input" placeholder="0.00">
-        <p class="mini-label" style="margin-top:10px;">DATE DU DON</p>
-        <input type="date" id="don-date" class="luxe-input" value="${new Date().toISOString().split('T')[0]}">
-        <p class="mini-label" style="margin-top:10px;">MODE DE PAIEMENT</p>
-        <select id="don-method" class="luxe-input">
-            <option>Virement</option><option>Chèque</option><option>Espèces</option><option>CB</option><option>Autre</option>
-        </select>
-        <p class="mini-label" style="margin-top:10px;">N° REÇU FISCAL (Optionnel)</p>
-        <input type="text" id="don-receipt" class="luxe-input" placeholder="Ex: RF-2024-001">
-        <button onclick="window.execAddDonation('${donorId}')" class="btn-gold-fill" style="width:100%; margin-top:20px;">VALIDER LE PAIEMENT</button>
+        <div class="modal-header-luxe">
+            <h3 class="luxe-title">
+                <i data-lucide="heart-handshake" style="width:20px;height:20px;vertical-align:middle;margin-right:8px;color:var(--gold);"></i>
+                ENREGISTRER UN DON
+            </h3>
+            <button onclick="closeCustomModal()" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-scroll-body">
+
+            <!-- Montant + Date -->
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px;">
+                <div>
+                    <p class="mini-label">MONTANT (€) *</p>
+                    <input type="number" id="don-amt" class="luxe-input" placeholder="0.00" min="0" step="0.01">
+                </div>
+                <div>
+                    <p class="mini-label">DATE DU DON *</p>
+                    <input type="date" id="don-date" class="luxe-input" value="${new Date().toISOString().split('T')[0]}">
+                </div>
+            </div>
+
+            <!-- Mode de paiement -->
+            <p class="mini-label">MODE DE PAIEMENT</p>
+            <select id="don-method" class="luxe-input" style="margin-bottom:14px;">
+                <option value="">— Sélectionner —</option>
+                <option>Virement bancaire</option>
+                <option>Chèque</option>
+                <option>Espèces</option>
+                <option>Carte bancaire</option>
+                <option>Prélèvement automatique</option>
+                <option>Helloasso</option>
+                <option>Autre</option>
+            </select>
+
+            <!-- Reçu fiscal + ID reçu -->
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px;">
+                <div>
+                    <p class="mini-label">N° REÇU FISCAL</p>
+                    <input type="text" id="don-receipt" class="luxe-input" placeholder="Ex: RF-2025-001">
+                </div>
+                <div>
+                    <p class="mini-label">ID REÇU INTERNE</p>
+                    <input type="text" id="don-fiscal-id" class="luxe-input" placeholder="Ex: REC-0042">
+                </div>
+            </div>
+
+            <!-- Campagne / Objet du don -->
+            <p class="mini-label">OBJET / CAMPAGNE DU DON</p>
+            <input type="text" id="don-campaign" class="luxe-input" placeholder="Ex: Gala 2025, Fête de fin d'année..." style="margin-bottom:14px;">
+
+            <!-- Remercié -->
+            <div style="display:flex; align-items:center; gap:12px; background:rgba(197,160,89,0.06); border:1px dashed var(--gold); border-radius:10px; padding:12px 16px; margin-bottom:20px;">
+                <input type="checkbox" id="don-thanked" style="width:18px;height:18px;accent-color:var(--gold);cursor:pointer;">
+                <label for="don-thanked" style="cursor:pointer; font-size:0.88rem; font-weight:600; color:var(--primary);">
+                    Le donateur a déjà été remercié pour ce don
+                </label>
+            </div>
+
+            <button onclick="window.execAddDonation('${donorId}')" class="btn-gold-fill" style="width:100%; height:48px; font-size:0.95rem; letter-spacing:1px;">
+                <i data-lucide="check-circle" style="width:18px;height:18px;vertical-align:middle;margin-right:8px;"></i>
+                VALIDER LE PAIEMENT
+            </button>
+        </div>
     `);
+    if(window.lucide) lucide.createIcons();
 };
 
 window.execAddDonation = async (donorId) => {
     const amt = document.getElementById('don-amt').value;
     const dat = document.getElementById('don-date').value;
-    if (!amt || amt <= 0) return window.showNotice("Erreur", "Montant invalide.");
+    if (!amt || parseFloat(amt) <= 0) return window.showNotice("Erreur", "Le montant doit être supérieur à 0.", "error");
+    if (!dat) return window.showNotice("Erreur", "La date est obligatoire.", "error");
 
-    await supabaseClient.from('donations').insert([{
+    const { error } = await supabaseClient.from('donations').insert([{
         donor_id: donorId,
         amount: parseFloat(amt),
         date: dat,
-        payment_mode: document.getElementById('don-method').value,
+        payment_mode: document.getElementById('don-method').value || null,
         tax_receipt_number: document.getElementById('don-receipt').value.trim() || null,
-        thanked: false
+        fiscal_receipt_id: document.getElementById('don-fiscal-id').value.trim() || null,
+        campaign: document.getElementById('don-campaign').value.trim() || null,
+        thanked: document.getElementById('don-thanked').checked
     }]);
 
-    window.showNotice("Bravo !", "Don enregistré.");
-    if(typeof loadDashboardData === 'function') loadDashboardData(); 
+    if (error) return window.showNotice("Erreur", error.message, "error");
+
+    window.showNotice("Bravo !", "Don enregistré avec succès.", "success");
+    if(typeof loadDashboardData === 'function') loadDashboardData();
     closeCustomModal();
     window.loadDonors();
 };
@@ -1032,18 +1137,19 @@ window.updateDonorFields = async (id) => {
         entity: document.getElementById('edit-entity').value,
         last_name: document.getElementById('edit-last').value.toUpperCase(),
         first_name: document.getElementById('edit-first').value,
-        company_name: document.getElementById('edit-company').value,
-        email: document.getElementById('edit-email').value,
-        phone: document.getElementById('edit-phone').value,
-        zip_code: document.getElementById('edit-zip').value,
-        city: document.getElementById('edit-city').value,
-        origin: document.getElementById('edit-origin').value,
-        notes: document.getElementById('edit-notes').value,
+        company_name: document.getElementById('edit-company').value || null,
+        email: document.getElementById('edit-email').value || null,
+        phone: document.getElementById('edit-phone').value || null,
+        address: document.getElementById('edit-address') ? document.getElementById('edit-address').value : null,
+        zip_code: document.getElementById('edit-zip').value || null,
+        city: document.getElementById('edit-city').value || null,
+        origin: document.getElementById('edit-origin').value || null,
+        notes: document.getElementById('edit-notes').value || null,
         last_modified_by: `${currentUser.first_name} ${currentUser.last_name}`
     };
     const { error } = await supabaseClient.from('donors').update(payload).eq('id', id);
-    if(error) return window.showNotice("Erreur", error.message);
-    window.showNotice("Succès", "Fiche mise à jour.");
+    if(error) return window.showNotice("Erreur", error.message, "error");
+    window.showNotice("Succès ✅", "Fiche mise à jour.", "success");
     loadDonors();
 };
 
@@ -1195,8 +1301,10 @@ window.executeExportToExcel = async () => {
         'Entité': d.entity || '',
         'Email': d.email || '',
         'Téléphone': d.phone || '',
+        'Adresse': d.address || '',
         'Code Postal': d.zip_code || '',
         'Ville': d.city || '',
+        'Origine': d.origin || '',
         'Notes': d.notes || '',
         'Modifié par': d.last_modified_by || '',
         'Total des dons': d.donations ? d.donations.reduce((sum, don) => sum + parseFloat(don.amount || 0), 0) + ' €' : '0 €'
@@ -1216,9 +1324,11 @@ window.executeExportToExcel = async () => {
                         'Entreprise': d.company_name || '',
                         'Entité': d.entity || '',
                         'Date du don': new Date(don.date).toLocaleDateString('fr-FR'),
-                        'Montant': parseFloat(don.amount || 0) + ' €',
+                        'Montant (€)': parseFloat(don.amount || 0),
                         'Mode de paiement': don.payment_mode || '',
+                        'Campagne': don.campaign || '',
                         'N° Reçu Fiscal': don.tax_receipt_number || '',
+                        'ID Reçu Interne': don.fiscal_receipt_id || '',
                         'Remercié': don.thanked ? 'Oui' : 'Non'
                     });
                 }
@@ -1269,8 +1379,10 @@ window.exportDonorToExcel = async (donorId) => {
         'Entité': donor.entity || '',
         'Email': donor.email || '',
         'Téléphone': donor.phone || '',
+        'Adresse': donor.address || '',
         'Code Postal': donor.zip_code || '',
         'Ville': donor.city || '',
+        'Origine': donor.origin || '',
         'Notes': donor.notes || '',
         'Modifié par': donor.last_modified_by || '',
         'Total des dons': donor.donations ? donor.donations.reduce((sum, don) => sum + parseFloat(don.amount || 0), 0) + ' €' : '0 €',
@@ -1281,32 +1393,536 @@ window.exportDonorToExcel = async (donorId) => {
     const donationsData = donor.donations && donor.donations.length > 0 
         ? donor.donations.map(don => ({
             'Date': new Date(don.date).toLocaleDateString('fr-FR'),
-            'Montant': parseFloat(don.amount || 0) + ' €',
+            'Montant (€)': parseFloat(don.amount || 0),
             'Mode de paiement': don.payment_mode || '',
+            'Campagne': don.campaign || '',
             'N° Reçu Fiscal': don.tax_receipt_number || '',
+            'ID Reçu Interne': don.fiscal_receipt_id || '',
             'Remercié': don.thanked ? 'Oui' : 'Non'
         }))
         : [{ 'Aucun don enregistré': '' }];
     
-    // Créer le fichier Excel
     const wb = XLSX.utils.book_new();
-    
-    // Onglet 1 : DONATEUR
     const ws1 = XLSX.utils.json_to_sheet(donorInfo);
     XLSX.utils.book_append_sheet(wb, ws1, "Informations");
-    
-    // Onglet 2 : DONS
     const ws2 = XLSX.utils.json_to_sheet(donationsData);
     XLSX.utils.book_append_sheet(wb, ws2, "Historique des dons");
     
-    // Télécharger
     const fileName = `${donor.last_name}_${donor.first_name || 'Donateur'}_${new Date().toISOString().split('T')[0]}.xlsx`;
     XLSX.writeFile(wb, fileName);
-    
     window.showNotice("Téléchargé !", `Fichier "${fileName}" prêt`, "success");
 };
 
-function loadUsersForMentions() { console.log("Module CRM Alsatia v1.0 chargé."); }
+function loadUsersForMentions() { console.log("Module CRM Alsatia v2.0 chargé."); }
+
+// ==========================================
+// IMPORT EXCEL — DONATEURS (Institut Alsatia uniquement)
+// ==========================================
+
+const VALID_ENTITIES_IMPORT = [
+    'Institut Alsatia',
+    'Academia Alsatia',
+    'Cours Herrade de Landsberg',
+    'Collège Saints Louis et Zélie Martin'
+];
+
+// Stockage temporaire des données prévisualisées
+window._importPreviewData = [];
+
+/**
+ * OUVRIR LA MODALE D'IMPORT
+ */
+window.showImportDonorsModal = () => {
+    if (currentUser.portal !== 'Institut Alsatia') {
+        window.showNotice("Accès refusé", "Cette fonctionnalité est réservée à Institut Alsatia.", "error");
+        return;
+    }
+
+    showCustomModal(`
+        <div class="modal-header-luxe">
+            <h3 class="luxe-title">
+                <i data-lucide="upload" style="width:20px;height:20px;vertical-align:middle;margin-right:8px;color:var(--gold);"></i>
+                IMPORT EXCEL — DONATEURS
+            </h3>
+            <button onclick="closeCustomModal()" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-scroll-body">
+
+            <!-- BULLE D'INFO TEMPLATE -->
+            <div style="background:rgba(197,160,89,0.07); border:1.5px solid var(--gold); border-radius:14px; padding:18px 20px; margin-bottom:22px;">
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px;">
+                    <i data-lucide="info" style="width:20px;height:20px;color:var(--gold);flex-shrink:0;"></i>
+                    <span style="font-weight:800; font-size:0.85rem; color:var(--primary); text-transform:uppercase; letter-spacing:0.8px;">Format du fichier Excel attendu</span>
+                </div>
+
+                <p style="font-size:0.82rem; color:var(--primary); margin:0 0 12px 0; font-weight:600;">Le fichier doit avoir <b>2 onglets</b> :</p>
+
+                <!-- Onglet 1 : Donateurs -->
+                <div style="background:white; border-radius:10px; padding:14px; margin-bottom:10px; border:1px solid #e2e8f0;">
+                    <div style="font-weight:800; font-size:0.8rem; color:#10b981; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">
+                        📋 Onglet 1 — "Donateurs" (colonnes attendues)
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; font-size:0.75rem;">
+                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
+                            <span style="color:#ef4444;font-weight:900;">*</span>
+                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-weight:700;">last_name</code>
+                            <span style="color:#64748b;">Nom (obligatoire)</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
+                            <span style="color:#94a3b8;">○</span>
+                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">first_name</code>
+                            <span style="color:#64748b;">Prénom</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
+                            <span style="color:#94a3b8;">○</span>
+                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">company_name</code>
+                            <span style="color:#64748b;">Entreprise</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
+                            <span style="color:#94a3b8;">○</span>
+                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">email</code>
+                            <span style="color:#64748b;">Email</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
+                            <span style="color:#94a3b8;">○</span>
+                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">phone</code>
+                            <span style="color:#64748b;">Téléphone</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
+                            <span style="color:#94a3b8;">○</span>
+                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">address</code>
+                            <span style="color:#64748b;">Adresse</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
+                            <span style="color:#94a3b8;">○</span>
+                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">zip_code</code>
+                            <span style="color:#64748b;">Code postal</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
+                            <span style="color:#94a3b8;">○</span>
+                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">city</code>
+                            <span style="color:#64748b;">Ville</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
+                            <span style="color:#94a3b8;">○</span>
+                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">entity</code>
+                            <span style="color:#64748b;">École / Entité</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
+                            <span style="color:#94a3b8;">○</span>
+                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">origin</code>
+                            <span style="color:#64748b;">Origine</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;grid-column:1/-1;">
+                            <span style="color:#94a3b8;">○</span>
+                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">notes</code>
+                            <span style="color:#64748b;">Notes internes</span>
+                        </div>
+                    </div>
+                    <p style="font-size:0.72rem; color:#64748b; margin:10px 0 0 0; font-style:italic;">
+                        💡 Si la colonne <code>entity</code> est absente ou invalide → valeur par défaut : <b>Institut Alsatia</b>
+                    </p>
+                </div>
+
+                <!-- Onglet 2 : Dons -->
+                <div style="background:white; border-radius:10px; padding:14px; border:1px solid #e2e8f0;">
+                    <div style="font-weight:800; font-size:0.8rem; color:#3b82f6; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">
+                        💰 Onglet 2 — "Dons" (colonnes attendues)
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; font-size:0.75rem;">
+                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
+                            <span style="color:#ef4444;font-weight:900;">*</span>
+                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-weight:700;">last_name</code>
+                            <span style="color:#64748b;">Nom du donateur</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
+                            <span style="color:#ef4444;font-weight:900;">*</span>
+                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-weight:700;">amount</code>
+                            <span style="color:#64748b;">Montant en €</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
+                            <span style="color:#94a3b8;">○</span>
+                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">date</code>
+                            <span style="color:#64748b;">Date (JJ/MM/AAAA)</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
+                            <span style="color:#94a3b8;">○</span>
+                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">payment_mode</code>
+                            <span style="color:#64748b;">Mode de paiement</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
+                            <span style="color:#94a3b8;">○</span>
+                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">campaign</code>
+                            <span style="color:#64748b;">Campagne / Objet</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;">
+                            <span style="color:#94a3b8;">○</span>
+                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">tax_receipt_number</code>
+                            <span style="color:#64748b;">N° reçu fiscal</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:6px;padding:3px 0;grid-column:1/-1;">
+                            <span style="color:#94a3b8;">○</span>
+                            <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;">thanked</code>
+                            <span style="color:#64748b;">Remercié ? (Oui / Non)</span>
+                        </div>
+                    </div>
+                    <p style="font-size:0.72rem; color:#64748b; margin:10px 0 0 0; font-style:italic;">
+                        💡 La colonne <b>last_name</b> dans l'onglet Dons sert à rattacher chaque don au bon donateur importé.
+                    </p>
+                </div>
+
+                <div style="display:flex; align-items:center; gap:8px; margin-top:12px; padding:10px 12px; background:#eff6ff; border-radius:8px; border:1px solid #bfdbfe;">
+                    <i data-lucide="download" style="width:16px;height:16px;color:#3b82f6;flex-shrink:0;"></i>
+                    <span style="font-size:0.78rem; color:#1e40af; font-weight:600;">
+                        Téléchargez un fichier template vide : 
+                        <span onclick="window.downloadImportTemplate()" style="text-decoration:underline; cursor:pointer;">
+                            Template_Import_Donateurs.xlsx
+                        </span>
+                    </span>
+                </div>
+            </div>
+
+            <!-- Sélection fichier -->
+            <p class="mini-label">SÉLECTIONNER LE FICHIER EXCEL (.xlsx / .xls)</p>
+            <input type="file" id="import-excel-file" accept=".xlsx,.xls"
+                style="width:100%; padding:12px; border:2px dashed var(--gold); border-radius:12px; background:rgba(197,160,89,0.03); color:var(--primary); margin-bottom:20px; cursor:pointer; font-size:0.9rem;">
+
+            <!-- Zone de prévisualisation -->
+            <div id="import-preview" style="display:none; margin-bottom:16px;"></div>
+
+            <!-- Boutons -->
+            <button onclick="window.previewImportDonors()" class="btn-gold" style="width:100%; height:46px; margin-bottom:10px;">
+                <i data-lucide="eye" style="width:16px;height:16px;vertical-align:middle;margin-right:8px;"></i>
+                PRÉVISUALISER LES DONNÉES
+            </button>
+            <button id="btn-confirm-import" onclick="window.execImportDonors()" class="btn-gold-fill" style="width:100%; height:50px; display:none; font-size:1rem; letter-spacing:1px;">
+                <i data-lucide="upload-cloud" style="width:18px;height:18px;vertical-align:middle;margin-right:8px;"></i>
+                CONFIRMER L'IMPORT
+            </button>
+        </div>
+    `);
+    if (window.lucide) lucide.createIcons();
+};
+
+/**
+ * TÉLÉCHARGER UN TEMPLATE VIDE
+ */
+window.downloadImportTemplate = () => {
+    const wb = XLSX.utils.book_new();
+
+    // Onglet Donateurs
+    const donorsTemplate = [{
+        last_name: 'DUPONT',
+        first_name: 'Jean',
+        company_name: '',
+        email: 'jean.dupont@email.com',
+        phone: '06 12 34 56 78',
+        address: '12 rue de la Paix',
+        zip_code: '67000',
+        city: 'Strasbourg',
+        entity: 'Institut Alsatia',
+        origin: 'Gala 2025',
+        notes: ''
+    }];
+
+    // Onglet Dons
+    const donsTemplate = [{
+        last_name: 'DUPONT',
+        amount: 500,
+        date: '15/06/2024',
+        payment_mode: 'Virement bancaire',
+        campaign: 'Gala 2025',
+        tax_receipt_number: 'RF-2025-001',
+        fiscal_receipt_id: 'REC-0001',
+        thanked: 'Oui'
+    }];
+
+    const ws1 = XLSX.utils.json_to_sheet(donorsTemplate);
+    XLSX.utils.book_append_sheet(wb, ws1, 'Donateurs');
+    const ws2 = XLSX.utils.json_to_sheet(donsTemplate);
+    XLSX.utils.book_append_sheet(wb, ws2, 'Dons');
+
+    XLSX.writeFile(wb, 'Template_Import_Donateurs.xlsx');
+    window.showNotice("Template téléchargé !", "Remplissez le fichier puis importez-le.", "success");
+};
+
+/**
+ * PRÉVISUALISER LES DONNÉES DU FICHIER
+ */
+window.previewImportDonors = () => {
+    const fileInput = document.getElementById('import-excel-file');
+    if (!fileInput || !fileInput.files[0]) {
+        window.showNotice("Erreur", "Veuillez sélectionner un fichier Excel.", "error");
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const workbook = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+
+            // --- LECTURE ONGLET DONATEURS ---
+            const donorSheetName = workbook.SheetNames.find(n =>
+                n.toLowerCase().includes('donat') || n.toLowerCase().includes('contact') || n === workbook.SheetNames[0]
+            );
+            const donorSheet = workbook.Sheets[donorSheetName];
+            const donorRows = XLSX.utils.sheet_to_json(donorSheet, { defval: '' });
+
+            if (!donorRows.length) {
+                window.showNotice("Fichier vide", "Aucune ligne trouvée dans l'onglet Donateurs.", "error");
+                return;
+            }
+
+            // Normaliser les donateurs
+            window._importPreviewData = donorRows.map((r, i) => {
+                const raw = (v) => (v || '').toString().trim();
+                const lastName = raw(r['last_name'] || r['Last_Name'] || r['NOM'] || r['Nom']).toUpperCase();
+                const entityRaw = raw(r['entity'] || r['Entity'] || r['ENTITÉ'] || r['entite'] || r['Entité']);
+                const entity = VALID_ENTITIES_IMPORT.includes(entityRaw) ? entityRaw : 'Institut Alsatia';
+                return {
+                    last_name: lastName,
+                    first_name: raw(r['first_name'] || r['PRÉNOM'] || r['Prénom']),
+                    company_name: raw(r['company_name'] || r['ENTREPRISE'] || r['Entreprise']) || null,
+                    email: raw(r['email'] || r['Email'] || r['EMAIL']).toLowerCase() || null,
+                    phone: raw(r['phone'] || r['TÉLÉPHONE'] || r['Téléphone'] || r['Tel']) || null,
+                    address: raw(r['address'] || r['ADRESSE'] || r['Adresse']) || null,
+                    zip_code: raw(r['zip_code'] || r['CP'] || r['Code Postal'] || r['code_postal']) || null,
+                    city: raw(r['city'] || r['VILLE'] || r['Ville']) || null,
+                    entity,
+                    origin: raw(r['origin'] || r['ORIGINE'] || r['Origine']) || null,
+                    notes: raw(r['notes'] || r['NOTES'] || r['Notes']) || null,
+                    last_modified_by: `${currentUser.first_name} ${currentUser.last_name}`,
+                    _rowIndex: i + 2,
+                    _valid: !!lastName
+                };
+            });
+
+            // --- LECTURE ONGLET DONS (optionnel) ---
+            window._importDonsData = [];
+            if (workbook.SheetNames.length >= 2) {
+                const donsSheetName = workbook.SheetNames.find(n =>
+                    n.toLowerCase().includes('don') && !n.toLowerCase().includes('donat')
+                ) || workbook.SheetNames[1];
+
+                if (donsSheetName !== donorSheetName) {
+                    const donsSheet = workbook.Sheets[donsSheetName];
+                    const donsRows = XLSX.utils.sheet_to_json(donsSheet, { defval: '' });
+                    const raw = (v) => (v || '').toString().trim();
+
+                    window._importDonsData = donsRows
+                        .filter(r => raw(r['last_name'] || r['NOM'] || r['Nom']) && raw(r['amount'] || r['MONTANT'] || r['Montant']))
+                        .map(r => {
+                            const lastName = raw(r['last_name'] || r['NOM'] || r['Nom']).toUpperCase();
+                            const amountRaw = raw(r['amount'] || r['MONTANT'] || r['Montant']).replace(',', '.').replace(/[^0-9.]/g, '');
+                            const amount = parseFloat(amountRaw);
+
+                            // Parsing date flexible
+                            let dateStr = raw(r['date'] || r['DATE'] || r['Date']);
+                            let parsedDate = null;
+                            if (dateStr) {
+                                // Tentative DD/MM/YYYY
+                                const parts = dateStr.split('/');
+                                if (parts.length === 3) {
+                                    parsedDate = `${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+                                } else if (dateStr.match(/^\d{4}-\d{2}-\d{2}/)) {
+                                    parsedDate = dateStr.substring(0, 10);
+                                } else if (r['date'] instanceof Date) {
+                                    parsedDate = r['date'].toISOString().split('T')[0];
+                                }
+                            }
+                            if (!parsedDate) parsedDate = new Date().toISOString().split('T')[0];
+
+                            const thankedRaw = raw(r['thanked'] || r['REMERCIÉ'] || r['Remercié']).toLowerCase();
+
+                            return {
+                                _donor_last_name: lastName,
+                                amount: isNaN(amount) ? null : amount,
+                                date: parsedDate,
+                                payment_mode: raw(r['payment_mode'] || r['MODE'] || r['Mode de paiement']) || null,
+                                campaign: raw(r['campaign'] || r['CAMPAGNE'] || r['Campagne']) || null,
+                                tax_receipt_number: raw(r['tax_receipt_number'] || r['N° REÇU'] || r['Reçu fiscal']) || null,
+                                fiscal_receipt_id: raw(r['fiscal_receipt_id'] || r['ID REÇU'] || r['ID Reçu']) || null,
+                                thanked: ['oui', 'yes', '1', 'true', 'o'].includes(thankedRaw),
+                                _valid: !isNaN(amount) && amount > 0
+                            };
+                        });
+                }
+            }
+
+            const valid = window._importPreviewData.filter(r => r._valid);
+            const invalid = window._importPreviewData.filter(r => !r._valid);
+            const validDons = window._importDonsData.filter(d => d._valid);
+
+            const previewEl = document.getElementById('import-preview');
+            previewEl.style.display = 'block';
+            previewEl.innerHTML = `
+                <!-- Compteurs -->
+                <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px; margin-bottom:16px;">
+                    <div style="background:#f0fdf4; border:1px solid #22c55e; border-radius:10px; padding:12px; text-align:center;">
+                        <div style="font-size:1.6rem; font-weight:900; color:#16a34a;">${valid.length}</div>
+                        <div style="font-size:0.7rem; color:#16a34a; font-weight:700; text-transform:uppercase;">Donateurs valides</div>
+                    </div>
+                    <div style="background:${invalid.length > 0 ? '#fef2f2' : '#f8fafc'}; border:1px solid ${invalid.length > 0 ? '#ef4444' : '#e2e8f0'}; border-radius:10px; padding:12px; text-align:center;">
+                        <div style="font-size:1.6rem; font-weight:900; color:${invalid.length > 0 ? '#dc2626' : '#94a3b8'};">${invalid.length}</div>
+                        <div style="font-size:0.7rem; color:${invalid.length > 0 ? '#dc2626' : '#94a3b8'}; font-weight:700; text-transform:uppercase;">Sans nom (ignorés)</div>
+                    </div>
+                    <div style="background:#eff6ff; border:1px solid #3b82f6; border-radius:10px; padding:12px; text-align:center;">
+                        <div style="font-size:1.6rem; font-weight:900; color:#1d4ed8;">${validDons.length}</div>
+                        <div style="font-size:0.7rem; color:#1d4ed8; font-weight:700; text-transform:uppercase;">Dons à importer</div>
+                    </div>
+                </div>
+
+                <!-- Aperçu donateurs -->
+                <p style="font-size:0.75rem; font-weight:700; color:var(--primary); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Aperçu des donateurs :</p>
+                <div style="max-height:160px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:12px;">
+                    <table style="width:100%; border-collapse:collapse; font-size:0.78rem;">
+                        <thead style="background:var(--surface); position:sticky; top:0;">
+                            <tr>
+                                <th style="padding:8px; text-align:left; border-bottom:1px solid #e2e8f0; color:var(--gold);">NOM</th>
+                                <th style="padding:8px; text-align:left; border-bottom:1px solid #e2e8f0; color:var(--gold);">PRÉNOM</th>
+                                <th style="padding:8px; text-align:left; border-bottom:1px solid #e2e8f0; color:var(--gold);">EMAIL</th>
+                                <th style="padding:8px; text-align:left; border-bottom:1px solid #e2e8f0; color:var(--gold);">ENTITÉ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${valid.slice(0, 8).map(r => `
+                                <tr style="border-bottom:1px solid #f1f5f9;">
+                                    <td style="padding:6px 8px; font-weight:700; color:var(--primary);">${r.last_name}</td>
+                                    <td style="padding:6px 8px;">${r.first_name || '—'}</td>
+                                    <td style="padding:6px 8px; color:#64748b; font-size:0.73rem;">${r.email || '—'}</td>
+                                    <td style="padding:6px 8px;">
+                                        <span style="background:rgba(197,160,89,0.12); color:var(--primary); padding:2px 7px; border-radius:6px; font-size:0.7rem; font-weight:600;">${r.entity}</span>
+                                    </td>
+                                </tr>`).join('')}
+                            ${valid.length > 8 ? `<tr><td colspan="4" style="padding:8px; text-align:center; color:#94a3b8; font-style:italic; font-size:0.75rem;">... et ${valid.length - 8} autres</td></tr>` : ''}
+                        </tbody>
+                    </table>
+                </div>
+
+                ${validDons.length > 0 ? `
+                <!-- Aperçu dons -->
+                <p style="font-size:0.75rem; font-weight:700; color:var(--primary); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Aperçu des dons :</p>
+                <div style="max-height:130px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px; margin-bottom:12px;">
+                    <table style="width:100%; border-collapse:collapse; font-size:0.78rem;">
+                        <thead style="background:var(--surface); position:sticky; top:0;">
+                            <tr>
+                                <th style="padding:8px; text-align:left; border-bottom:1px solid #e2e8f0; color:#3b82f6;">DONATEUR</th>
+                                <th style="padding:8px; text-align:left; border-bottom:1px solid #e2e8f0; color:#3b82f6;">MONTANT</th>
+                                <th style="padding:8px; text-align:left; border-bottom:1px solid #e2e8f0; color:#3b82f6;">DATE</th>
+                                <th style="padding:8px; text-align:left; border-bottom:1px solid #e2e8f0; color:#3b82f6;">CAMPAGNE</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${validDons.slice(0, 6).map(d => `
+                                <tr style="border-bottom:1px solid #f1f5f9;">
+                                    <td style="padding:6px 8px; font-weight:600;">${d._donor_last_name}</td>
+                                    <td style="padding:6px 8px; font-weight:700; color:#10b981;">${d.amount?.toLocaleString('fr-FR')} €</td>
+                                    <td style="padding:6px 8px; color:#64748b;">${new Date(d.date).toLocaleDateString('fr-FR')}</td>
+                                    <td style="padding:6px 8px; color:#64748b;">${d.campaign || '—'}</td>
+                                </tr>`).join('')}
+                            ${validDons.length > 6 ? `<tr><td colspan="4" style="padding:8px; text-align:center; color:#94a3b8; font-style:italic; font-size:0.75rem;">... et ${validDons.length - 6} autres dons</td></tr>` : ''}
+                        </tbody>
+                    </table>
+                </div>
+                ` : ''}
+            `;
+
+            if (valid.length > 0) {
+                const btn = document.getElementById('btn-confirm-import');
+                btn.style.display = 'block';
+                btn.innerHTML = `<i data-lucide="upload-cloud" style="width:18px;height:18px;vertical-align:middle;margin-right:8px;"></i>IMPORTER ${valid.length} DONATEUR${valid.length > 1 ? 'S' : ''}${validDons.length > 0 ? ` + ${validDons.length} DON${validDons.length > 1 ? 'S' : ''}` : ''}`;
+            }
+
+            if (window.lucide) lucide.createIcons();
+
+        } catch (err) {
+            console.error('Erreur lecture Excel:', err);
+            window.showNotice("Erreur de lecture", "Impossible de lire le fichier. Vérifiez le format (.xlsx).", "error");
+        }
+    };
+    reader.readAsArrayBuffer(fileInput.files[0]);
+};
+
+/**
+ * EXÉCUTER L'IMPORT
+ */
+window.execImportDonors = async () => {
+    const toInsert = (window._importPreviewData || []).filter(r => r._valid).map(({ _rowIndex, _valid, ...d }) => d);
+    const donsToInsert = (window._importDonsData || []).filter(d => d._valid);
+
+    if (!toInsert.length) {
+        window.showNotice("Erreur", "Aucune donnée valide à importer.", "error");
+        return;
+    }
+
+    const btn = document.getElementById('btn-confirm-import');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i data-lucide="loader" style="width:16px;vertical-align:middle;margin-right:8px;animation:spin 1s linear infinite;"></i>Import en cours...'; if(window.lucide) lucide.createIcons(); }
+
+    const BATCH_SIZE = 100;
+    let insertedDonors = 0;
+    let errorsDonors = 0;
+
+    // Map pour retrouver les IDs des donateurs insérés (nom → id)
+    const donorIdMap = {};
+
+    // Insérer les donateurs par batch
+    for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
+        const batch = toInsert.slice(i, i + BATCH_SIZE);
+        const { data, error } = await supabaseClient.from('donors').insert(batch).select('id, last_name');
+        if (error) {
+            console.error('Erreur batch import donateurs:', error);
+            errorsDonors += batch.length;
+        } else {
+            insertedDonors += batch.length;
+            // Construire le mapping nom → id
+            if (data) {
+                data.forEach(d => {
+                    donorIdMap[d.last_name.toUpperCase()] = d.id;
+                });
+            }
+        }
+    }
+
+    // Insérer les dons en rattachant les donor_id
+    let insertedDons = 0;
+    let errorsDons = 0;
+
+    if (donsToInsert.length > 0 && Object.keys(donorIdMap).length > 0) {
+        const donsWithIds = donsToInsert
+            .filter(d => donorIdMap[d._donor_last_name])
+            .map(({ _donor_last_name, _valid, ...d }) => ({
+                ...d,
+                donor_id: donorIdMap[_donor_last_name]
+            }));
+
+        for (let i = 0; i < donsWithIds.length; i += BATCH_SIZE) {
+            const batch = donsWithIds.slice(i, i + BATCH_SIZE);
+            const { error } = await supabaseClient.from('donations').insert(batch);
+            if (error) {
+                console.error('Erreur batch import dons:', error);
+                errorsDons += batch.length;
+            } else {
+                insertedDons += batch.length;
+            }
+        }
+    }
+
+    window._importPreviewData = [];
+    window._importDonsData = [];
+    closeCustomModal();
+
+    // Message de résultat
+    if (errorsDonors === 0 && errorsDons === 0) {
+        const msg = insertedDons > 0
+            ? `${insertedDonors} donateur${insertedDonors > 1 ? 's' : ''} et ${insertedDons} don${insertedDons > 1 ? 's' : ''} importés avec succès.`
+            : `${insertedDonors} donateur${insertedDonors > 1 ? 's' : ''} importé${insertedDonors > 1 ? 's' : ''} avec succès.`;
+        window.showNotice("Import réussi ✅", msg, "success");
+    } else {
+        window.showNotice("Import partiel ⚠️", `${insertedDonors} donateurs, ${insertedDons} dons importés. ${errorsDonors + errorsDons} erreur(s). Consultez la console.`, "warning");
+    }
+
+    window.loadDonors();
+};
 
 // ==========================================
 // GESTION DU COMPTE UTILISATEUR
