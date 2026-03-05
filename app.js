@@ -346,11 +346,12 @@ function initInterface() {
         navDonors.style.display = (portal === "Institut Alsatia") ? "flex" : "none";
     }
 
-    // Bouton import Excel (Institut Alsatia uniquement)
+    // Boutons réservés à Institut Alsatia
     const btnImport = document.getElementById('btn-import-donors');
-    if (btnImport) {
-        btnImport.style.display = (portal === 'Institut Alsatia') ? 'inline-flex' : 'none';
-    }
+    if (btnImport) btnImport.style.display = (portal === 'Institut Alsatia') ? 'inline-flex' : 'none';
+
+    const btnDeleteAll = document.getElementById('btn-delete-all-donors');
+    if (btnDeleteAll) btnDeleteAll.style.display = (portal === 'Institut Alsatia') ? 'inline-flex' : 'none';
 
     // Charger les statistiques
     loadHomeStats();
@@ -1416,6 +1417,146 @@ window.exportDonorToExcel = async (donorId) => {
 function loadUsersForMentions() { console.log("Module CRM Alsatia v2.0 chargé."); }
 
 // ==========================================
+// SUPPRESSION EN MASSE — DONATEURS
+// ==========================================
+
+const ENTITIES_LIST = [
+    'Toutes les entités',
+    'Institut Alsatia',
+    'Cours Herrade de Landsberg',
+    'Collège Saints Louis et Zélie Martin',
+    'Academia Alsatia'
+];
+
+window.showDeleteAllDonorsModal = () => {
+    if (currentUser.portal !== 'Institut Alsatia') {
+        window.showNotice("Accès refusé", "Réservé à Institut Alsatia.", "error");
+        return;
+    }
+
+    showCustomModal(`
+        <div class="modal-header-luxe">
+            <h3 class="luxe-title" style="color:#ef4444;">
+                <i data-lucide="trash-2" style="width:20px;height:20px;vertical-align:middle;margin-right:8px;color:#ef4444;"></i>
+                SUPPRESSION EN MASSE
+            </h3>
+            <button onclick="closeCustomModal()" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-scroll-body">
+
+            <div style="background:#fef2f2; border:2px solid #ef4444; border-radius:12px; padding:16px; margin-bottom:20px;">
+                <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+                    <i data-lucide="alert-triangle" style="width:22px;height:22px;color:#ef4444;flex-shrink:0;"></i>
+                    <span style="font-weight:800; font-size:0.9rem; color:#991b1b; text-transform:uppercase;">Action irréversible</span>
+                </div>
+                <p style="font-size:0.83rem; color:#7f1d1d; margin:0; line-height:1.6;">
+                    Cette action supprime <b>définitivement</b> les donateurs sélectionnés 
+                    <b>ainsi que tous leurs dons associés</b>. Aucun retour en arrière possible.
+                </p>
+            </div>
+
+            <p class="mini-label">PÉRIMÈTRE DE SUPPRESSION</p>
+            <select id="delete-entity-scope" class="luxe-input" style="margin-bottom:16px;" onchange="window.updateDeleteCount()">
+                ${ENTITIES_LIST.map(e => `<option value="${e}">${e}</option>`).join('')}
+            </select>
+
+            <div id="delete-count-display" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px; text-align:center; margin-bottom:20px;">
+                <div id="delete-count-number" style="font-size:2rem; font-weight:900; color:#ef4444;">—</div>
+                <div style="font-size:0.75rem; color:#64748b; font-weight:600; text-transform:uppercase;">contacts concernés</div>
+            </div>
+
+            <p class="mini-label" style="color:#ef4444;">CONFIRMATION — TAPEZ "SUPPRIMER" POUR VALIDER</p>
+            <input type="text" id="delete-confirm-input" class="luxe-input" placeholder='Tapez SUPPRIMER' 
+                style="border:2px solid #ef4444; margin-bottom:20px; text-transform:uppercase;"
+                oninput="window.checkDeleteConfirm()">
+
+            <button id="btn-exec-delete" onclick="window.execDeleteAllDonors()" 
+                class="btn-gold-fill" 
+                style="width:100%; height:50px; background:#ef4444; border-color:#ef4444; display:none; font-size:1rem; letter-spacing:1px;">
+                <i data-lucide="trash-2" style="width:18px;height:18px;vertical-align:middle;margin-right:8px;"></i>
+                SUPPRIMER DÉFINITIVEMENT
+            </button>
+        </div>
+    `);
+    if (window.lucide) lucide.createIcons();
+    window.updateDeleteCount();
+};
+
+window.updateDeleteCount = async () => {
+    const scope = document.getElementById('delete-entity-scope')?.value;
+    if (!scope) return;
+
+    let query = supabaseClient.from('donors').select('id', { count: 'exact', head: true });
+    if (scope !== 'Toutes les entités') query = query.eq('entity', scope);
+
+    const { count, error } = await query;
+    const el = document.getElementById('delete-count-number');
+    if (el) el.textContent = error ? '?' : (count ?? 0);
+};
+
+window.checkDeleteConfirm = () => {
+    const val = document.getElementById('delete-confirm-input')?.value?.trim().toUpperCase();
+    const btn = document.getElementById('btn-exec-delete');
+    if (btn) btn.style.display = val === 'SUPPRIMER' ? 'block' : 'none';
+};
+
+window.execDeleteAllDonors = async () => {
+    const scope = document.getElementById('delete-entity-scope')?.value;
+    const confirm = document.getElementById('delete-confirm-input')?.value?.trim().toUpperCase();
+
+    if (confirm !== 'SUPPRIMER') {
+        window.showNotice("Confirmation manquante", "Tapez SUPPRIMER pour valider.", "error");
+        return;
+    }
+
+    const btn = document.getElementById('btn-exec-delete');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i data-lucide="loader" style="width:16px;vertical-align:middle;margin-right:8px;animation:spin 1s linear infinite;"></i>Suppression en cours...';
+        if (window.lucide) lucide.createIcons();
+    }
+
+    // 1. Récupérer les IDs des donateurs concernés
+    let query = supabaseClient.from('donors').select('id');
+    if (scope !== 'Toutes les entités') query = query.eq('entity', scope);
+    const { data: donors, error: fetchErr } = await query;
+
+    if (fetchErr || !donors) {
+        window.showNotice("Erreur", "Impossible de récupérer les donateurs.", "error");
+        return;
+    }
+
+    const ids = donors.map(d => d.id);
+    if (!ids.length) {
+        window.showNotice("Rien à supprimer", "Aucun contact trouvé pour ce périmètre.", "info");
+        closeCustomModal();
+        return;
+    }
+
+    // 2. Supprimer les dons liés par batch
+    const BATCH = 100;
+    for (let i = 0; i < ids.length; i += BATCH) {
+        const batch = ids.slice(i, i + BATCH);
+        await supabaseClient.from('donations').delete().in('donor_id', batch);
+    }
+
+    // 3. Supprimer les donateurs par batch
+    for (let i = 0; i < ids.length; i += BATCH) {
+        const batch = ids.slice(i, i + BATCH);
+        await supabaseClient.from('donors').delete().in('id', batch);
+    }
+
+    closeCustomModal();
+    const label = scope === 'Toutes les entités' ? 'tous les contacts' : `les contacts de "${scope}"`;
+    window.showNotice(
+        "Suppression effectuée ✅",
+        `${ids.length} contact${ids.length > 1 ? 's' : ''} supprimé${ids.length > 1 ? 's' : ''} (${label}).`,
+        "success"
+    );
+    window.loadDonors();
+};
+
+// ==========================================
 // IMPORT EXCEL — DONATEURS (Institut Alsatia uniquement)
 // Optimisé pour le fichier "Tableau_amis_et_donateurs.xlsx"
 // ==========================================
@@ -1466,16 +1607,37 @@ function _evalAmount(v) {
 
 /**
  * Détermine l'entité(s) à partir des colonnes "donateur école" / "donateur collège"
- * Retourne un tableau d'entités (un donateur peut appartenir aux deux)
+ * - "donateur école"   = x  →  Cours Herrade de Landsberg
+ * - "donateur collège" = x  →  Collège Saints Louis et Zélie Martin
+ * - ni l'un ni l'autre     →  Institut Alsatia (par défaut)
  */
 function _resolveEntities(ecole, college) {
     const isEcole   = _raw(ecole).toLowerCase()   === 'x';
     const isCollege = _raw(college).toLowerCase() === 'x';
     const entities = [];
-    if (isEcole)   entities.push('Institut Alsatia');
+    if (isEcole)   entities.push('Cours Herrade de Landsberg');
     if (isCollege) entities.push('Collège Saints Louis et Zélie Martin');
-    if (!entities.length) entities.push('Institut Alsatia'); // valeur par défaut
+    if (!entities.length) entities.push('Institut Alsatia');
     return entities;
+}
+
+/**
+ * Découpe une adresse postale en {address, zip_code, city}
+ * Gère : "12 rue de la Paix 67000 Strasbourg"
+ *        "1292, chemin des Arriecs 40 700 Horsarrieu"  (CP avec espace)
+ */
+function _parseAddress(raw) {
+    if (!raw || !raw.trim()) return { address: null, zip_code: null, city: null };
+    const s = raw.trim();
+    // Chercher un CP : 5 chiffres consécutifs (ou 2+espace+3 comme "40 700")
+    const cpMatch = s.match(/(\d{2}\s?\d{3})\s+([^\d].*)?$/);
+    if (cpMatch) {
+        const cp   = cpMatch[1].replace(/\s/g, '');
+        const city = (cpMatch[2] || '').trim() || null;
+        const addr = s.substring(0, cpMatch.index).trim().replace(/[,\s]+$/, '') || null;
+        return { address: addr, zip_code: cp, city };
+    }
+    return { address: s, zip_code: null, city: null };
 }
 
 /**
@@ -1516,7 +1678,7 @@ function _parseSheetPersonnes(rows, sourceLabel) {
         const prenom   = _raw(r[3]);
         const phone    = _raw(r[6]);
         const email    = _firstEmail(r[7]);
-        const address  = _raw(r[8]);
+        const parsedAddr = _parseAddress(_raw(r[8]));
         const remercie = _raw(r[21]).toLowerCase();
         const thanked  = ['oui', 'o', 'yes', '1'].includes(remercie);
 
@@ -1544,9 +1706,9 @@ function _parseSheetPersonnes(rows, sourceLabel) {
                 entity,
                 email,
                 phone: phone || null,
-                address: address || null,
-                zip_code: null,
-                city: null,
+                address: parsedAddr.address,
+                zip_code: parsedAddr.zip_code,
+                city: parsedAddr.city,
                 origin: sourceLabel,
                 notes,
                 last_modified_by: 'Import Excel'
@@ -1609,6 +1771,7 @@ function _parseSheetEntreprises(rows) {
 
         entities.forEach(entity => {
             const donorKey = `ENT__${nom.toUpperCase()}__${entity}__${i}`;
+            const parsedAddrEnt = _parseAddress(_raw(r[7]));
             donors.push({
                 _key: donorKey,
                 last_name: nom.toUpperCase(),
@@ -1617,9 +1780,9 @@ function _parseSheetEntreprises(rows) {
                 entity,
                 email: _firstEmail(r[6]),
                 phone: _raw(r[5]) || null,
-                address: _raw(r[7]) || null,
-                zip_code: null,
-                city: null,
+                address: parsedAddrEnt.address,
+                zip_code: parsedAddrEnt.zip_code,
+                city: parsedAddrEnt.city,
                 origin: 'Suivi entreprises',
                 notes: noteParts.join(' | ') || null,
                 last_modified_by: 'Import Excel'
@@ -1679,6 +1842,7 @@ function _parseSheetCongregations(rows) {
         const remercie = _raw(r[14]).toLowerCase();
         const donorKey = `CONG__${nomClean}__${i}`;
 
+        const parsedAddrCong = _parseAddress(_raw(r[4]));
         donors.push({
             _key: donorKey,
             last_name: nomClean,
@@ -1687,9 +1851,9 @@ function _parseSheetCongregations(rows) {
             entity: 'Institut Alsatia',
             email: _firstEmail(r[3]),
             phone: _raw(r[2]) || null,
-            address: _raw(r[4]) || null,
-            zip_code: null,
-            city: null,
+            address: parsedAddrCong.address,
+            zip_code: parsedAddrCong.zip_code,
+            city: parsedAddrCong.city,
             origin: 'Congrégations religieuses',
             notes: noteParts.join(' | ') || null,
             last_modified_by: 'Import Excel'
