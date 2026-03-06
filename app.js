@@ -810,12 +810,16 @@ function renderDonors(data) {
             : `<b>${d.last_name.toUpperCase()}</b> ${d.first_name || ''}`;
             
         return `
-            <tr class="${blinkClass}">
+            <tr class="${blinkClass}" style="${d.archived_at ? 'opacity:0.6;' : ''}">
                 <td>
                     ${displayName}
-                    ${hasUnthanked ? '<br><span class="badge-error">REMERCIEMENT DÛ</span>' : ''}
+                    ${d.archived_at ? '<span style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:1px 7px;border-radius:10px;font-size:0.65rem;font-weight:800;margin-left:6px;vertical-align:middle;">ARCHIVÉ</span>' : ''}
+                    ${hasUnthanked && !d.archived_at ? '<br><span class="badge-error">REMERCIEMENT DÛ</span>' : ''}
                 </td>
-                <td><span class="origin-tag">${d.entity || '-'}</span></td>
+                <td>
+                    <span class="origin-tag">${d.entity || '-'}</span>
+                    ${d.donor_type ? `<br><span style="font-size:0.68rem;color:#94a3b8;">${d.donor_type}</span>` : ''}
+                </td>
                 <td style="font-weight:800; color:var(--primary); font-family:monospace; font-size:1rem;">
                     ${total.toLocaleString('fr-FR')} €
                 </td>
@@ -942,22 +946,47 @@ window.openDonorFile = async (id) => {
     const dons = donor.donations || [];
     
     showCustomModal(`
-        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px;">
-            <div>
-                <p class="mini-label">ÉCOLE / ENTITÉ</p>
-                <select id="edit-entity" class="luxe-input" style="margin-top:5px; border:1px solid var(--gold);">
-                    <option ${donor.entity === 'Institut Alsatia' ? 'selected' : ''}>Institut Alsatia</option>
-                    <option ${donor.entity === 'Academia Alsatia' ? 'selected' : ''}>Academia Alsatia</option>
-                    <option ${donor.entity === 'Cours Herrade de Landsberg' ? 'selected' : ''}>Cours Herrade de Landsberg</option>
-                    <option ${donor.entity === 'Collège Saints Louis et Zélie Martin' ? 'selected' : ''}>Collège Saints Louis et Zélie Martin</option>
-                </select>
+        <!-- EN-TÊTE FICHE -->
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; gap:10px;">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                ${donor.archived_at ? '<span style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:4px 10px;border-radius:20px;font-size:0.72rem;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;">⛔ ARCHIVÉ</span>' : ''}
+                <div>
+                    <p class="mini-label" style="margin:0 0 4px 0;">ÉCOLE / ENTITÉ</p>
+                    <select id="edit-entity" class="luxe-input" style="margin:0;border:1px solid var(--gold);padding:6px 10px;height:34px;font-size:0.83rem;">
+                        <option ${donor.entity === 'Institut Alsatia' ? 'selected' : ''}>Institut Alsatia</option>
+                        <option ${donor.entity === 'Academia Alsatia' ? 'selected' : ''}>Academia Alsatia</option>
+                        <option ${donor.entity === 'Cours Herrade de Landsberg' ? 'selected' : ''}>Cours Herrade de Landsberg</option>
+                        <option ${donor.entity === 'Collège Saints Louis et Zélie Martin' ? 'selected' : ''}>Collège Saints Louis et Zélie Martin</option>
+                    </select>
+                </div>
             </div>
-            <div style="display:flex; gap:10px;">
-                <button onclick="window.exportDonorToExcel('${donor.id}')" class="btn-gold" style="font-size:0.65rem; padding:5px 10px;">EXCEL</button>
-                <button onclick="window.askDeleteDonor('${donor.id}', '${donor.last_name.replace(/'/g, "\\'")}')" style="background:#fee2e2; color:#ef4444; border:none; padding:5px 10px; border-radius:6px; cursor:pointer; font-size:0.65rem;">SUPPRIMER</button>
-                <button onclick="window.closeCustomModal()" style="border:none; background:none; cursor:pointer; font-size:1.5rem;">&times;</button>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;flex-shrink:0;">
+                <button onclick="window.exportDonorToExcel('${donor.id}')" class="btn-outline" style="font-size:0.65rem;padding:5px 8px;">
+                    <i data-lucide="download" style="width:12px;height:12px;vertical-align:middle;"></i> EXCEL
+                </button>
+                ${!donor.archived_at ? `
+                <button onclick="window.showArchiveDonorModal('${donor.id}','${(donor.last_name||'').replace(/'/g,"\\'")}')"
+                    style="background:#fef3c7;color:#92400e;border:1px solid #fde68a;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:0.65rem;font-weight:700;">
+                    <i data-lucide="archive" style="width:12px;height:12px;vertical-align:middle;"></i> ARCHIVER
+                </button>` : `
+                <button onclick="window.unarchiveDonor('${donor.id}')"
+                    style="background:#f0fdf4;color:#16a34a;border:1px solid #86efac;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:0.65rem;font-weight:700;">
+                    <i data-lucide="archive-restore" style="width:12px;height:12px;vertical-align:middle;"></i> DÉSARCHIVER
+                </button>`}
+                <button onclick="window.askDeleteDonor('${donor.id}', '${(donor.last_name||'').replace(/'/g, "\\'")}')"
+                    style="background:#fee2e2;color:#ef4444;border:none;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:0.65rem;">
+                    <i data-lucide="trash-2" style="width:12px;height:12px;vertical-align:middle;"></i> SUPPRIMER
+                </button>
+                <button onclick="window.closeCustomModal()" style="border:none;background:none;cursor:pointer;font-size:1.4rem;color:#94a3b8;line-height:1;">&times;</button>
             </div>
         </div>
+
+        ${donor.archived_at ? `
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:0.82rem;">
+            <b style="color:#dc2626;">Motif d'archivage :</b>
+            <span style="color:#64748b;margin-left:6px;">${donor.archive_reason || '—'}</span>
+            <span style="color:#94a3b8;font-size:0.72rem;margin-left:10px;">le ${new Date(donor.archived_at).toLocaleDateString('fr-FR')}</span>
+        </div>` : ''}
 
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
             <div>
@@ -977,9 +1006,24 @@ window.openDonorFile = async (id) => {
             </div>
             <div>
                 <p class="mini-label">SUIVI CRM</p>
-                <input type="text" id="edit-origin" class="luxe-input" value="${donor.origin || ''}" placeholder="Origine" style="margin-bottom:8px;">
-                <textarea id="edit-notes" class="luxe-input" style="height:110px; margin-bottom:10px;">${donor.notes || ''}</textarea>
-                <button onclick="window.updateDonorFields('${donor.id}')" class="btn-gold" style="width:100%; height:40px;">ENREGISTRER</button>
+
+                <p class="mini-label" style="font-size:0.68rem;margin:0 0 4px;">TYPE DE CONTACT</p>
+                <select id="edit-donor-type" class="luxe-input" style="margin-bottom:8px;">
+                    <option value="">— Non renseigné —</option>
+                    ${DONOR_TYPES.map(t => `<option ${donor.donor_type===t?'selected':''}>${t}</option>`).join('')}
+                </select>
+
+                <p class="mini-label" style="font-size:0.68rem;margin:0 0 4px;">ORIGINE DU CONTACT</p>
+                <div style="display:flex;gap:6px;margin-bottom:8px;">
+                    <input type="text" id="edit-origin" class="luxe-input" style="margin:0;flex:1;" value="${donor.origin || ''}" placeholder="Ex : Gala 2024, Recommandation...">
+                    <button onclick="window.pickOriginFromCampaign('${donor.id}')" title="Lier à une campagne"
+                        style="padding:8px;border:1.5px solid var(--gold);background:rgba(197,160,89,0.08);color:var(--gold);border-radius:8px;cursor:pointer;flex-shrink:0;">
+                        <i data-lucide="link" style="width:14px;height:14px;vertical-align:middle;"></i>
+                    </button>
+                </div>
+
+                <textarea id="edit-notes" class="luxe-input" style="height:80px;margin-bottom:10px;">${donor.notes || ''}</textarea>
+                <button onclick="window.updateDonorFields('${donor.id}')" class="btn-gold" style="width:100%;height:40px;">ENREGISTRER</button>
             </div>
         </div>
 
@@ -1022,7 +1066,10 @@ window.openDonorFile = async (id) => {
                                         onchange="window.updateThankInfo('${don.id}')">
                                 </td>
                                 <td style="text-align:right;">
-                                    <i data-lucide="trash-2" style="width:14px; color:#ef4444; cursor:pointer;" onclick="window.askDeleteDonation('${don.id}')"></i>
+                                    <div style="display:flex;align-items:center;gap:8px;justify-content:flex-end;">
+                                        <i data-lucide="split" style="width:14px;color:var(--gold);cursor:pointer;" onclick="window.showDonationAllocationModal('${don.id}',${don.amount})" title="Répartir par entité"></i>
+                                        <i data-lucide="trash-2" style="width:14px; color:#ef4444; cursor:pointer;" onclick="window.askDeleteDonation('${don.id}')"></i>
+                                    </div>
                                 </td>
                             </tr>`).join('')}
                     </tbody>
@@ -1218,6 +1265,7 @@ window.updateDonorFields = async (id) => {
         address: document.getElementById('edit-address') ? document.getElementById('edit-address').value : null,
         zip_code: document.getElementById('edit-zip').value || null,
         city: document.getElementById('edit-city').value || null,
+        donor_type: document.getElementById('edit-donor-type')?.value || null,
         origin: document.getElementById('edit-origin').value || null,
         notes: document.getElementById('edit-notes').value || null,
         last_modified_by: `${currentUser.first_name} ${currentUser.last_name}`
@@ -4157,9 +4205,22 @@ document.addEventListener('DOMContentLoaded', () => {
 // MODULE CAMPAGNES — CRM Institut Alsatia
 // ============================================================
 
-const CAMPAIGN_TYPES   = ['Email', 'Courrier postal', 'Appel téléphonique', 'Événement', 'SMS', 'Mixte'];
+// Canal de communication (ex-TYPE)
+const CAMPAIGN_CANALS  = ['Email', 'Courrier postal', 'Appel téléphonique', 'Événement', 'SMS', 'Mixte'];
+// Objet / nature de la campagne
+const CAMPAIGN_OBJECTIVES = [
+    'Appel aux dons',
+    'Recherche de contacts',
+    'Événement',
+    'Communication / Info',
+    'Partenariat',
+    'Legs / Planification',
+    'Autre',
+];
 const CAMPAIGN_STATUTS = ['Brouillon', 'Active', 'Terminée', 'Archivée'];
 const RECIPIENT_STATUTS = ['Planifié', 'Envoyé', 'Répondu', 'Refusé', 'Sans réponse'];
+// Types de donateurs/contacts pour le ciblage
+const DONOR_TYPES = ['Famille', 'Amis', 'Donateurs', 'IFI', 'Entreprise', 'Congrégation', 'Legs'];
 const ALL_ENTITIES = [
     'Institut Alsatia',
     'Cours Herrade de Landsberg',
@@ -4182,11 +4243,20 @@ const RECIPIENT_COLORS = {
 };
 const TYPE_ICONS = {
     'Email'              : 'mail',
-    'Courrier postal'    : 'letter-text',
+    'Courrier postal'    : 'file-text',
     'Appel téléphonique' : 'phone',
     'Événement'          : 'calendar',
     'SMS'                : 'message-square',
     'Mixte'              : 'layers',
+};
+const OBJECTIVE_ICONS = {
+    'Appel aux dons'       : 'heart-handshake',
+    'Recherche de contacts': 'users',
+    'Événement'            : 'calendar',
+    'Communication / Info' : 'megaphone',
+    'Partenariat'          : 'handshake',
+    'Legs / Planification' : 'scroll',
+    'Autre'                : 'tag',
 };
 
 // ── CHARGEMENT DE L'ONGLET ─────────────────────────────────
@@ -4318,17 +4388,40 @@ window.showCreateCampaignModal = (editData = null) => {
 
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
                 <div>
-                    <p class="mini-label">TYPE *</p>
-                    <select id="camp-type" class="luxe-input">
-                        ${CAMPAIGN_TYPES.map(t => `<option ${d.type===t?'selected':''}>${t}</option>`).join('')}
+                    <p class="mini-label">OBJET DE LA CAMPAGNE *</p>
+                    <select id="camp-objective" class="luxe-input">
+                        ${CAMPAIGN_OBJECTIVES.map(o => `<option ${(d.objective||d.type)===o?'selected':''}>${o}</option>`).join('')}
                     </select>
                 </div>
+                <div>
+                    <p class="mini-label">CANAL DE DIFFUSION</p>
+                    <select id="camp-canal" class="luxe-input">
+                        <option value="">— Sélectionner —</option>
+                        ${CAMPAIGN_CANALS.map(c => `<option ${d.canal===c?'selected':''}>${c}</option>`).join('')}
+                    </select>
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
                 <div>
                     <p class="mini-label">STATUT</p>
                     <select id="camp-status" class="luxe-input">
                         ${CAMPAIGN_STATUTS.map(s => `<option ${d.status===s?'selected':''}>${s}</option>`).join('')}
                     </select>
                 </div>
+                <div>
+                    <p class="mini-label">OBJECTIF SI AUTRE</p>
+                    <input type="text" id="camp-objective-other" class="luxe-input" placeholder="Précisez..." value="${d.objective_other||''}">
+                </div>
+            </div>
+
+            <p class="mini-label">TYPE DE DONATEURS / CONTACTS VISÉS</p>
+            <div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px;">
+                ${DONOR_TYPES.map(t => `
+                <label style="display:flex;align-items:center;gap:6px;padding:5px 10px;border:1.5px solid #e2e8f0;border-radius:20px;cursor:pointer;font-size:0.78rem;font-weight:600;transition:all 0.15s;"
+                    onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='#e2e8f0'">
+                    <input type="checkbox" name="camp-donor-type" value="${t}" ${(d.donor_types||[]).includes(t)?'checked':''} style="accent-color:var(--gold);width:13px;height:13px;">
+                    ${t}
+                </label>`).join('')}
             </div>
 
             <p class="mini-label">ENTITÉS CIBLÉES</p>
@@ -4372,16 +4465,20 @@ window.saveCampaign = async (id) => {
     const entities = [...document.querySelectorAll('input[name="camp-entity"]:checked')].map(c => c.value);
     if (!entities.length) return window.showNotice("Erreur", "Sélectionnez au moins une entité.", "error");
 
+    const donorTypes = [...document.querySelectorAll('input[name="camp-donor-type"]:checked')].map(c => c.value);
     const payload = {
         name,
-        description : document.getElementById('camp-desc').value.trim() || null,
-        type        : document.getElementById('camp-type').value,
-        status      : document.getElementById('camp-status').value,
-        target_entities: entities,
-        start_date  : document.getElementById('camp-start').value || null,
-        end_date    : document.getElementById('camp-end').value || null,
-        goal_amount : parseFloat(document.getElementById('camp-goal').value) || null,
-        created_by  : `${currentUser.first_name} ${currentUser.last_name}`
+        description     : document.getElementById('camp-desc').value.trim() || null,
+        objective       : document.getElementById('camp-objective').value || null,
+        objective_other : document.getElementById('camp-objective-other')?.value.trim() || null,
+        canal           : document.getElementById('camp-canal').value || null,
+        status          : document.getElementById('camp-status').value,
+        target_entities : entities,
+        donor_types     : donorTypes.length ? donorTypes : null,
+        start_date      : document.getElementById('camp-start').value || null,
+        end_date        : document.getElementById('camp-end').value || null,
+        goal_amount     : parseFloat(document.getElementById('camp-goal').value) || null,
+        created_by      : `${currentUser.first_name} ${currentUser.last_name}`
     };
 
     const { error } = id
@@ -4642,7 +4739,7 @@ window.filterRecipients = (campaignId) => {
 window.showAddRecipientsModal = async (campaignId) => {
     // Charger les donateurs non déjà dans la campagne
     const [{ data: allDonors }, { data: existing }] = await Promise.all([
-        supabaseClient.from('donors').select('id,last_name,first_name,company_name,entity,email,phone').order('last_name'),
+        supabaseClient.from('donors').select('id,last_name,first_name,company_name,entity,email,phone,donor_type,archived_at').order('last_name'),
         supabaseClient.from('campaign_recipients').select('donor_id').eq('campaign_id', campaignId)
     ]);
 
@@ -4671,6 +4768,13 @@ window.showAddRecipientsModal = async (campaignId) => {
                         </select>
                     </div>
                     <div>
+                        <p class="mini-label" style="font-size:0.68rem;">TYPE DE CONTACT</p>
+                        <select id="target-donor-type" class="luxe-input" style="height:34px;font-size:0.8rem;">
+                            <option value="ALL">Tous types</option>
+                            ${DONOR_TYPES.map(t => `<option>${t}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
                         <p class="mini-label" style="font-size:0.68rem;">N'A PAS DONNÉ DEPUIS</p>
                         <select id="target-no-donation-since" class="luxe-input" style="height:34px;font-size:0.8rem;">
                             <option value="">— Ignorer ce filtre —</option>
@@ -4686,6 +4790,13 @@ window.showAddRecipientsModal = async (campaignId) => {
                     <div>
                         <p class="mini-label" style="font-size:0.68rem;">RECHERCHE NOM</p>
                         <input type="text" id="target-search" class="luxe-input" style="height:34px;font-size:0.8rem;" placeholder="Filtrer...">
+                    </div>
+                    <div>
+                        <p class="mini-label" style="font-size:0.68rem;">STATUT ARCHIVAGE</p>
+                        <select id="target-archived" class="luxe-input" style="height:34px;font-size:0.8rem;">
+                            <option value="active">Actifs uniquement</option>
+                            <option value="ALL">Tous (incl. archivés)</option>
+                        </select>
                     </div>
                 </div>
                 <button onclick="window.applyTargetFilters()" class="btn-gold" style="width:100%;height:36px;font-size:0.8rem;">
@@ -4735,12 +4846,16 @@ function _renderDonorsToAdd(donors) {
 
 window.applyTargetFilters = async () => {
     let donors = window._availableDonors || [];
-    const entity  = document.getElementById('target-entity')?.value;
-    const search  = document.getElementById('target-search')?.value?.toLowerCase() || '';
-    const minDon  = parseFloat(document.getElementById('target-min-donation')?.value) || 0;
-    const noSince = parseInt(document.getElementById('target-no-donation-since')?.value) || 0;
+    const entity     = document.getElementById('target-entity')?.value;
+    const donorType  = document.getElementById('target-donor-type')?.value || 'ALL';
+    const search     = document.getElementById('target-search')?.value?.toLowerCase() || '';
+    const minDon     = parseFloat(document.getElementById('target-min-donation')?.value) || 0;
+    const noSince    = parseInt(document.getElementById('target-no-donation-since')?.value) || 0;
+    const archivedFilter = document.getElementById('target-archived')?.value || 'active';
 
     if (entity && entity !== 'ALL') donors = donors.filter(d => d.entity === entity);
+    if (donorType !== 'ALL') donors = donors.filter(d => (d.donor_type || '') === donorType);
+    if (archivedFilter === 'active') donors = donors.filter(d => !d.archived_at);
     if (search) donors = donors.filter(d => {
         const n = (d.last_name+' '+d.first_name+' '+(d.company_name||'')).toLowerCase();
         return n.includes(search);
@@ -5020,4 +5135,231 @@ window.deleteCampaign = (campaignId) => {
             window.loadCampaigns();
         }
     );
+};
+
+// ════════════════════════════════════════════════════════════
+// NOUVELLES FONCTIONS — ARCHIVAGE, ORIGINE, DON PAR ENTITÉ
+// ════════════════════════════════════════════════════════════
+
+// ── ARCHIVAGE ──────────────────────────────────────────────
+window.showArchiveDonorModal = (donorId, donorName) => {
+    showCustomModal(`
+        <div class="modal-header-luxe">
+            <h3 class="luxe-title">
+                <i data-lucide="archive" style="width:20px;height:20px;vertical-align:middle;margin-right:8px;color:#92400e;"></i>
+                ARCHIVER CE CONTACT
+            </h3>
+            <button onclick="closeCustomModal()" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-scroll-body">
+            <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:12px;padding:14px 16px;margin-bottom:18px;">
+                <p style="margin:0;font-size:0.85rem;color:#92400e;font-weight:600;">
+                    ⚠️ La fiche de <b>${donorName}</b> sera archivée mais conservée dans la base de données.<br>
+                    Elle restera visible avec un badge "Archivé".
+                </p>
+            </div>
+            <p class="mini-label">MOTIF D'ARCHIVAGE *</p>
+            <textarea id="archive-reason" class="luxe-input" placeholder="Ex : Contact décédé, Demande de désinscription, Déménagement à l'étranger..." style="height:100px;margin-bottom:18px;"></textarea>
+            <button onclick="window.execArchiveDonor('${donorId}')" class="btn-gold-fill" style="width:100%;height:48px;background:linear-gradient(135deg,#92400e,#b45309);">
+                <i data-lucide="archive" style="width:18px;height:18px;vertical-align:middle;margin-right:8px;"></i>
+                CONFIRMER L'ARCHIVAGE
+            </button>
+        </div>
+    `);
+    if (window.lucide) lucide.createIcons();
+};
+
+window.execArchiveDonor = async (donorId) => {
+    const reason = document.getElementById('archive-reason')?.value?.trim();
+    if (!reason) return window.showNotice("Erreur", "Le motif est obligatoire.", "error");
+    const { error } = await supabaseClient.from('donors').update({
+        archived_at: new Date().toISOString(),
+        archive_reason: reason
+    }).eq('id', donorId);
+    if (error) return window.showNotice("Erreur", error.message, "error");
+    window.showNotice("Archivé ✅", "La fiche a été archivée.", "success");
+    closeCustomModal();
+    window.loadDonors();
+};
+
+window.unarchiveDonor = async (donorId) => {
+    const { error } = await supabaseClient.from('donors').update({
+        archived_at: null, archive_reason: null
+    }).eq('id', donorId);
+    if (error) return window.showNotice("Erreur", error.message, "error");
+    window.showNotice("Désarchivé ✅", "La fiche est de nouveau active.", "success");
+    closeCustomModal();
+    window.loadDonors();
+};
+
+// ── ORIGINE DEPUIS UNE CAMPAGNE ────────────────────────────
+window.pickOriginFromCampaign = async (donorId) => {
+    const { data: campaigns } = await supabaseClient
+        .from('campaigns')
+        .select('id, name, objective, canal, created_at')
+        .order('created_at', { ascending: false });
+
+    if (!campaigns?.length) {
+        return window.showNotice("Info", "Aucune campagne disponible.", "info");
+    }
+
+    showCustomModal(`
+        <div class="modal-header-luxe">
+            <h3 class="luxe-title">
+                <i data-lucide="link" style="width:20px;height:20px;vertical-align:middle;margin-right:8px;color:var(--gold);"></i>
+                ORIGINE : LIER À UNE CAMPAGNE
+            </h3>
+            <button onclick="closeCustomModal()" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-scroll-body">
+            <p style="font-size:0.82rem;color:#64748b;margin-bottom:14px;">Sélectionnez la campagne par laquelle ce contact a été acquis :</p>
+            ${campaigns.map(c => `
+            <div onclick="window.setOriginFromCampaign('${donorId}', '${c.name.replace(/'/g,"\\'")}','${c.id}')"
+                style="padding:12px 16px;border:1.5px solid #e2e8f0;border-radius:10px;margin-bottom:8px;cursor:pointer;transition:all 0.15s;"
+                onmouseover="this.style.borderColor='var(--gold)';this.style.background='rgba(197,160,89,0.05)'"
+                onmouseout="this.style.borderColor='#e2e8f0';this.style.background='white'">
+                <div style="font-weight:700;font-size:0.85rem;color:var(--primary);">${c.name}</div>
+                <div style="font-size:0.72rem;color:#94a3b8;margin-top:2px;">
+                    ${c.objective ? `<span style="background:rgba(197,160,89,0.1);color:var(--primary);padding:1px 6px;border-radius:4px;font-weight:700;">${c.objective}</span>` : ''}
+                    ${c.canal ? `· ${c.canal}` : ''}
+                    · ${new Date(c.created_at).toLocaleDateString('fr-FR')}
+                </div>
+            </div>`).join('')}
+        </div>
+    `);
+    if (window.lucide) lucide.createIcons();
+};
+
+window.setOriginFromCampaign = async (donorId, campaignName, campaignId) => {
+    const originInput = document.getElementById('edit-origin');
+    if (originInput) {
+        originInput.value = campaignName;
+        window.showNotice("Lié ✅", `Origine : ${campaignName}`, "success");
+    }
+    // Lier aussi dans campaign_recipients si pas déjà dedans
+    const { data: existing } = await supabaseClient
+        .from('campaign_recipients')
+        .select('id')
+        .eq('campaign_id', campaignId)
+        .eq('donor_id', donorId)
+        .single();
+    if (!existing) {
+        await supabaseClient.from('campaign_recipients').insert([{
+            campaign_id: campaignId, donor_id: donorId, status: 'Répondu'
+        }]);
+    }
+    closeCustomModal();
+};
+
+// ── ATTRIBUTION DU DON PAR ENTITÉ (popup dédié) ───────────
+window.showDonationAllocationModal = async (donationId, donationAmount) => {
+    // Charger les allocations existantes
+    const { data: allocations } = await supabaseClient
+        .from('donation_allocations')
+        .select('*')
+        .eq('donation_id', donationId)
+        .order('created_at');
+
+    const totalAllocated = (allocations||[]).reduce((s,a) => s + parseFloat(a.amount||0), 0);
+    const remaining = parseFloat(donationAmount) - totalAllocated;
+
+    showCustomModal(`
+        <div class="modal-header-luxe">
+            <h3 class="luxe-title">
+                <i data-lucide="split" style="width:20px;height:20px;vertical-align:middle;margin-right:8px;color:var(--gold);"></i>
+                RÉPARTITION DU DON
+            </h3>
+            <button onclick="closeCustomModal()" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-scroll-body">
+
+            <!-- Récap montant -->
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:18px;">
+                <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:10px;text-align:center;">
+                    <div style="font-size:1.1rem;font-weight:900;color:#16a34a;">${Number(donationAmount).toLocaleString('fr-FR')} €</div>
+                    <div style="font-size:0.62rem;color:#16a34a;text-transform:uppercase;font-weight:700;">Don total</div>
+                </div>
+                <div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:10px;padding:10px;text-align:center;">
+                    <div style="font-size:1.1rem;font-weight:900;color:#1d4ed8;">${totalAllocated.toLocaleString('fr-FR')} €</div>
+                    <div style="font-size:0.62rem;color:#1d4ed8;text-transform:uppercase;font-weight:700;">Réparti</div>
+                </div>
+                <div style="background:${remaining>0?'#fef3c7;border:1px solid #fde68a':'#f1f5f9;border:1px solid #e2e8f0'};border-radius:10px;padding:10px;text-align:center;" id="alloc-remaining-card">
+                    <div style="font-size:1.1rem;font-weight:900;color:${remaining>0?'#92400e':'#64748b'};" id="alloc-remaining-val">${remaining.toLocaleString('fr-FR')} €</div>
+                    <div style="font-size:0.62rem;color:${remaining>0?'#92400e':'#64748b'};text-transform:uppercase;font-weight:700;">Reste à répartir</div>
+                </div>
+            </div>
+
+            <!-- Allocations existantes -->
+            <div id="allocations-list-${donationId}" style="margin-bottom:16px;">
+                ${(allocations||[]).length === 0
+                    ? '<p style="text-align:center;color:#94a3b8;font-size:0.82rem;padding:10px;">Aucune répartition définie.</p>'
+                    : (allocations||[]).map(a => `
+                    <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px;" id="alloc-row-${a.id}">
+                        <div style="flex:1;font-size:0.85rem;font-weight:700;color:var(--primary);">${a.entity}</div>
+                        <div style="font-size:0.9rem;font-weight:800;color:#16a34a;">${Number(a.amount).toLocaleString('fr-FR')} €</div>
+                        ${a.notes ? `<div style="font-size:0.72rem;color:#94a3b8;flex:1;">${a.notes}</div>` : ''}
+                        <button onclick="window.deleteAllocation('${a.id}','${donationId}',${donationAmount})"
+                            style="border:none;background:none;cursor:pointer;color:#ef4444;padding:4px;">
+                            <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
+                        </button>
+                    </div>`).join('')}
+            </div>
+
+            <!-- Ajouter une allocation -->
+            <div style="background:rgba(197,160,89,0.06);border:1px solid rgba(197,160,89,0.3);border-radius:12px;padding:14px;">
+                <p style="font-size:0.75rem;font-weight:800;color:var(--primary);text-transform:uppercase;margin-bottom:10px;">+ Ajouter une répartition</p>
+                <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;margin-bottom:10px;">
+                    <div>
+                        <p class="mini-label" style="font-size:0.68rem;">ENTITÉ BÉNÉFICIAIRE</p>
+                        <select id="alloc-entity" class="luxe-input" style="height:36px;font-size:0.82rem;">
+                            <option value="">— Sélectionner —</option>
+                            ${ALL_ENTITIES.map(e => `<option>${e}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <p class="mini-label" style="font-size:0.68rem;">MONTANT (€)</p>
+                        <input type="number" id="alloc-amount" class="luxe-input" style="height:36px;font-size:0.82rem;" placeholder="0.00" min="0" step="0.01">
+                    </div>
+                </div>
+                <div style="margin-bottom:10px;">
+                    <p class="mini-label" style="font-size:0.68rem;">NOTE (optionnel)</p>
+                    <input type="text" id="alloc-notes" class="luxe-input" style="height:34px;font-size:0.82rem;" placeholder="Ex : Financement projet salle...">
+                </div>
+                <button onclick="window.addAllocation('${donationId}',${donationAmount})" class="btn-gold-fill" style="width:100%;height:40px;font-size:0.85rem;">
+                    <i data-lucide="plus-circle" style="width:16px;height:16px;vertical-align:middle;margin-right:6px;"></i>
+                    AJOUTER CETTE RÉPARTITION
+                </button>
+            </div>
+        </div>
+    `);
+    if (window.lucide) lucide.createIcons();
+};
+
+window.addAllocation = async (donationId, donationAmount) => {
+    const entity = document.getElementById('alloc-entity')?.value;
+    const amount = parseFloat(document.getElementById('alloc-amount')?.value);
+    const notes  = document.getElementById('alloc-notes')?.value?.trim() || null;
+
+    if (!entity) return window.showNotice("Erreur", "Sélectionnez une entité.", "error");
+    if (!amount || amount <= 0) return window.showNotice("Erreur", "Le montant doit être > 0.", "error");
+
+    // Vérifier qu'on ne dépasse pas le don total
+    const { data: existing } = await supabaseClient
+        .from('donation_allocations').select('amount').eq('donation_id', donationId);
+    const alreadyAllocated = (existing||[]).reduce((s,a) => s + parseFloat(a.amount||0), 0);
+    if (alreadyAllocated + amount > parseFloat(donationAmount) + 0.01) {
+        return window.showNotice("Erreur", `Dépassement : reste ${(parseFloat(donationAmount) - alreadyAllocated).toLocaleString('fr-FR')} € à répartir.`, "error");
+    }
+
+    const { error } = await supabaseClient.from('donation_allocations').insert([{
+        donation_id: donationId, entity, amount, notes
+    }]);
+    if (error) return window.showNotice("Erreur", error.message, "error");
+    window.showNotice("Ajouté ✅", `${amount.toLocaleString('fr-FR')} € → ${entity}`, "success");
+    window.showDonationAllocationModal(donationId, donationAmount);
+};
+
+window.deleteAllocation = async (allocId, donationId, donationAmount) => {
+    await supabaseClient.from('donation_allocations').delete().eq('id', allocId);
+    window.showDonationAllocationModal(donationId, donationAmount);
 };
