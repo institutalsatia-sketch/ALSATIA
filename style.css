@@ -272,11 +272,111 @@ body {
 }
 .btn-outline:hover { background: var(--gold); color: white; transform: translateY(-2px); box-shadow: 0 8px 15px rgba(197, 160, 89, 0.3); }
 
+/* ── INPUTS ─────────────────────────────────────────────────── */
 .luxe-input {
-    width: 100%; padding: 14px; border: 1px solid var(--border); border-radius: 12px;
-    font-size: 0.95rem; transition: 0.3s; outline: none;
+    width: 100%;
+    padding: 12px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    font-size: 0.9rem;
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    color: var(--primary);
+    background: white;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    outline: none;
+    box-sizing: border-box;
 }
-.luxe-input:focus { border-color: var(--gold); box-shadow: 0 0 0 4px rgba(197, 160, 89, 0.1); }
+.luxe-input::placeholder { color: #94a3b8; font-weight: 400; }
+.luxe-input:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(197, 160, 89, 0.12);
+}
+
+/* ── SELECTS : flèche custom, texte lisible ─────────────────── */
+select.luxe-input {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23c5a059' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 38px;
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--primary);
+}
+select.luxe-input:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(197, 160, 89, 0.12);
+}
+select.luxe-input option {
+    font-weight: 500;
+    color: var(--primary);
+    background: white;
+    padding: 8px;
+}
+
+/* ── CROIX DE FERMETURE ─────────────────────────────────────── */
+.close-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1.5px solid #e2e8f0;
+    background: white;
+    color: #64748b;
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: all 0.18s;
+    flex-shrink: 0;
+    font-family: 'Inter', sans-serif;
+}
+.close-btn:hover {
+    background: #fef2f2;
+    border-color: #fecaca;
+    color: #ef4444;
+    transform: scale(1.08);
+}
+
+/* ── BARRE DE RECHERCHE (search-box) ────────────────────────── */
+.search-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+.search-box i[data-lucide] {
+    position: absolute;
+    left: 14px;
+    width: 17px;
+    height: 17px;
+    color: #94a3b8;
+    pointer-events: none;
+    z-index: 1;
+    flex-shrink: 0;
+}
+.search-box input {
+    padding-left: 42px !important;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    font-size: 0.88rem;
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    color: var(--primary);
+    background: white;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    height: 42px;
+    width: 260px;
+}
+.search-box input::placeholder { color: #94a3b8; }
+.search-box input:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(197, 160, 89, 0.12);
+    width: 300px;
+}
 
 /* ==========================================
    10. SCROLLBARS PERSONNALISÉES
@@ -285,6 +385,49 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ── SELECTS NATIFS hors .luxe-input (petits filtres inline) ── */
+select:not(.luxe-input) {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23c5a059' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    background-color: white;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 6px 30px 6px 10px;
+    font-size: 0.8rem;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    color: var(--primary);
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s;
+}
+select:not(.luxe-input):focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(197, 160, 89, 0.1);
+}
+
+/* ── MODAL HEADER ───────────────────────────────────────────── */
+.modal-header-luxe {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 16px;
+    margin-bottom: 20px;
+    border-bottom: 2px solid var(--gold);
+    gap: 12px;
+}
+.modal-header-luxe .luxe-title {
+    margin: 0;
+    font-size: 1.1rem;
+    font-family: 'Playfair Display', serif;
+    color: var(--primary);
+    flex: 1;
+    min-width: 0;
+}
 
 /* Animation Blink pour les avertissements */
 .blink-warning { animation: blinkRed 2s infinite ease-in-out; }
@@ -1398,10 +1541,16 @@ img {
     
     /* === INPUTS === */
     .luxe-input {
-        font-size: 1rem !important;
+        font-size: 0.95rem !important;
         padding: 10px 12px !important;
         width: 100% !important;
         max-width: 100% !important;
+    }
+    select.luxe-input {
+        padding-right: 38px !important;
+    }
+    .search-box input {
+        width: 100% !important;
     }
     
     /* === NOTICE TOAST === */
