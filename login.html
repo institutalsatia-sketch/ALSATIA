@@ -282,6 +282,15 @@
     let currentPortal = "";
     let currentPortalLogo = "";
 
+    // Supprime les accents et caractères spéciaux pour générer un email valide
+    function slugify(str) {
+        return str
+            .toLowerCase()
+            .normalize('NFD')                        // décompose les accents (é → e + ́)
+            .replace(/[\u0300-\u036f]/g, '')        // supprime les diacritiques
+            .replace(/[^a-z0-9]/g, '');              // garde seulement a-z et chiffres
+    }
+
     function showError(msg) {
         const errDiv = document.getElementById('login-error');
         errDiv.innerText = msg;
@@ -359,7 +368,7 @@
                     loginBtn.disabled = false; loginBtn.innerText = 'Accéder'; return;
                 }
 
-                const autoEmail = `${fname.toLowerCase().replace(/\s/g,'')}.${lname.toLowerCase().replace(/\s/g,'')}.${pin}@alsatia.internal`;
+                const autoEmail = `${slugify(fname)}.${slugify(lname)}.${pin}@alsatia.internal`;
 
                 const { data: authData, error: authError } = await supabaseClient.auth.signUp({
                     email: autoEmail,
@@ -408,7 +417,7 @@
                         password: pin + pin + pin + pin
                     });
                     if (authError) {
-                        const autoEmail = `${profileData.first_name.toLowerCase().replace(/\s/g,'')}.${profileData.last_name.toLowerCase().replace(/\s/g,'')}.${pin}@alsatia.internal`;
+                        const autoEmail = `${slugify(profileData.first_name)}.${slugify(profileData.last_name)}.${pin}@alsatia.internal`;
                         const { data: newAuth } = await supabaseClient.auth.signUp({
                             email: autoEmail, password: pin + pin + pin + pin,
                             options: { data: { first_name: profileData.first_name, last_name: profileData.last_name, portal: profileData.portal } }
@@ -416,7 +425,7 @@
                         if (newAuth?.user) await supabaseClient.from('profiles').update({ auth_user_id: newAuth.user.id }).eq('id', userSelect);
                     }
                 } else {
-                    const autoEmail = `${profileData.first_name.toLowerCase().replace(/\s/g,'')}.${profileData.last_name.toLowerCase().replace(/\s/g,'')}.${pin}@alsatia.internal`;
+                    const autoEmail = `${slugify(profileData.first_name)}.${slugify(profileData.last_name)}.${pin}@alsatia.internal`;
                     const { data: newAuth } = await supabaseClient.auth.signUp({
                         email: autoEmail, password: pin + pin + pin + pin,
                         options: { data: { first_name: profileData.first_name, last_name: profileData.last_name, portal: profileData.portal } }
