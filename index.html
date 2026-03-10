@@ -111,6 +111,23 @@
     
     <div id="notice-toast" class="notice-toast"></div>
 
+    <!-- OVERLAY RECHERCHE GLOBALE -->
+    <div id="global-search-overlay" onclick="window.closeGlobalSearch(event)"
+         style="display:none;position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:99999;align-items:flex-start;justify-content:center;padding-top:80px;backdrop-filter:blur(4px);">
+        <div style="background:white;border-radius:18px;width:100%;max-width:560px;box-shadow:0 24px 60px rgba(0,0,0,0.2);overflow:hidden;animation:slideIn 0.2s ease;">
+            <div style="display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid #e2e8f0;">
+                <i data-lucide="search" style="width:20px;height:20px;color:var(--gold);flex-shrink:0;"></i>
+                <input id="global-search-input" type="text" placeholder="Rechercher un donateur, contact, campagne..."
+                       oninput="window.handleGlobalSearch()"
+                       style="flex:1;border:none;outline:none;font-size:1rem;background:transparent;color:var(--text-main);">
+                <kbd onclick="window.toggleGlobalSearch()" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:2px 8px;font-size:0.75rem;color:#94a3b8;cursor:pointer;">ESC</kbd>
+            </div>
+            <div id="global-search-results" style="max-height:420px;overflow-y:auto;padding:12px 16px;">
+                <p style="text-align:center;color:var(--text-muted);padding:20px;font-size:0.85rem;">Tapez pour rechercher...</p>
+            </div>
+        </div>
+    </div>
+
     <nav class="side-nav">
         <div class="logo-area">
             <div id="entity-logo-container"></div>
@@ -125,6 +142,9 @@
             <li id="nav-campaigns" onclick="switchTab('campaigns')"><i data-lucide="megaphone"></i> Campagnes</li>
             <li id="nav-events" onclick="switchTab('events')"><i data-lucide="calendar"></i> Événements</li>
             <li id="nav-account" onclick="switchTab('account')"><i data-lucide="user-circle"></i> Mon Compte</li>
+            <li onclick="window.toggleGlobalSearch()" title="Recherche globale (Ctrl+K)" style="margin-top:auto;border-top:1px solid rgba(255,255,255,0.08);padding-top:10px;">
+                <i data-lucide="search"></i> Recherche
+            </li>
         </ul>
         <div class="nav-footer" onclick="window.confirmLogout()" style="background:linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); color:#991b1b; border:2px solid #ef4444; border-radius:12px; padding:14px 20px; cursor:pointer; transition:all 0.3s; font-weight:700; display:flex; align-items:center; gap:10px; justify-content:center;" onmouseover="this.style.background='linear-gradient(135deg, #fecaca 0%, #fca5a5 100%)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(239,68,68,0.3)'" onmouseout="this.style.background='linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)'; this.style.transform='translateY(0)'; this.style.boxShadow='none'">
             <i data-lucide="log-out" style="width:18px; height:18px;"></i> 
@@ -260,12 +280,12 @@
                     <button onclick="window.refreshTab('donors')" class="btn-refresh" title="Actualiser" aria-label="Actualiser"><i data-lucide="refresh-cw"></i></button>
                 </div>
             </div>
-            <div class="filters-bar" style="display: flex; gap: 12px; margin-bottom: 20px; align-items: center;">
-                <div class="search-box" style="flex:2;">
+            <div class="filters-bar" style="display:flex; gap:12px; margin-bottom:12px; align-items:center; flex-wrap:wrap;">
+                <div class="search-box" style="flex:2;min-width:180px;">
                     <i data-lucide="search"></i>
                     <input type="text" id="search-donor" placeholder="Nom, ville, entreprise..." onkeyup="window.filterDonors()" style="width:100%;">
                 </div>
-                <select id="filter-entity" class="luxe-input" onchange="window.filterDonors()" style="flex:1;height:42px;">
+                <select id="filter-entity" class="luxe-input" onchange="window.filterDonors()" style="flex:1;min-width:140px;height:42px;">
                     <option value="ALL">Toutes les entités</option>
                     <option>Institut Alsatia</option>
                     <option>Academia Alsatia</option>
@@ -280,6 +300,20 @@
                     <i data-lucide="bell-ring" style="width:15px;height:15px;"></i>
                     <span id="sort-unthanked-label">Remerciements dus</span>
                     <span id="unthanked-count-badge" style="display:none;"></span>
+                </button>
+            </div>
+            <!-- Filtre activité -->
+            <div class="activity-filter-bar">
+                <span class="activity-filter-label">Activité :</span>
+                <button id="activity-btn-ALL"      class="activity-btn active" onclick="window.setActivityFilter('ALL')">Tous</button>
+                <button id="activity-btn-active"   class="activity-btn"        onclick="window.setActivityFilter('active')">
+                    <span class="activity-dot active-dot"></span>Actifs cette année
+                </button>
+                <button id="activity-btn-inactive" class="activity-btn"        onclick="window.setActivityFilter('inactive')">
+                    <span class="activity-dot inactive-dot"></span>Inactifs +2 ans
+                </button>
+                <button id="activity-btn-never"    class="activity-btn"        onclick="window.setActivityFilter('never')">
+                    <span class="activity-dot never-dot"></span>Jamais donné
                 </button>
             </div>
             <div class="table-container">
