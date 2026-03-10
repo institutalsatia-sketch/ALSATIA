@@ -2791,7 +2791,11 @@ window.loadChatMessages = async () => {
     
     // Réinitialiser le Set de déduplication
     window._chatRenderedIds = new Set();
-    data.forEach(m => window._chatRenderedIds.add(m.id));
+    window._chatMsgCache   = {};          // cache id→msg pour les citations
+    data.forEach(m => {
+        window._chatRenderedIds.add(m.id);
+        window._chatMsgCache[m.id] = m;
+    });
 
     // Organiser en threads (parents + réponses imbriquées)
     const parentMessages = data.filter(msg => !msg.reply_to);
@@ -2887,6 +2891,36 @@ function renderSingleMessage(msg, isReply = false) {
         </div>
         <div id="replies-${msg.id}" class="replies-thread"></div>` : '';
 
+    // Bloc citation WhatsApp (affiché uniquement pour les réponses)
+    let quoteHtml = '';
+    if (isReply && msg.reply_to) {
+        const parent = (window._chatMsgCache || {})[msg.reply_to];
+        if (parent) {
+            const qAuthor  = esc(parent.author_full_name || '');
+            const qContent = esc((parent.content || '').substring(0, 80)) + ((parent.content || '').length > 80 ? '…' : '');
+            const quoteBg   = isMe ? 'rgba(255,255,255,0.12)' : 'rgba(197,160,89,0.08)';
+            const quoteBar  = isMe ? 'rgba(255,255,255,0.7)'  : 'var(--gold)';
+            const quoteAuthorColor = isMe ? '#fbbf24' : 'var(--gold)';
+            const quoteTextColor   = isMe ? 'rgba(255,255,255,0.75)' : 'var(--text-muted)';
+            quoteHtml = `
+                <div style="
+                    background:${quoteBg};
+                    border-left:3px solid ${quoteBar};
+                    border-radius:6px;
+                    padding:6px 10px;
+                    margin-bottom:8px;
+                    cursor:pointer;
+                " onclick="(function(){const el=document.getElementById('msg-${parent.id}');if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.style.outline='2px solid var(--gold)';setTimeout(()=>el.style.outline='none',1500);}})()">
+                    <div style="font-size:0.72rem;font-weight:800;color:${quoteAuthorColor};margin-bottom:2px;letter-spacing:0.3px;">
+                        ${qAuthor}
+                    </div>
+                    <div style="font-size:0.8rem;color:${quoteTextColor};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:240px;">
+                        ${qContent || '📎 Pièce jointe'}
+                    </div>
+                </div>`;
+        }
+    }
+
     // Styles bulle
     const bubbleBg     = isMe ? 'linear-gradient(135deg,var(--primary) 0%,#1e293b 100%)' : isMentioned ? 'linear-gradient(135deg,#fffbeb,#fef3c7)' : 'white';
     const bubbleColor  = isMe ? 'white' : 'var(--text-main)';
@@ -2908,6 +2942,7 @@ function renderSingleMessage(msg, isReply = false) {
                 </div>
                 <div class="message ${isMe ? 'my-msg' : ''} ${isMentioned ? 'mentioned-luxe' : ''}" id="msg-${msg.id}"
                      style="position:relative;padding:${pad};border-radius:${br};background:${bubbleBg};color:${bubbleColor};box-shadow:${shadow};border:${bubbleBorder};line-height:1.6;word-wrap:break-word;display:inline-block;max-width:100%;font-size:${fz};${ml}">
+                    ${quoteHtml}
                     ${safeContent}
                     ${fileHtml}
                 </div>
@@ -2923,6 +2958,10 @@ function appendSingleMessageSafe(msg) {
 
     // Déduplication stricte
     if (document.getElementById('msg-' + msg.id)) return;
+
+    // Alimenter le cache pour les citations
+    if (!window._chatMsgCache) window._chatMsgCache = {};
+    window._chatMsgCache[msg.id] = msg;
 
     const isMe = (msg.author_full_name === (currentUser.first_name + ' ' + currentUser.last_name));
 
@@ -3057,20 +3096,27 @@ let replyingTo = null;
 window.replyToMessage = (messageId, authorName, messagePreview) => {
     replyingTo = { id: messageId, author: authorName, preview: messagePreview };
 
-    const replyBar    = document.getElementById('reply-bar');
-    const authorEl    = document.getElementById('reply-author');
-    const previewEl   = document.getElementById('reply-preview');
+    const replyBar  = document.getElementById('reply-bar');
+    const authorEl  = document.getElementById('reply-author');
+    const previewEl = document.getElementById('reply-preview');
 
-    if (replyBar)  replyBar.style.display  = 'flex';
-    if (authorEl)  authorEl.textContent    = authorName;
-    if (previewEl) previewEl.textContent   = messagePreview;
+    if (authorEl)  authorEl.textContent  = authorName;
+    if (previewEl) previewEl.textContent = messagePreview || '📎 Pièce jointe';
 
-    // Scroll smooth jusqu'à la barre + focus input
-    const input = document.getElementById('chat-input');
-    if (input) {
-        input.focus();
-        replyBar?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (replyBar) {
+        replyBar.style.display = 'flex';
+        // Animation d'apparition
+        replyBar.style.opacity = '0';
+        replyBar.style.transform = 'translateY(6px)';
+        setTimeout(() => {
+            replyBar.style.transition = 'all 0.2s ease';
+            replyBar.style.opacity = '1';
+            replyBar.style.transform = 'translateY(0)';
+        }, 10);
     }
+
+    const input = document.getElementById('chat-input');
+    if (input) input.focus();
 };
 
 window.cancelReply = () => {
