@@ -201,18 +201,22 @@ console.log('💬 DM.JS CHARGÉ');
   }
 
   // Wrap closeCustomModal pour cleanup + stop realtime convo
-  (function wrapCloseCustomModal() {
-    if (typeof window.closeCustomModal !== 'function') return;
+  // Retry si dm.js charge avant que app.js ait défini closeCustomModal
+  function wrapCloseCustomModal() {
+    if (typeof window.closeCustomModal !== 'function') {
+      setTimeout(wrapCloseCustomModal, 80);
+      return;
+    }
+    if (window.closeCustomModal.__dm_wrapped) return;
     const originalClose = window.closeCustomModal;
-    if (originalClose.__dm_wrapped) return;
-
     function wrappedCloseCustomModal() {
       unsubscribeConversation();
       return originalClose();
     }
     wrappedCloseCustomModal.__dm_wrapped = true;
     window.closeCustomModal = wrappedCloseCustomModal;
-  })();
+  }
+  wrapCloseCustomModal();
 
   // ------------------------------
   // UI : badges non lus
@@ -459,13 +463,6 @@ console.log('💬 DM.JS CHARGÉ');
         dmPollInFlight = false;
       }
     }, 2000);
-  }
-
-  function stopPolling() {
-    if (dmPollTimer) {
-      clearInterval(dmPollTimer);
-      dmPollTimer = null;
-    }
   }
 
   // ------------------------------
