@@ -148,9 +148,12 @@
         <section id="tab-contacts" class="page-content">
             <div class="header-tab">
                 <h1>Annuaire des Contacts</h1>
-                <div class="search-box">
-                    <i data-lucide="search"></i>
-                    <input type="text" id="contact-search" placeholder="Rechercher un contact..." onkeyup="filterContacts()">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <div class="search-box">
+                        <i data-lucide="search"></i>
+                        <input type="text" id="contact-search" placeholder="Rechercher un contact..." onkeyup="filterContacts()">
+                    </div>
+                    <button onclick="window.refreshTab('contacts')" class="btn-refresh" title="Actualiser" aria-label="Actualiser"><i data-lucide="refresh-cw"></i></button>
                 </div>
             </div>
             <div id="contacts-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; padding: 20px 0;"></div>
@@ -183,6 +186,7 @@
                     
                     <div class="chat-header">
                         <span id="chat-current-title" style="font-weight:800; font-size:1.2rem;"># Général</span>
+                        <button onclick="window.refreshTab('chat')" class="btn-refresh" title="Actualiser" aria-label="Actualiser"><i data-lucide="refresh-cw"></i></button>
                     </div>
 
                     <div id="chat-messages-container" class="chat-messages"></div>
@@ -248,6 +252,7 @@
                     </button>
                     <button onclick="window.showExportFiltersModal()" class="btn-outline"><i data-lucide="download"></i> Export Excel</button>
                     <button onclick="window.showAddDonorModal()" class="btn-gold"><i data-lucide="user-plus"></i> Nouveau</button>
+                    <button onclick="window.refreshTab('donors')" class="btn-refresh" title="Actualiser" aria-label="Actualiser"><i data-lucide="refresh-cw"></i></button>
                 </div>
             </div>
             <div class="filters-bar" style="display: flex; gap: 12px; margin-bottom: 20px; align-items: center;">
@@ -262,6 +267,13 @@
                     <option>Cours Herrade de Landsberg</option>
                     <option>Collège Saints Louis et Zélie Martin</option>
                 </select>
+                <button id="btn-sort-unthanked"
+                        onclick="window.toggleSortUnthanked()"
+                        class="btn-sort-unthanked"
+                        title="Afficher les remerciements dus en premier">
+                    <i data-lucide="bell-ring" style="width:15px;height:15px;"></i>
+                    <span id="sort-unthanked-label">Remerciements dus</span>
+                </button>
             </div>
             <div class="table-container">
                 <table class="luxe-table">
@@ -276,10 +288,11 @@
         <section id="tab-campaigns" class="page-content">
             <div class="header-tab">
                 <h1>Campagnes</h1>
-                <div style="display:flex;gap:10px;">
+                <div style="display:flex;gap:10px;align-items:center;">
                     <button id="btn-new-campaign" onclick="window.showCreateCampaignModal()" class="btn-gold" style="display:none;">
                         <i data-lucide="plus"></i> Nouvelle campagne
                     </button>
+                    <button onclick="window.refreshTab('campaigns')" class="btn-refresh" title="Actualiser" aria-label="Actualiser"><i data-lucide="refresh-cw"></i></button>
                 </div>
             </div>
             <div id="campaigns-container"></div>
@@ -288,6 +301,7 @@
         <section id="tab-account" class="page-content">
             <div class="header-tab">
                 <h1>Mon Compte</h1>
+                <button onclick="window.refreshTab('account')" class="btn-refresh" title="Actualiser" aria-label="Actualiser"><i data-lucide="refresh-cw"></i></button>
             </div>
             
             <div style="max-width: 600px; margin: 0 auto;">
@@ -380,7 +394,10 @@
         <section id="tab-events" class="page-content">
             <div class="header-tab">
                 <h1>Événements & Logistique</h1>
-                <button onclick="window.showAddEventModal()" class="btn-gold"><i data-lucide="calendar-plus"></i> Planifier</button>
+                <div style="display:flex;gap:10px;align-items:center;">
+                    <button onclick="window.showAddEventModal()" class="btn-gold"><i data-lucide="calendar-plus"></i> Planifier</button>
+                    <button onclick="window.refreshTab('events')" class="btn-refresh" title="Actualiser" aria-label="Actualiser"><i data-lucide="refresh-cw"></i></button>
+                </div>
             </div>
             <div id="events-container" class="events-list-container"></div>
         </section>
