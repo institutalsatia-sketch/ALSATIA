@@ -583,6 +583,42 @@ window.switchTab = (tabId) => {
     }
 };
 
+
+// ══════════════════════════════════════════════════════
+// SYSTÈME DE TIERS DONATEURS — basé sur total cumulé
+// ══════════════════════════════════════════════════════
+window.DONOR_TIERS = [
+    { min: 5000, label: 'Platine', icon: '💎', color: '#e0f2fe', border: '#0ea5e9', text: '#0369a1', shadow: 'rgba(14,165,233,0.25)' },
+    { min: 2000, label: 'Or',      icon: '🥇', color: '#fffbeb', border: '#f59e0b', text: '#92400e', shadow: 'rgba(245,158,11,0.25)' },
+    { min: 500,  label: 'Argent',  icon: '🥈', color: '#f8fafc', border: '#94a3b8', text: '#475569', shadow: 'rgba(148,163,184,0.25)' },
+    { min: 0,    label: 'Bronze',  icon: '🥉', color: '#fff7ed', border: '#fb923c', text: '#9a3412', shadow: 'rgba(251,146,60,0.2)'  },
+];
+
+window.getDonorTier = function(totalAmount) {
+    for (const tier of window.DONOR_TIERS) {
+        if (totalAmount >= tier.min) return tier;
+    }
+    return window.DONOR_TIERS[window.DONOR_TIERS.length - 1];
+};
+
+// Badge HTML compact pour la liste
+window.renderTierBadge = function(total) {
+    const t = window.getDonorTier(total);
+    return `<span class="tier-badge tier-${t.label.toLowerCase()}" title="${t.label} — ${total.toLocaleString('fr-FR')} € cumulés">${t.icon} ${t.label}</span>`;
+};
+
+// Badge large pour la fiche individuelle
+window.renderTierBadgeLarge = function(total) {
+    const t = window.getDonorTier(total);
+    return `<div class="tier-badge-large tier-${t.label.toLowerCase()}">
+        <span style="font-size:1.4rem;">${t.icon}</span>
+        <div>
+            <div style="font-weight:800;font-size:0.85rem;letter-spacing:0.5px;">${t.label.toUpperCase()}</div>
+            <div style="font-size:0.7rem;opacity:0.8;">${total.toLocaleString('fr-FR')} € cumulés</div>
+        </div>
+    </div>`;
+};
+
 // ==========================================
 // SECTION ANNUAIRE (CONTACTS)
 // ==========================================
@@ -986,8 +1022,11 @@ function renderDonors(data) {
                     <span class="origin-tag">${d.entity || '-'}</span>
                     ${d.donor_type ? `<br><span style="font-size:0.68rem;color:#94a3b8;">${d.donor_type}</span>` : ''}
                 </td>
-                <td style="font-weight:800; color:var(--primary); font-family:monospace; font-size:1rem;">
-                    ${total.toLocaleString('fr-FR')} €
+                <td>
+                    <div style="font-weight:800;color:var(--primary);font-family:monospace;font-size:1rem;margin-bottom:4px;">
+                        ${total.toLocaleString('fr-FR')} €
+                    </div>
+                    ${!d.archived_at ? window.renderTierBadge(total) : ''}
                 </td>
                 <td style="text-align:right;">
                     <button onclick="window.openDonorFile('${d.id}')" class="btn-gold" style="padding:6px 14px;">DOSSIER</button>
@@ -1116,6 +1155,7 @@ window.openDonorFile = async (id) => {
         <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; gap:10px;">
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
                 ${donor.archived_at ? '<span style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:4px 10px;border-radius:20px;font-size:0.72rem;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;">⛔ ARCHIVÉ</span>' : ''}
+                ${!donor.archived_at ? window.renderTierBadgeLarge(dons.reduce((s,d)=>s+Number(d.amount||0),0)) : ''}
                 <div>
                     <p class="mini-label" style="margin:0 0 4px 0;">ÉCOLE / ENTITÉ</p>
                     <select id="edit-entity" class="luxe-input" style="margin:0;border:1px solid var(--gold);padding:6px 10px;height:34px;font-size:0.83rem;">
