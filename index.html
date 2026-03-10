@@ -275,6 +275,7 @@
                         <i data-lucide="trash-2" style="width:16px; height:16px;"></i>
                         Supprimer tout
                     </button>
+                    <button onclick="window.showDuplicatesModal()" class="btn-outline" title="Détecter les doublons" style="display:flex;align-items:center;gap:6px;"><i data-lucide="copy" style="width:15px;height:15px;"></i> Doublons</button>
                     <button onclick="window.showExportCenterModal()" class="btn-outline"><i data-lucide="bar-chart-2"></i> Exports</button>
                     <button onclick="window.showAddDonorModal()" class="btn-gold"><i data-lucide="user-plus"></i> Nouveau</button>
                     <button onclick="window.refreshTab('donors')" class="btn-refresh" title="Actualiser" aria-label="Actualiser"><i data-lucide="refresh-cw"></i></button>
@@ -324,7 +325,21 @@
             <div class="table-container">
                 <table class="luxe-table">
                     <thead>
-                        <tr><th>Identité / Entreprise</th><th>Entité</th><th>Total Dons</th><th style="text-align:right;">Actions</th></tr>
+                        <tr>
+                            <th class="sortable-th" onclick="window.toggleDonorSort('name')">
+                                Identité / Entreprise
+                                <i id="sort-icon-name" data-lucide="chevrons-up-down" style="width:13px;height:13px;vertical-align:middle;margin-left:4px;opacity:0.3;"></i>
+                            </th>
+                            <th class="sortable-th" onclick="window.toggleDonorSort('entity')">
+                                Entité
+                                <i id="sort-icon-entity" data-lucide="chevrons-up-down" style="width:13px;height:13px;vertical-align:middle;margin-left:4px;opacity:0.3;"></i>
+                            </th>
+                            <th class="sortable-th" onclick="window.toggleDonorSort('total')">
+                                Total Dons
+                                <i id="sort-icon-total" data-lucide="chevrons-up-down" style="width:13px;height:13px;vertical-align:middle;margin-left:4px;opacity:0.3;"></i>
+                            </th>
+                            <th style="text-align:right;">Actions</th>
+                        </tr>
                     </thead>
                     <tbody id="donors-list"></tbody>
                 </table>
