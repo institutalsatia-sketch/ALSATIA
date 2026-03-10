@@ -197,12 +197,17 @@
                     </div>
 
                     <!-- Barre de réponse (comme WhatsApp) -->
-                    <div id="reply-bar" style="display:none; background:#f8fafc; padding:12px 20px; border-left:4px solid var(--gold); margin:0 20px; border-radius:8px; align-items:center; justify-content:space-between;">
-                        <div style="flex:1;">
-                            <div style="font-size:0.75rem; font-weight:700; color:var(--gold); margin-bottom:2px;">Réponse à <span id="reply-author"></span></div>
-                            <div id="reply-preview" style="font-size:0.85rem; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></div>
+                    <div id="reply-bar" class="reply-bar-wa" style="display:none;">
+                        <div class="reply-bar-quote">
+                            <div class="reply-bar-strip"></div>
+                            <div class="reply-bar-text">
+                                <span class="reply-bar-author" id="reply-author"></span>
+                                <span class="reply-bar-preview" id="reply-preview"></span>
+                            </div>
                         </div>
-                        <i data-lucide="x" onclick="window.cancelReply()" style="cursor:pointer; width:18px; height:18px; color:var(--text-muted);"></i>
+                        <button class="reply-bar-close-btn" onclick="window.cancelReply()" aria-label="Annuler">
+                            <i data-lucide="x" style="width:15px;height:15px;"></i>
+                        </button>
                     </div>
 
                     <div class="chat-input-area" style="position:relative;">
