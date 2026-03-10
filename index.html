@@ -305,15 +305,20 @@
             <!-- Filtre activité -->
             <div class="activity-filter-bar">
                 <span class="activity-filter-label">Activité :</span>
-                <button id="activity-btn-ALL"      class="activity-btn active" onclick="window.setActivityFilter('ALL')">Tous</button>
+                <button id="activity-btn-ALL"      class="activity-btn active" onclick="window.setActivityFilter('ALL')">
+                    Tous <span id="activity-count-ALL" class="activity-count">—</span>
+                </button>
                 <button id="activity-btn-active"   class="activity-btn"        onclick="window.setActivityFilter('active')">
                     <span class="activity-dot active-dot"></span>Actifs cette année
+                    <span id="activity-count-active" class="activity-count">—</span>
                 </button>
                 <button id="activity-btn-inactive" class="activity-btn"        onclick="window.setActivityFilter('inactive')">
                     <span class="activity-dot inactive-dot"></span>Inactifs +2 ans
+                    <span id="activity-count-inactive" class="activity-count">—</span>
                 </button>
                 <button id="activity-btn-never"    class="activity-btn"        onclick="window.setActivityFilter('never')">
                     <span class="activity-dot never-dot"></span>Jamais donné
+                    <span id="activity-count-never" class="activity-count">—</span>
                 </button>
             </div>
             <div class="table-container">
@@ -454,5 +459,10 @@
 
     <script src="app.js"></script>
     <script src="dm.js"></script>
+    <!-- BOUTON RETOUR EN HAUT -->
+    <button id="scroll-to-top-btn" class="scroll-to-top" aria-label="Retour en haut" title="Retour en haut">
+        <i data-lucide="arrow-up" style="width:20px;height:20px;"></i>
+    </button>
+
 </body>
 </html>
