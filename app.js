@@ -1706,6 +1706,509 @@ window.exportDonorToExcel = async (donorId) => {
     window.showNotice("Téléchargé !", `Fichier "${fileName}" prêt`, "success");
 };
 
+
+// ══════════════════════════════════════════════════════════════════════
+// CENTRE D'EXPORTS — 8 EXPORTS CRM
+// ══════════════════════════════════════════════════════════════════════
+
+// Helper : appliquer largeurs de colonnes auto sur une worksheet XLSX
+function xlsxAutoWidth(ws, data) {
+    if (!data || !data.length) return;
+    const keys = Object.keys(data[0]);
+    const colWidths = keys.map(k => {
+        const maxLen = Math.max(
+            k.length,
+            ...data.map(row => String(row[k] || '').length)
+        );
+        return { wch: Math.min(maxLen + 2, 50) };
+    });
+    ws['!cols'] = colWidths;
+}
+
+// Helper : date FR
+function dateFR(val) {
+    if (!val) return '';
+    try { return new Date(val).toLocaleDateString('fr-FR'); } catch { return val; }
+}
+
+// ── Modale centrale des exports ────────────────────────────────────────
+window.showExportCenterModal = () => {
+    const exports = [
+        { id: 1, icon: 'bell-ring',    color: '#ef4444', label: 'Remerciements en attente',        desc: 'Dons non remerciés à traiter' },
+        { id: 2, icon: 'bar-chart-2',  color: '#8b5cf6', label: 'Bilan annuel par donateur',       desc: 'Évolution des dons année par année' },
+        { id: 3, icon: 'megaphone',    color: '#f59e0b', label: 'Export campagne',                  desc: 'Destinataires + statuts + dons liés' },
+        { id: 4, icon: 'book-user',    color: '#3b82f6', label: 'Annuaire contacts',                desc: 'Tous les profils CRM' },
+        { id: 5, icon: 'building-2',   color: '#10b981', label: 'Dons par entité',                  desc: 'Un onglet par établissement' },
+        { id: 6, icon: 'clock',        color: '#64748b', label: 'Donateurs sans don récent',        desc: 'Relances à prévoir' },
+        { id: 7, icon: 'calendar',     color: '#ec4899', label: 'Événements',                       desc: 'Liste des événements et participants' },
+        { id: 8, icon: 'landmark',     color: '#c5a059', label: 'Legs & Planification',             desc: 'Suivi juridique / notarial' },
+        { id: 0, icon: 'download',     color: '#1e293b', label: 'Export global donateurs',          desc: 'Répertoire complet + journal des dons' },
+    ];
+
+    const cards = exports.map(e => `
+        <div onclick="window.runExport(${e.id})"
+             style="display:flex;align-items:center;gap:14px;padding:14px 16px;border-radius:12px;border:1.5px solid #e2e8f0;cursor:pointer;transition:all 0.18s;background:white;"
+             onmouseover="this.style.borderColor='${e.color}';this.style.background='${e.color}10';this.style.transform='translateX(4px)';"
+             onmouseout="this.style.borderColor='#e2e8f0';this.style.background='white';this.style.transform='translateX(0)';">
+            <div style="width:40px;height:40px;border-radius:10px;background:${e.color}18;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <i data-lucide="${e.icon}" style="width:18px;height:18px;color:${e.color};"></i>
+            </div>
+            <div style="flex:1;min-width:0;">
+                <div style="font-weight:700;font-size:0.88rem;color:var(--text-main);">${e.label}</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);">${e.desc}</div>
+            </div>
+            <i data-lucide="chevron-right" style="width:16px;height:16px;color:#cbd5e1;flex-shrink:0;"></i>
+        </div>`).join('');
+
+    showCustomModal(`
+        <div class="modal-header-luxe">
+            <h3 class="luxe-title">📊 CENTRE D'EXPORTS</h3>
+            <button onclick="window.closeCustomModal()" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-scroll-body" style="display:flex;flex-direction:column;gap:10px;">
+            ${cards}
+        </div>
+    `);
+    if (window.lucide) lucide.createIcons();
+};
+
+// ── Routeur ─────────────────────────────────────────────────────────────
+window.runExport = async (id) => {
+    window.closeCustomModal();
+    await new Promise(r => setTimeout(r, 150));
+
+    switch(id) {
+        case 0: window.showExportFiltersModal(); break;
+        case 1: await window.exportUnthanked(); break;
+        case 2: await window.exportAnnualSummary(); break;
+        case 3: await window.exportCampaignPicker(); break;
+        case 4: await window.exportContacts(); break;
+        case 5: await window.exportByEntity(); break;
+        case 6: await window.exportInactiveDonors(); break;
+        case 7: await window.exportEvents(); break;
+        case 8: await window.exportLegs(); break;
+    }
+};
+
+// ══════════════════════════════════════════════════════════════
+// EXPORT 1 — Remerciements en attente
+// ══════════════════════════════════════════════════════════════
+window.exportUnthanked = async () => {
+    window.showNotice('⏳', 'Préparation de l\'export...', 'info');
+    const { data, error } = await supabaseClient
+        .from('donors').select('*, donations(*)').order('last_name');
+    if (error) return window.showNotice('Erreur', error.message, 'error');
+
+    const rows = [];
+    (data || []).forEach(d => {
+        if (d.archived_at) return;
+        (d.donations || []).forEach(don => {
+            if (don.thanked !== false) return;
+            rows.push({
+                'Nom':              d.last_name || '',
+                'Prénom':           d.first_name || '',
+                'Entreprise':       d.company_name || '',
+                'Entité':           d.entity || '',
+                'Email':            d.email || '',
+                'Téléphone':        d.phone || '',
+                'Date du don':      dateFR(don.date),
+                'Montant (€)':      parseFloat(don.amount || 0),
+                'Mode de paiement': don.payment_mode || '',
+                'N° Reçu':          don.tax_receipt_number || '',
+                'Notes donateur':   d.notes || '',
+            });
+        });
+    });
+
+    if (!rows.length) return window.showNotice('Info', 'Aucun remerciement en attente !', 'info');
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    xlsxAutoWidth(ws, rows);
+    XLSX.utils.book_append_sheet(wb, ws, 'Remerciements en attente');
+    const fn = `Remerciements_en_attente_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, fn);
+    window.showNotice('✅ Téléchargé', `${rows.length} dons à remercier — "${fn}"`, 'success');
+};
+
+// ══════════════════════════════════════════════════════════════
+// EXPORT 2 — Bilan annuel par donateur (tableau croisé)
+// ══════════════════════════════════════════════════════════════
+window.exportAnnualSummary = async () => {
+    window.showNotice('⏳', 'Préparation du bilan annuel...', 'info');
+    const { data, error } = await supabaseClient
+        .from('donors').select('*, donations(*)').order('last_name');
+    if (error) return window.showNotice('Erreur', error.message, 'error');
+
+    const currentYear = new Date().getFullYear();
+    const years = Array.from({length: 7}, (_, i) => currentYear - 6 + i); // 7 dernières années
+
+    const rows = (data || []).map(d => {
+        const row = {
+            'Nom':        d.last_name || '',
+            'Prénom':     d.first_name || '',
+            'Entreprise': d.company_name || '',
+            'Entité':     d.entity || '',
+            'Type':       d.donor_type || '',
+        };
+        let total = 0;
+        years.forEach(y => {
+            const sum = (d.donations || [])
+                .filter(don => don.date && new Date(don.date).getFullYear() === y)
+                .reduce((s, don) => s + parseFloat(don.amount || 0), 0);
+            row[`${y}`] = sum > 0 ? sum : '';
+            total += sum;
+        });
+        row['TOTAL'] = total > 0 ? total : '';
+        row['Nb dons'] = (d.donations || []).length;
+        row['Archivé'] = d.archived_at ? 'Oui' : '';
+        return row;
+    }).filter(r => r['TOTAL'] !== ''); // exclure les sans-dons
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    xlsxAutoWidth(ws, rows);
+    XLSX.utils.book_append_sheet(wb, ws, 'Bilan annuel');
+    const fn = `Bilan_annuel_donateurs_${currentYear}.xlsx`;
+    XLSX.writeFile(wb, fn);
+    window.showNotice('✅ Téléchargé', `${rows.length} donateurs — "${fn}"`, 'success');
+};
+
+// ══════════════════════════════════════════════════════════════
+// EXPORT 3 — Campagne (picker puis export)
+// ══════════════════════════════════════════════════════════════
+window.exportCampaignPicker = async () => {
+    const { data: camps, error } = await supabaseClient
+        .from('campaigns').select('id, name, status, created_at').order('created_at', { ascending: false });
+    if (error) return window.showNotice('Erreur', error.message, 'error');
+
+    const options = (camps || []).map(c =>
+        `<option value="${c.id}">${c.name} — ${c.status}</option>`).join('');
+
+    showCustomModal(`
+        <div class="modal-header-luxe">
+            <h3 class="luxe-title">EXPORTER UNE CAMPAGNE</h3>
+            <button onclick="window.closeCustomModal()" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-scroll-body">
+            <p class="mini-label">CHOISIR LA CAMPAGNE</p>
+            <select id="export-campaign-select" class="luxe-input" style="margin-bottom:20px;">
+                ${options}
+            </select>
+            <button onclick="window.doExportCampaign()" class="btn-gold-fill" style="width:100%;height:50px;font-size:1rem;">
+                <i data-lucide="download" style="width:18px;height:18px;vertical-align:middle;margin-right:8px;"></i>
+                TÉLÉCHARGER
+            </button>
+        </div>
+    `);
+    if (window.lucide) lucide.createIcons();
+};
+
+window.doExportCampaign = async () => {
+    const id = document.getElementById('export-campaign-select')?.value;
+    if (!id) return;
+    window.closeCustomModal();
+    window.showNotice('⏳', 'Préparation...', 'info');
+
+    const [{ data: camp }, { data: recipients }] = await Promise.all([
+        supabaseClient.from('campaigns').select('*').eq('id', id).single(),
+        supabaseClient.from('campaign_recipients')
+            .select('*, donors(last_name,first_name,company_name,email,phone,address,zip_code,city,entity), donations(amount,date,payment_mode,thanked)')
+            .eq('campaign_id', id).order('created_at', { ascending: true })
+    ]);
+
+    const wb = XLSX.utils.book_new();
+
+    // Onglet 1 : résumé campagne
+    const total = recipients?.length || 0;
+    const responded = recipients?.filter(r => r.status === 'Répondu').length || 0;
+    const totalRaised = (recipients || []).filter(r => r.donations).reduce((s,r) => s + parseFloat(r.donations?.amount||0), 0);
+    const summary = [{
+        'Nom de la campagne': camp.name,
+        'Statut':             camp.status,
+        'Canal':              camp.canal || '',
+        'Objectif':           camp.objective || '',
+        'Date début':         dateFR(camp.start_date),
+        'Date fin':           dateFR(camp.end_date),
+        'Total destinataires': total,
+        'Ont répondu':        responded,
+        'Taux de réponse':    total > 0 ? Math.round(responded/total*100)+'%' : '0%',
+        'Montant collecté (€)': totalRaised,
+        'Objectif montant (€)': camp.goal_amount || '',
+        'Notes':              camp.notes || '',
+    }];
+    const ws1 = XLSX.utils.json_to_sheet(summary);
+    xlsxAutoWidth(ws1, summary);
+    XLSX.utils.book_append_sheet(wb, ws1, 'Résumé');
+
+    // Onglet 2 : destinataires
+    const recRows = (recipients || []).map(r => ({
+        'Nom':            r.donors?.last_name || '',
+        'Prénom':         r.donors?.first_name || '',
+        'Entreprise':     r.donors?.company_name || '',
+        'Entité':         r.donors?.entity || '',
+        'Email':          r.donors?.email || '',
+        'Téléphone':      r.donors?.phone || '',
+        'Adresse':        r.donors?.address || '',
+        'CP':             r.donors?.zip_code || '',
+        'Ville':          r.donors?.city || '',
+        'Statut':         r.status || '',
+        'Don lié (€)':    r.donations ? parseFloat(r.donations.amount||0) : '',
+        'Date du don':    r.donations ? dateFR(r.donations.date) : '',
+        'Mode paiement':  r.donations?.payment_mode || '',
+        'Remercié':       r.donations?.thanked ? 'Oui' : '',
+    }));
+    const ws2 = XLSX.utils.json_to_sheet(recRows.length ? recRows : [{'Aucun destinataire':''}]);
+    xlsxAutoWidth(ws2, recRows);
+    XLSX.utils.book_append_sheet(wb, ws2, 'Destinataires');
+
+    const fn = `Campagne_${(camp.name||'export').replace(/[^a-zA-Z0-9]/g,'_')}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, fn);
+    window.showNotice('✅ Téléchargé', `"${fn}"`, 'success');
+};
+
+// ══════════════════════════════════════════════════════════════
+// EXPORT 4 — Annuaire contacts (profiles)
+// ══════════════════════════════════════════════════════════════
+window.exportContacts = async () => {
+    window.showNotice('⏳', 'Chargement de l\'annuaire...', 'info');
+    const { data, error } = await supabaseClient
+        .from('profiles').select('*').order('portal').order('last_name');
+    if (error) return window.showNotice('Erreur', error.message, 'error');
+
+    const rows = (data || []).map(u => ({
+        'Portail':        u.portal || '',
+        'Nom':            u.last_name || '',
+        'Prénom':         u.first_name || '',
+        'Email':          u.email || '',
+        'Téléphone':      u.phone || '',
+        'Rôle':           u.role || '',
+        'Accès Donateurs': u.access_donors ? 'Oui' : '',
+        'Accès Campagnes': u.access_campaigns ? 'Oui' : '',
+        'Accès Événements':u.access_events ? 'Oui' : '',
+        'Créé le':        dateFR(u.created_at),
+    }));
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    xlsxAutoWidth(ws, rows);
+    XLSX.utils.book_append_sheet(wb, ws, 'Annuaire');
+    const fn = `Annuaire_contacts_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, fn);
+    window.showNotice('✅ Téléchargé', `${rows.length} contacts — "${fn}"`, 'success');
+};
+
+// ══════════════════════════════════════════════════════════════
+// EXPORT 5 — Dons par entité (un onglet par école)
+// ══════════════════════════════════════════════════════════════
+window.exportByEntity = async () => {
+    window.showNotice('⏳', 'Préparation par entité...', 'info');
+    const { data, error } = await supabaseClient
+        .from('donors').select('*, donations(*)').order('last_name');
+    if (error) return window.showNotice('Erreur', error.message, 'error');
+
+    const wb = XLSX.utils.book_new();
+    const entities = ALL_ENTITIES;
+
+    entities.forEach(entity => {
+        const donors = (data || []).filter(d => d.entity === entity);
+        const rows = [];
+        donors.forEach(d => {
+            (d.donations || []).forEach(don => {
+                rows.push({
+                    'Nom':            d.last_name || '',
+                    'Prénom':         d.first_name || '',
+                    'Entreprise':     d.company_name || '',
+                    'Date du don':    dateFR(don.date),
+                    'Montant (€)':    parseFloat(don.amount || 0),
+                    'Mode':           don.payment_mode || '',
+                    'N° Reçu':        don.tax_receipt_number || '',
+                    'Remercié':       don.thanked ? 'Oui' : 'Non',
+                    'Date remerciement': dateFR(don.thank_date),
+                });
+            });
+        });
+        const sheetName = entity.substring(0, 31); // max 31 chars pour Excel
+        const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ 'Aucun don': '' }]);
+        if (rows.length) xlsxAutoWidth(ws, rows);
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    });
+
+    // Onglet récapitulatif
+    const recap = entities.map(entity => {
+        const donors = (data || []).filter(d => d.entity === entity);
+        const allDons = donors.flatMap(d => d.donations || []);
+        return {
+            'Entité':            entity,
+            'Nb donateurs':      donors.length,
+            'Nb dons':           allDons.length,
+            'Total collecté (€)':allDons.reduce((s,d) => s+parseFloat(d.amount||0), 0),
+            'Non remerciés':     allDons.filter(d => d.thanked === false).length,
+        };
+    });
+    const wsR = XLSX.utils.json_to_sheet(recap);
+    xlsxAutoWidth(wsR, recap);
+    XLSX.utils.book_append_sheet(wb, wsR, 'Récapitulatif');
+
+    const fn = `Dons_par_entite_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, fn);
+    window.showNotice('✅ Téléchargé', `${entities.length} onglets — "${fn}"`, 'success');
+};
+
+// ══════════════════════════════════════════════════════════════
+// EXPORT 6 — Donateurs sans don récent (relances)
+// ══════════════════════════════════════════════════════════════
+window.exportInactiveDonors = async () => {
+    // Demander le seuil
+    showCustomModal(`
+        <div class="modal-header-luxe">
+            <h3 class="luxe-title">DONATEURS SANS DON RÉCENT</h3>
+            <button onclick="window.closeCustomModal()" class="close-btn">&times;</button>
+        </div>
+        <div class="modal-scroll-body">
+            <p class="mini-label">INACTIF DEPUIS PLUS DE</p>
+            <select id="export-inactive-years" class="luxe-input" style="margin-bottom:20px;">
+                <option value="1">1 an</option>
+                <option value="2" selected>2 ans</option>
+                <option value="3">3 ans</option>
+                <option value="5">5 ans</option>
+            </select>
+            <button onclick="window.doExportInactive()" class="btn-gold-fill" style="width:100%;height:50px;font-size:1rem;">
+                <i data-lucide="download" style="width:18px;height:18px;vertical-align:middle;margin-right:8px;"></i>
+                TÉLÉCHARGER
+            </button>
+        </div>
+    `);
+    if (window.lucide) lucide.createIcons();
+};
+
+window.doExportInactive = async () => {
+    const years = parseInt(document.getElementById('export-inactive-years')?.value || '2');
+    window.closeCustomModal();
+    window.showNotice('⏳', 'Recherche des donateurs inactifs...', 'info');
+
+    const { data, error } = await supabaseClient
+        .from('donors').select('*, donations(*)').order('last_name');
+    if (error) return window.showNotice('Erreur', error.message, 'error');
+
+    const threshold = new Date();
+    threshold.setFullYear(threshold.getFullYear() - years);
+
+    const rows = (data || []).filter(d => {
+        if (d.archived_at) return false;
+        if (!d.donations || !d.donations.length) return true; // jamais donné
+        const lastDon = d.donations.reduce((max, don) =>
+            new Date(don.date) > new Date(max.date) ? don : max, d.donations[0]);
+        return new Date(lastDon.date) < threshold;
+    }).map(d => {
+        const dons = d.donations || [];
+        const lastDon = dons.length ? dons.reduce((max, don) =>
+            new Date(don.date) > new Date(max.date) ? don : max, dons[0]) : null;
+        return {
+            'Nom':                d.last_name || '',
+            'Prénom':             d.first_name || '',
+            'Entreprise':         d.company_name || '',
+            'Entité':             d.entity || '',
+            'Email':              d.email || '',
+            'Téléphone':          d.phone || '',
+            'Ville':              d.city || '',
+            'Dernier don':        lastDon ? dateFR(lastDon.date) : 'Aucun',
+            'Montant dernier don':lastDon ? parseFloat(lastDon.amount||0) : '',
+            'Total dons':         dons.reduce((s,don) => s+parseFloat(don.amount||0), 0),
+            'Nb dons':            dons.length,
+            'Notes':              d.notes || '',
+        };
+    });
+
+    if (!rows.length) return window.showNotice('Info', `Aucun donateur inactif depuis ${years} ans`, 'info');
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    xlsxAutoWidth(ws, rows);
+    XLSX.utils.book_append_sheet(wb, ws, `Inactifs +${years}ans`);
+    const fn = `Donateurs_inactifs_${years}ans_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, fn);
+    window.showNotice('✅ Téléchargé', `${rows.length} donateurs inactifs — "${fn}"`, 'success');
+};
+
+// ══════════════════════════════════════════════════════════════
+// EXPORT 7 — Événements
+// ══════════════════════════════════════════════════════════════
+window.exportEvents = async () => {
+    window.showNotice('⏳', 'Chargement des événements...', 'info');
+    const { data, error } = await supabaseClient
+        .from('events_v2').select('*').order('event_date', { ascending: true });
+    if (error) return window.showNotice('Erreur', error.message, 'error');
+
+    const rows = (data || []).map(e => ({
+        'Titre':          e.title || '',
+        'Date':           dateFR(e.event_date),
+        'Lieu':           e.location || '',
+        'Entité':         e.entity || e.portal || '',
+        'Description':    e.description || '',
+        'Statut':         e.status || '',
+        'Nb participants':e.participant_count || '',
+        'Créé le':        dateFR(e.created_at),
+        'Notes':          e.notes || '',
+    }));
+
+    if (!rows.length) return window.showNotice('Info', 'Aucun événement à exporter.', 'info');
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    xlsxAutoWidth(ws, rows);
+    XLSX.utils.book_append_sheet(wb, ws, 'Événements');
+    const fn = `Evenements_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, fn);
+    window.showNotice('✅ Téléchargé', `${rows.length} événements — "${fn}"`, 'success');
+};
+
+// ══════════════════════════════════════════════════════════════
+// EXPORT 8 — Legs & Planification
+// ══════════════════════════════════════════════════════════════
+window.exportLegs = async () => {
+    window.showNotice('⏳', 'Chargement des dossiers legs...', 'info');
+    const { data, error } = await supabaseClient
+        .from('donors').select('*, donations(*)')
+        .eq('donor_type', 'Legs')
+        .order('last_name');
+    if (error) return window.showNotice('Erreur', error.message, 'error');
+
+    const rows = (data || []).map(d => {
+        const dons = d.donations || [];
+        return {
+            'Nom':              d.last_name || '',
+            'Prénom':           d.first_name || '',
+            'Entreprise':       d.company_name || '',
+            'Entité':           d.entity || '',
+            'Email':            d.email || '',
+            'Téléphone':        d.phone || '',
+            'Adresse':          d.address || '',
+            'Code Postal':      d.zip_code || '',
+            'Ville':            d.city || '',
+            'Origine':          d.origin || '',
+            'Total dons (€)':   dons.reduce((s,don) => s+parseFloat(don.amount||0), 0),
+            'Nb dons':          dons.length,
+            'Dernier don':      dons.length ? dateFR(dons.reduce((max,don) =>
+                new Date(don.date)>new Date(max.date)?don:max, dons[0]).date) : '',
+            'Archivé':          d.archived_at ? dateFR(d.archived_at) : '',
+            'Raison archivage': d.archive_reason || '',
+            'Notes':            d.notes || '',
+        };
+    });
+
+    if (!rows.length) return window.showNotice('Info', 'Aucun donateur de type "Legs" trouvé.', 'info');
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    xlsxAutoWidth(ws, rows);
+    XLSX.utils.book_append_sheet(wb, ws, 'Legs et Planification');
+    const fn = `Legs_Planification_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, fn);
+    window.showNotice('✅ Téléchargé', `${rows.length} dossiers legs — "${fn}"`, 'success');
+};
+
+
 function loadUsersForMentions() { console.log("Module CRM Alsatia v2.0 chargé."); }
 
 // ==========================================
