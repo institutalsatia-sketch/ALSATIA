@@ -1989,3 +1989,100 @@ img {
     color: #9a3412;
     box-shadow: 0 4px 12px rgba(251,146,60,0.2);
 }
+
+/* ══════════════════════════════════════════════════════
+   FILTRE ACTIVITÉ DONATEURS
+   ══════════════════════════════════════════════════════ */
+.activity-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+.activity-filter-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+.activity-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 14px;
+    border-radius: 20px;
+    border: 1.5px solid #e2e8f0;
+    background: white;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.18s ease;
+}
+.activity-btn:hover { border-color: var(--gold); color: var(--gold); }
+.activity-btn.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+    box-shadow: 0 2px 8px rgba(15,23,42,0.15);
+}
+.activity-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.active-dot   { background: #10b981; }
+.inactive-dot { background: #f59e0b; }
+.never-dot    { background: #94a3b8; }
+
+/* ══════════════════════════════════════════════════════
+   ONGLETS FICHE DONATEUR
+   ══════════════════════════════════════════════════════ */
+.donor-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 18px;
+    border-bottom: 2px solid #e2e8f0;
+    padding-bottom: 0;
+}
+.donor-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 18px;
+    border: none;
+    border-bottom: 3px solid transparent;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    border-radius: 8px 8px 0 0;
+    transition: all 0.18s ease;
+    position: relative;
+    bottom: -2px;
+}
+.donor-tab:hover { color: var(--primary); background: #f8fafc; }
+.donor-tab.active {
+    color: var(--primary);
+    border-bottom-color: var(--gold);
+    background: white;
+}
+.dtab-badge {
+    background: #ef4444;
+    color: white;
+    font-size: 0.6rem;
+    font-weight: 800;
+    padding: 1px 5px;
+    border-radius: 8px;
+    min-width: 16px;
+    text-align: center;
+}
+.dtab-panel { animation: fadeInTab 0.2s ease; }
+@keyframes fadeInTab {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
