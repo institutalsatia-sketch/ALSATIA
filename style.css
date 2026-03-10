@@ -892,15 +892,6 @@ select:not(.luxe-input):focus {
     width: 350px;
     margin-bottom: 10px;
 }
-    border-radius: 12px;
-    box-shadow: 0 -10px 25px rgba(0,0,0,0.1);
-    max-height: 250px;
-    overflow-y: auto;
-    display: none;
-    z-index: 1000;
-    width: 300px;
-    margin-bottom: 10px;
-}
 
 .attach-btn {
     cursor: pointer;
@@ -1752,4 +1743,51 @@ img {
 @keyframes bellRing {
     0%   { transform: rotate(-12deg); }
     100% { transform: rotate(12deg); }
+}
+
+/* =====================================================
+   MESSAGERIE — Bouton Répondre + thread de réponses
+   ===================================================== */
+
+.btn-reply {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1.5px solid rgba(197,160,89,0.35);
+    background: white;
+    color: var(--gold);
+    font-size: 0.74rem;
+    font-weight: 800;
+    cursor: pointer;
+    letter-spacing: 0.3px;
+    transition: all 0.18s ease;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.btn-reply:hover {
+    background: rgba(197,160,89,0.08);
+    border-color: var(--gold);
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(197,160,89,0.18);
+}
+
+.replies-thread {
+    margin-top: 10px;
+    padding-left: 18px;
+    border-left: 3px solid rgba(197,160,89,0.25);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* Message-wrapper flex fix */
+.message-wrapper {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+}
+.message-wrapper .my-wrapper,
+.my-wrapper > div {
+    align-items: flex-end;
 }
