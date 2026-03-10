@@ -2151,3 +2151,19 @@ img {
 .scroll-to-top:active {
     transform: translateY(0) scale(0.97);
 }
+
+/* ══════════════════════════════════════════════════════
+   TRI COLONNES DONATEURS
+   ══════════════════════════════════════════════════════ */
+.sortable-th {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    transition: color 0.15s;
+}
+.sortable-th:hover {
+    color: var(--gold);
+}
+.sortable-th:hover i {
+    opacity: 0.8 !important;
+}
