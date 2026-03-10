@@ -1903,3 +1903,89 @@ img {
     from { transform: scale(0); opacity: 0; }
     to   { transform: scale(1); opacity: 1; }
 }
+
+/* ══════════════════════════════════════════════════════
+   BADGES TIERS DONATEURS
+   ══════════════════════════════════════════════════════ */
+
+/* Badge compact — liste */
+.tier-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.4px;
+    border: 1.5px solid;
+    white-space: nowrap;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.tier-badge:hover {
+    transform: scale(1.06);
+}
+
+.tier-badge.tier-platine {
+    background: #e0f2fe;
+    border-color: #0ea5e9;
+    color: #0369a1;
+    box-shadow: 0 2px 8px rgba(14,165,233,0.2);
+}
+.tier-badge.tier-or {
+    background: #fffbeb;
+    border-color: #f59e0b;
+    color: #92400e;
+    box-shadow: 0 2px 8px rgba(245,158,11,0.2);
+}
+.tier-badge.tier-argent {
+    background: #f8fafc;
+    border-color: #94a3b8;
+    color: #475569;
+    box-shadow: 0 2px 6px rgba(148,163,184,0.2);
+}
+.tier-badge.tier-bronze {
+    background: #fff7ed;
+    border-color: #fb923c;
+    color: #9a3412;
+    box-shadow: 0 2px 6px rgba(251,146,60,0.15);
+}
+
+/* Badge large — fiche individuelle */
+.tier-badge-large {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    border-radius: 14px;
+    border: 2px solid;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.tier-badge-large:hover {
+    transform: translateY(-2px);
+}
+
+.tier-badge-large.tier-platine {
+    background: linear-gradient(135deg, #e0f2fe, #bae6fd);
+    border-color: #0ea5e9;
+    color: #0369a1;
+    box-shadow: 0 4px 14px rgba(14,165,233,0.25);
+}
+.tier-badge-large.tier-or {
+    background: linear-gradient(135deg, #fffbeb, #fef3c7);
+    border-color: #f59e0b;
+    color: #92400e;
+    box-shadow: 0 4px 14px rgba(245,158,11,0.25);
+}
+.tier-badge-large.tier-argent {
+    background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+    border-color: #94a3b8;
+    color: #475569;
+    box-shadow: 0 4px 12px rgba(148,163,184,0.2);
+}
+.tier-badge-large.tier-bronze {
+    background: linear-gradient(135deg, #fff7ed, #ffedd5);
+    border-color: #fb923c;
+    color: #9a3412;
+    box-shadow: 0 4px 12px rgba(251,146,60,0.2);
+}
