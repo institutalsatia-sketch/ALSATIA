@@ -404,6 +404,32 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function initInterface() {
+    // Bouton retour en haut — surveille .page-content.active
+    function initScrollToTop() {
+        const btn = document.getElementById('scroll-to-top-btn');
+        if (!btn) return;
+
+        // Surveiller le scroll sur tous les .page-content
+        document.querySelectorAll('.page-content').forEach(panel => {
+            panel.addEventListener('scroll', function() {
+                const activePanel = document.querySelector('.page-content.active');
+                if (!activePanel) return;
+                if (activePanel.scrollTop > 300) {
+                    btn.classList.add('visible');
+                } else {
+                    btn.classList.remove('visible');
+                }
+            });
+        });
+
+        // Observer les changements d'onglet pour re-brancher l'événement
+        btn.addEventListener('click', function() {
+            const activePanel = document.querySelector('.page-content.active');
+            if (activePanel) activePanel.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    }
+    initScrollToTop();
+
     // Ctrl+K → Recherche globale
     document.addEventListener('keydown', function(e) {
         if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
@@ -538,6 +564,30 @@ window.toggleSortUnthanked = function() {
     if (label) label.textContent = sortUnthankedActive ? 'Tous les donateurs' : 'Remerciements dus';
     window.filterDonors();
 }
+
+// Mettre à jour les compteurs sur les boutons de filtre activité
+window.updateActivityCounts = function() {
+    const all    = window.allDonorsData || [];
+    const thisYear    = new Date().getFullYear();
+    const twoYearsAgo = new Date();
+    twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+
+    const counts = { ALL: all.length, active: 0, inactive: 0, never: 0 };
+    all.forEach(d => {
+        const dons = d.donations || [];
+        if (dons.length === 0) { counts.never++; return; }
+        const lastDon = dons.reduce((max, don) =>
+            new Date(don.date) > new Date(max.date) ? don : max, dons[0]);
+        const lastYear = new Date(lastDon.date).getFullYear();
+        if (lastYear === thisYear) counts.active++;
+        else if (new Date(lastDon.date) < twoYearsAgo) counts.inactive++;
+    });
+
+    ['ALL','active','inactive','never'].forEach(key => {
+        const badge = document.getElementById('activity-count-' + key);
+        if (badge) badge.textContent = counts[key];
+    });
+};
 
 // Mettre à jour le badge compteur "Remerciements dûs"
 window.updateUnthankedBadge = function() {
@@ -976,6 +1026,7 @@ window.loadDonors = async function() {
     window.allDonorsData = data || [];
     window.filterDonors();
     window.updateUnthankedBadge();
+    window.updateActivityCounts();
 };
 
 /**
