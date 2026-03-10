@@ -477,7 +477,7 @@ console.log('💬 DM.JS CHARGÉ');
     console.log('🔌 DM subscribe conversation…');
 
     dmChannel = sb
-      .channel('dm-conversation-channel')
+      .channel('dm-conv-' + dmConversationKey.replace(':', '-'))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'dm_messages' }, (payload) => {
         const row = payload.new || payload.old;
         if (!row || row.conversation_key !== dmConversationKey) return;
