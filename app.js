@@ -9,6 +9,7 @@ const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
 let currentUser = JSON.parse(localStorage.getItem('alsatia_user'));
 let allDonorsData = [];
+let sortUnthankedActive = false; // tri "remerciements dus en premier" 
 let allUsersForMentions = []; 
 let selectedChatFile = null; // Pour la gestion des pièces jointes dans la messagerie
 let currentChatSubject = 'Général'; // Canal de discussion actif
@@ -451,6 +452,54 @@ async function loadHomeStats() {
 // ==========================================
 // GESTION DE LA NAVIGATION (ONGLETS)
 // ==========================================
+// =====================================================
+// REFRESH PAR ONGLET — Animation + rechargement données
+// =====================================================
+window.refreshTab = function(tabId) {
+    // Trouver le bouton refresh cliqué et animer son icône
+    const btn = document.querySelector(`[onclick*="refreshTab('${tabId}')"]`);
+    if (btn) {
+        const icon = btn.querySelector('[data-lucide="refresh-cw"]');
+        if (icon) {
+            icon.style.transition = 'transform 0.6s ease';
+            icon.style.transform = 'rotate(360deg)';
+            setTimeout(() => {
+                icon.style.transition = '';
+                icon.style.transform = '';
+            }, 650);
+        }
+        btn.disabled = true;
+        setTimeout(() => { btn.disabled = false; }, 1000);
+    }
+
+    // Recharger les données de l'onglet concerné
+    if (tabId === 'contacts')  { loadContacts(); }
+    if (tabId === 'donors')    { window.loadDonors(); }
+    if (tabId === 'campaigns') { window.loadCampaigns(); }
+    if (tabId === 'events')    { loadEvents(); }
+    if (tabId === 'account')   { window.loadAccountPage(); }
+    if (tabId === 'home')      { loadHomeStats(); if (window.initQuotes) window.initQuotes(); }
+    if (tabId === 'chat') {
+        window._chatRenderedIds = new Set();
+        window._chatStopPoll();
+        window.loadChatSubjects();
+        window.loadChatMessages();
+        window.subscribeToChat();
+    }
+};
+
+// =====================================================
+// TRI REMERCIEMENTS DUS — Donateurs
+// =====================================================
+window.toggleSortUnthanked = function() {
+    sortUnthankedActive = !sortUnthankedActive;
+    const btn = document.getElementById('btn-sort-unthanked');
+    const label = document.getElementById('sort-unthanked-label');
+    if (btn) btn.classList.toggle('active', sortUnthankedActive);
+    if (label) label.textContent = sortUnthankedActive ? 'Tous les donateurs' : 'Remerciements dus';
+    window.filterDonors();
+};
+
 window.switchTab = (tabId) => {
     console.log("Changement d'onglet vers :", tabId);
 
@@ -854,6 +903,14 @@ window.filterDonors = () => {
         const matchesEntity = (entityVal === "ALL" || d.entity === entityVal);
         return matchesSearch && matchesEntity;
     });
+    // Tri : remerciements dus en tête (si actif)
+    if (sortUnthankedActive) {
+        filtered.sort((a, b) => {
+            const aHas = (a.donations || []).some(d => d.thanked === false) && !a.archived_at ? 1 : 0;
+            const bHas = (b.donations || []).some(d => d.thanked === false) && !b.archived_at ? 1 : 0;
+            return bHas - aHas;
+        });
+    }
     renderDonors(filtered);
 };
 
