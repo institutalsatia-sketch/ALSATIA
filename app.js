@@ -13,6 +13,7 @@ let sortUnthankedActive = false; // tri "remerciements dus en premier"
 let allUsersForMentions = []; 
 let selectedChatFile = null; // Pour la gestion des pièces jointes dans la messagerie
 let currentChatSubject = 'Général'; // Canal de discussion actif
+let currentTab = 'home';              // Onglet actuellement visible
 let mentionUnreadCount = 0; // Compteur de mentions @nom non lues dans le chat global
 
 const LOGOS = {
@@ -26,20 +27,24 @@ const LOGOS = {
 // ==========================================
 
 window.showMessageNotification = function(fromName, type) {
+    // Ne pas empiler plus de 3 toasts du même type
+    const existingToasts = document.querySelectorAll('.msg-notif-toast');
+    if (existingToasts.length >= 3) return;
     var toastContainer = document.getElementById('notice-toast');
     if (!toastContainer) return;
 
     var id = 'notif-' + Date.now();
     var icon = type === 'mention' ? 'at-sign' : 'message-circle';
-    var label = type === 'mention' ? 'Vous avez ete mentionné(e)' : 'Nouveau message privé';
+    var label = type === 'mention' ? 'Vous avez été mentionné(e)' : 'Nouveau message privé';
     var color = type === 'mention' ? 'var(--gold)' : '#3b82f6';
 
     var iconDiv = '<div style="width:36px;height:36px;border-radius:10px;background:' + color + '22;border:1.5px solid ' + color + '55;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><i data-lucide="' + icon + '" style="width:18px;height:18px;color:' + color + ';"></i></div>';
     var textDiv = '<div style="flex:1;min-width:0;"><div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:' + color + ';margin-bottom:2px;">' + label + '</div><div style="font-size:0.88rem;font-weight:600;color:white;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">de ' + fromName + '</div></div>';
     var closeBtn = '<button onclick="document.getElementById(\'' + id + '\').remove()" style="background:none;border:none;cursor:pointer;color:#64748b;padding:4px;border-radius:6px;display:flex;align-items:center;" onmouseover="this.style.color=\'white\'" onmouseout="this.style.color=\'#64748b\'"><i data-lucide="x" style="width:14px;height:14px;"></i></button>';
 
-    var wrapperStyle = 'background:var(--primary);color:white;padding:14px 18px;border-radius:14px;border-left:4px solid ' + color + ';box-shadow:0 8px 24px rgba(0,0,0,0.25);display:flex;align-items:center;gap:12px;min-width:280px;max-width:360px;pointer-events:auto;animation:slideIn 0.4s cubic-bezier(0.175,0.885,0.32,1.275) forwards;';
-    var html = '<div id="' + id + '" style="' + wrapperStyle + '">' + iconDiv + textDiv + closeBtn + '</div>';
+    var targetTab = type === 'mention' ? 'chat' : 'contacts';
+    var wrapperStyle = 'background:var(--primary);color:white;padding:14px 18px;border-radius:14px;border-left:4px solid ' + color + ';box-shadow:0 8px 24px rgba(0,0,0,0.25);display:flex;align-items:center;gap:12px;min-width:280px;max-width:360px;pointer-events:auto;animation:slideIn 0.4s cubic-bezier(0.175,0.885,0.32,1.275) forwards;cursor:pointer;';
+    var html = '<div id="' + id + '" class="msg-notif-toast" onclick="window.switchTab(\'' + targetTab + '\'); document.getElementById(\'' + id + '\').remove();" style="' + wrapperStyle + '">' + iconDiv + textDiv + closeBtn + '</div>';
 
     toastContainer.insertAdjacentHTML('beforeend', html);
     if (window.lucide) lucide.createIcons();
@@ -80,26 +85,39 @@ window.clearMentionBadge = function() {
 
 window.startGlobalMentionWatcher = function() {
     if (window.mentionWatcherChannel) return;
-    var myLastName = currentUser.last_name.toLowerCase().trim();
+    var myLastName  = currentUser.last_name.toLowerCase().trim();
     var myFirstName = currentUser.first_name.toLowerCase().trim();
     window.mentionWatcherChannel = supabaseClient
         .channel('mention-watcher-' + Date.now())
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_global' }, function(p) {
             var msg = p.new;
             if (!msg) return;
-            // Ignorer ses propres messages (comparaison souple)
+
+            // Ignorer ses propres messages
             var authorNorm = (msg.author_full_name || '').toLowerCase().trim();
             var myNorm = (myFirstName + ' ' + myLastName).trim();
             if (authorNorm === myNorm) return;
-            // Détecter @NomDeFamille dans le contenu
-            if (msg.content && msg.content.toLowerCase().indexOf('@' + myLastName) !== -1) {
-                mentionUnreadCount++;
-                window.updateMentionBadge();
+
+            // Détecter @NomDeFamille OU @Prénom OU @Prénom+Nom
+            const contentLow = (msg.content || '').toLowerCase();
+            const isMentioned = contentLow.includes('@' + myLastName)
+                              || contentLow.includes('@' + myFirstName)
+                              || contentLow.includes('@' + myNorm);
+            if (!isMentioned) return;
+
+            // Toujours incrémenter le badge
+            mentionUnreadCount++;
+            window.updateMentionBadge();
+
+            // Toast uniquement si l'utilisateur N'est PAS en train de lire ce canal
+            const onChatTab    = (currentTab === 'chat');
+            const onSameSubject = (msg.subject === currentChatSubject);
+            if (!onChatTab || !onSameSubject) {
                 window.showMessageNotification(msg.author_full_name || 'Quelqu\'un', 'mention');
             }
         })
         .subscribe(function(status) {
-            console.log('mention-watcher status:', status);
+            console.log('📣 mention-watcher:', status);
         });
 };
 
@@ -501,6 +519,7 @@ window.toggleSortUnthanked = function() {
 };
 
 window.switchTab = (tabId) => {
+    currentTab = tabId;
     console.log("Changement d'onglet vers :", tabId);
 
     // Nettoyer le channel Realtime des événements si on quitte les événements
@@ -2810,105 +2829,91 @@ window.loadChatMessages = async () => {
 
 function renderSingleMessage(msg, isReply = false) {
     const isMe = msg.author_full_name === `${currentUser.first_name} ${currentUser.last_name}`;
-    const isMentioned = msg.content.includes(`@${currentUser.last_name}`);
+    const isMentioned = (msg.content || '').toLowerCase().includes('@' + currentUser.last_name.toLowerCase());
     const date = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const portalIcon = LOGOS[msg.portal] || 'logo_alsatia.png';
 
-    return `
-        <div class="message-wrapper ${isMe ? 'my-wrapper' : ''}" data-msg-id="${msg.id}" style="display:flex; gap:12px; margin-bottom:${isReply ? '8px' : '20px'}; ${isReply ? 'margin-left:0;' : ''} align-items:flex-start; ${isMe ? 'flex-direction:row-reverse;' : ''} animation: slideIn 0.3s ease-out; width:100%;">
-            
-            <div style="${isMe ? 'text-align:right;' : ''} flex:1; min-width:0;">
-                <div style="display:flex; align-items:center; gap:8px; margin-bottom:5px; ${isMe ? 'justify-content:flex-end;' : ''}">
-                    <img src="${portalIcon}" style="width:${isReply ? '16px' : '20px'}; height:${isReply ? '16px' : '20px'}; object-fit:contain;">
-                    <span style="font-weight:700; font-size:${isReply ? '0.8rem' : '0.9rem'}; color:var(--text-main);">${msg.author_full_name}</span>
-                    <span style="font-size:0.7rem; color:var(--text-muted);">${date}</span>
-                    ${isMe ? `
-                        <i data-lucide="trash-2" 
-                           onclick="window.deleteMessage('${msg.id}')" 
-                           style="width:14px; 
-                                  height:14px; 
-                                  color:var(--danger); 
-                                  cursor:pointer; 
-                                  transition:all 0.2s;
-                                  opacity:0.7;" 
-                           onmouseover="this.style.opacity='1'; this.style.transform='scale(1.2)';" 
-                           onmouseout="this.style.opacity='0.7'; this.style.transform='scale(1)';"></i>
-                    ` : ''}
-                </div>
-                
-                <div class="message ${isMe ? 'my-msg' : ''} ${isMentioned ? 'mentioned-luxe' : ''}" id="msg-${msg.id}" 
-                     style="position:relative; 
-                            padding:${isReply ? '10px 14px' : '14px 18px'}; 
-                            border-radius:${isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px'}; 
-                            background:${isMe ? 'linear-gradient(135deg, var(--primary) 0%, #1e293b 100%)' : isMentioned ? 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)' : 'white'}; 
-                            color:${isMe ? 'white' : 'var(--text-main)'}; 
-                            box-shadow: 0 ${isReply ? '1px 6px' : '2px 12px'} rgba(0,0,0,${isMe ? '0.15' : '0.08'}); 
-                            border:${isMentioned && !isMe ? '2px solid var(--gold)' : 'none'};
-                            line-height:1.6;
-                            word-wrap: break-word;
-                            display:inline-block;
-                            max-width:100%;
-                            font-size:${isReply ? '0.9rem' : '1rem'};
-                            ${isMe ? 'margin-left:auto;' : ''}">
-                    ${msg.content.replace(/@([\w\sàéèêîïôûù]+)/g, `<span class="mention-badge" style="background:${isMe ? 'rgba(197,160,89,0.3)' : 'rgba(197,160,89,0.15)'}; color:${isMe ? '#fbbf24' : 'var(--gold)'}; padding:2px 6px; border-radius:4px; font-weight:700;">@$1</span>`)}
-                    
-                    ${msg.file_url ? (() => {
-                        const fileName = msg.file_url.split('/').pop();
-                        const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName);
-                        const isPDF = /\.pdf$/i.test(fileName);
-                        
-                        if (isImage) {
-                            return `
-                                <div style="margin-top:12px; padding-top:12px; border-top:1px solid ${isMe ? 'rgba(255,255,255,0.2)' : 'var(--border)'};">
-                                    <a href="${msg.file_url}" target="_blank">
-                                        <img src="${msg.file_url}" 
-                                             style="max-width:100%; 
-                                                    max-height:300px; 
-                                                    border-radius:12px; 
-                                                    cursor:pointer;
-                                                    box-shadow:0 2px 8px rgba(0,0,0,0.15);
-                                                    transition:transform 0.2s;"
-                                             onmouseover="this.style.transform='scale(1.02)'"
-                                             onmouseout="this.style.transform='scale(1)'">
-                                    </a>
-                                </div>
-                            `;
-                        } else {
-                            return `
-                                <div style="margin-top:12px; padding-top:12px; border-top:1px solid ${isMe ? 'rgba(255,255,255,0.2)' : 'var(--border)'};">
-                                    <a href="${msg.file_url}" target="_blank" 
-                                       style="color:${isMe ? '#fbbf24' : 'var(--gold)'}; 
-                                              text-decoration:none; 
-                                              font-size:0.85rem; 
-                                              font-weight:600; 
-                                              display:inline-flex; 
-                                              align-items:center; 
-                                              gap:6px;
-                                              padding:8px 12px;
-                                              background:${isMe ? 'rgba(255,255,255,0.1)' : 'rgba(197,160,89,0.1)'};
-                                              border-radius:8px;
-                                              transition: all 0.2s;"
-                                       onmouseover="this.style.transform='translateX(3px)'; this.style.background='${isMe ? 'rgba(255,255,255,0.15)' : 'rgba(197,160,89,0.15)'}'" 
-                                       onmouseout="this.style.transform='translateX(0)'; this.style.background='${isMe ? 'rgba(255,255,255,0.1)' : 'rgba(197,160,89,0.1)'}'">
-                                        <i data-lucide="${isPDF ? 'file-text' : 'paperclip'}" style="width:16px; height:16px;"></i>
-                                        ${fileName.length > 30 ? fileName.substring(0, 30) + '...' : fileName}
-                                    </a>
-                                </div>
-                            `;
-                        }
-                    })() : ''}
-                </div>
-                
-                ${!isReply ? `
-                <!-- Bouton Répondre et conteneur pour les réponses -->
-                <div style="display:flex; gap:4px; margin-top:6px; ${isMe ? 'justify-content:flex-end;' : ''}">
-                    <span onclick="window.replyToMessage('${msg.id}', '${msg.author_full_name}', \`${msg.content.replace(/`/g, '').substring(0, 50)}\`)" style="cursor:pointer; padding:6px 12px; border-radius:12px; background:white; box-shadow:0 1px 3px rgba(0,0,0,0.1); transition:all 0.2s; font-size:0.75rem; font-weight:600; color:var(--gold);" onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.15)';" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.1)';">↩️ Répondre</span>
-                </div>
-                <div id="replies-${msg.id}" style="margin-top:12px;"></div>
-                ` : ''}
-            </div>
+    // Encodage HTML strict
+    function esc(str) {
+        return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // Contenu sécurisé + surlignage des @mentions
+    const safeContent = esc(msg.content || '')
+        .replace(/@([A-Za-z\u00C0-\u024F]+(?:\s[A-Za-z\u00C0-\u024F]+)?)/g,
+            `<span class="mention-badge" style="background:${isMe ? 'rgba(197,160,89,0.3)' : 'rgba(197,160,89,0.15)'}; color:${isMe ? '#fbbf24' : 'var(--gold)'}; padding:2px 6px; border-radius:4px; font-weight:800;">@$1</span>`);
+
+    // Aperçu sécurisé pour le bouton Répondre (data-attributs, pas onclick inline)
+    const replyPreview = esc((msg.content || '').substring(0, 60));
+    const replyAuthor  = esc(msg.author_full_name || '');
+
+    // Pièce jointe
+    let fileHtml = '';
+    if (msg.file_url) {
+        const fileName = msg.file_url.split('/').pop();
+        const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName);
+        const isPDF   = /\.pdf$/i.test(fileName);
+        const sep     = isMe ? 'rgba(255,255,255,0.2)' : 'var(--border)';
+        if (isImage) {
+            fileHtml = `<div style="margin-top:12px;padding-top:12px;border-top:1px solid ${sep};">
+                <a href="${msg.file_url}" target="_blank">
+                    <img src="${msg.file_url}" style="max-width:100%;max-height:280px;border-radius:12px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.15);transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform='scale(1)'">
+                </a></div>`;
+        } else {
+            const shortName = fileName.length > 30 ? fileName.substring(0,30)+'…' : fileName;
+            const lc = isMe ? '#fbbf24' : 'var(--gold)';
+            const bg = isMe ? 'rgba(255,255,255,0.1)' : 'rgba(197,160,89,0.1)';
+            const bgH = isMe ? 'rgba(255,255,255,0.18)' : 'rgba(197,160,89,0.18)';
+            fileHtml = `<div style="margin-top:12px;padding-top:12px;border-top:1px solid ${sep};">
+                <a href="${msg.file_url}" target="_blank"
+                   style="color:${lc};text-decoration:none;font-size:0.85rem;font-weight:600;display:inline-flex;align-items:center;gap:6px;padding:8px 12px;background:${bg};border-radius:8px;transition:all 0.2s;"
+                   onmouseover="this.style.background='${bgH}'" onmouseout="this.style.background='${bg}'">
+                    <i data-lucide="${isPDF ? 'file-text' : 'paperclip'}" style="width:16px;height:16px;"></i>
+                    ${shortName}
+                </a></div>`;
+        }
+    }
+
+    // Bouton Répondre + conteneur des réponses (parents seulement)
+    const replyZone = !isReply ? `
+        <div style="display:flex;gap:4px;margin-top:6px;${isMe ? 'justify-content:flex-end;' : ''}">
+            <button class="btn-reply"
+                    data-msg-id="${msg.id}"
+                    data-author="${replyAuthor}"
+                    data-preview="${replyPreview}"
+                    onclick="window.replyToMessage(this.dataset.msgId, this.dataset.author, this.dataset.preview)">
+                ↩ Répondre
+            </button>
         </div>
-    `;
+        <div id="replies-${msg.id}" class="replies-thread"></div>` : '';
+
+    // Styles bulle
+    const bubbleBg     = isMe ? 'linear-gradient(135deg,var(--primary) 0%,#1e293b 100%)' : isMentioned ? 'linear-gradient(135deg,#fffbeb,#fef3c7)' : 'white';
+    const bubbleColor  = isMe ? 'white' : 'var(--text-main)';
+    const bubbleBorder = (isMentioned && !isMe) ? '2px solid var(--gold)' : 'none';
+    const shadow       = `0 ${isReply ? '1px 6px' : '2px 12px'} rgba(0,0,0,${isMe ? '0.15' : '0.08'})`;
+    const pad          = isReply ? '10px 14px' : '14px 18px';
+    const fz           = isReply ? '0.9rem' : '1rem';
+    const ml           = isMe ? 'margin-left:auto;' : '';
+    const br           = isMe ? '18px 18px 4px 18px' : '18px 18px 18px 4px';
+
+    return `
+        <div class="message-wrapper ${isMe ? 'my-wrapper' : ''}" data-msg-id="${msg.id}" style="margin-bottom:${isReply ? '8px' : '20px'};width:100%;">
+            <div style="${isMe ? 'text-align:right;' : ''}flex:1;min-width:0;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;${isMe ? 'justify-content:flex-end;' : ''}">
+                    <img src="${portalIcon}" style="width:${isReply ? '16px' : '20px'};height:${isReply ? '16px' : '20px'};object-fit:contain;">
+                    <span style="font-weight:700;font-size:${isReply ? '0.8rem' : '0.9rem'};color:var(--text-main);">${esc(msg.author_full_name)}</span>
+                    <span style="font-size:0.7rem;color:var(--text-muted);">${date}</span>
+                    ${isMe ? `<i data-lucide="trash-2" onclick="window.deleteMessage('${msg.id}')" style="width:14px;height:14px;color:var(--danger);cursor:pointer;opacity:0.7;transition:all 0.2s;" onmouseover="this.style.opacity='1';this.style.transform='scale(1.2)';" onmouseout="this.style.opacity='0.7';this.style.transform='scale(1)';"></i>` : ''}
+                </div>
+                <div class="message ${isMe ? 'my-msg' : ''} ${isMentioned ? 'mentioned-luxe' : ''}" id="msg-${msg.id}"
+                     style="position:relative;padding:${pad};border-radius:${br};background:${bubbleBg};color:${bubbleColor};box-shadow:${shadow};border:${bubbleBorder};line-height:1.6;word-wrap:break-word;display:inline-block;max-width:100%;font-size:${fz};${ml}">
+                    ${safeContent}
+                    ${fileHtml}
+                </div>
+                ${replyZone}
+            </div>
+        </div>`;
 }
 
 // appendSingleMessageSafe : utilisé à la fois par l'envoi optimiste et par le realtime
@@ -2959,10 +2964,14 @@ function appendSingleMessageSafe(msg) {
     }, 30);
     if (window.lucide) lucide.createIcons();
 
-    // Son discret pour les messages entrants
+    // Son discret pour les messages entrants (contexte audio partagé)
     if (!isMe) {
         try {
-            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            if (!window._chatAudioCtx || window._chatAudioCtx.state === 'closed') {
+                window._chatAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            const ctx = window._chatAudioCtx;
+            if (ctx.state === 'suspended') ctx.resume();
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             osc.connect(gain); gain.connect(ctx.destination);
@@ -2970,8 +2979,8 @@ function appendSingleMessageSafe(msg) {
             gain.gain.setValueAtTime(0, ctx.currentTime);
             gain.gain.linearRampToValueAtTime(0.06, ctx.currentTime + 0.01);
             gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
-            osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.25);
-        } catch(e){}
+            osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.28);
+        } catch(e) {}
     }
 }
 
@@ -3047,17 +3056,21 @@ let replyingTo = null;
 
 window.replyToMessage = (messageId, authorName, messagePreview) => {
     replyingTo = { id: messageId, author: authorName, preview: messagePreview };
-    
-    // Afficher la barre de réponse
-    const replyBar = document.getElementById('reply-bar');
-    if (replyBar) {
-        replyBar.style.display = 'flex';
-        document.getElementById('reply-author').innerText = authorName;
-        document.getElementById('reply-preview').innerText = messagePreview;
+
+    const replyBar    = document.getElementById('reply-bar');
+    const authorEl    = document.getElementById('reply-author');
+    const previewEl   = document.getElementById('reply-preview');
+
+    if (replyBar)  replyBar.style.display  = 'flex';
+    if (authorEl)  authorEl.textContent    = authorName;
+    if (previewEl) previewEl.textContent   = messagePreview;
+
+    // Scroll smooth jusqu'à la barre + focus input
+    const input = document.getElementById('chat-input');
+    if (input) {
+        input.focus();
+        replyBar?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
-    
-    // Focus sur l'input
-    document.getElementById('chat-input').focus();
 };
 
 window.cancelReply = () => {
