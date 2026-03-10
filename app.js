@@ -9,7 +9,8 @@ const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
 let currentUser = JSON.parse(localStorage.getItem('alsatia_user'));
 let allDonorsData = [];
-let sortUnthankedActive = false; // tri "remerciements dus en premier" 
+let sortUnthankedActive = false; // tri "remerciements dus en premier"
+let activityFilter = 'ALL'; // 'ALL' | 'active' | 'inactive' | 'never' 
 let allUsersForMentions = []; 
 let selectedChatFile = null; // Pour la gestion des pièces jointes dans la messagerie
 let currentChatSubject = 'Général'; // Canal de discussion actif
@@ -403,6 +404,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 function initInterface() {
+    // Ctrl+K → Recherche globale
+    document.addEventListener('keydown', function(e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+            e.preventDefault();
+            window.toggleGlobalSearch();
+        }
+        if (e.key === 'Escape' && window.globalSearchOpen) {
+            window.toggleGlobalSearch();
+        }
+    });
     const portal = currentUser.portal;
     const logoSrc = LOGOS[portal] || 'logo_alsatia.png';
 
@@ -509,6 +520,16 @@ window.refreshTab = function(tabId) {
 // =====================================================
 // TRI REMERCIEMENTS DUS — Donateurs
 // =====================================================
+window.setActivityFilter = function(val) {
+    activityFilter = val;
+    // Mettre à jour les boutons visuellement
+    ['ALL','active','inactive','never'].forEach(v => {
+        const btn = document.getElementById('activity-btn-' + v);
+        if (btn) btn.classList.toggle('active', v === val);
+    });
+    window.filterDonors();
+};
+
 window.toggleSortUnthanked = function() {
     sortUnthankedActive = !sortUnthankedActive;
     const btn = document.getElementById('btn-sort-unthanked');
@@ -964,16 +985,35 @@ window.filterDonors = () => {
     const searchVal = document.getElementById('search-donor')?.value.toLowerCase().trim() || "";
     const entityVal = document.getElementById('filter-entity')?.value || "ALL";
 
+    const thisYear = new Date().getFullYear();
+    const twoYearsAgo = new Date();
+    twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+
     const filtered = window.allDonorsData.filter(d => {
-        const matchesSearch = 
-            (d.last_name || "").toLowerCase().includes(searchVal) || 
+        const matchesSearch =
+            (d.last_name || "").toLowerCase().includes(searchVal) ||
             (d.first_name || "").toLowerCase().includes(searchVal) ||
             (d.company_name || "").toLowerCase().includes(searchVal) ||
             (d.city || "").toLowerCase().includes(searchVal) ||
             (d.email || "").toLowerCase().includes(searchVal);
 
         const matchesEntity = (entityVal === "ALL" || d.entity === entityVal);
-        return matchesSearch && matchesEntity;
+
+        // Filtre activité
+        const dons = d.donations || [];
+        const neverGiven = dons.length === 0;
+        const lastDonDate = neverGiven ? null : dons.reduce((max, don) =>
+            new Date(don.date) > new Date(max.date) ? don : max, dons[0]);
+        const lastDonYear = lastDonDate ? new Date(lastDonDate.date).getFullYear() : null;
+        const isActive   = lastDonYear === thisYear;
+        const isInactive = !neverGiven && lastDonDate && new Date(lastDonDate.date) < twoYearsAgo;
+
+        let matchesActivity = true;
+        if (activityFilter === 'active')   matchesActivity = isActive;
+        if (activityFilter === 'inactive') matchesActivity = isInactive;
+        if (activityFilter === 'never')    matchesActivity = neverGiven;
+
+        return matchesSearch && matchesEntity && matchesActivity;
     });
     // Tri : remerciements dus en tête (si actif)
     if (sortUnthankedActive) {
@@ -1140,30 +1180,22 @@ window.execCreateDonor = async () => {
  * 5. DOSSIER DONATEUR (INTERFACE COMPLÈTE)
  */
 window.openDonorFile = async (id) => {
-    console.log('Opening donor file:', id);
-    console.log('All donors data:', window.allDonorsData);
     const donor = window.allDonorsData.find(d => d.id === id);
-    if (!donor) {
-        console.error('Donor not found:', id);
-        window.showNotice("Erreur", "Donateur introuvable. Rechargez la page.", "error");
-        return;
-    }
-    const dons = donor.donations || [];
-    
-    showCustomModal(`
-        <!-- EN-TÊTE FICHE -->
-        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; gap:10px;">
+    if (!donor) { window.showNotice("Erreur", "Donateur introuvable. Rechargez la page.", "error"); return; }
+    const dons  = (donor.donations || []).slice().sort((a,b) => new Date(b.date)-new Date(a.date));
+    const total = dons.reduce((s,d) => s + Number(d.amount||0), 0);
+
+    // ── En-tête commun ───────────────────────────────────────────────
+    const headerHtml = `
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;gap:10px;">
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
                 ${donor.archived_at ? '<span style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:4px 10px;border-radius:20px;font-size:0.72rem;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;">⛔ ARCHIVÉ</span>' : ''}
-                ${!donor.archived_at ? window.renderTierBadgeLarge(dons.reduce((s,d)=>s+Number(d.amount||0),0)) : ''}
+                ${!donor.archived_at ? window.renderTierBadgeLarge(total) : ''}
                 <div>
-                    <p class="mini-label" style="margin:0 0 4px 0;">ÉCOLE / ENTITÉ</p>
-                    <select id="edit-entity" class="luxe-input" style="margin:0;border:1px solid var(--gold);padding:6px 10px;height:34px;font-size:0.83rem;">
-                        <option ${donor.entity === 'Institut Alsatia' ? 'selected' : ''}>Institut Alsatia</option>
-                        <option ${donor.entity === 'Academia Alsatia' ? 'selected' : ''}>Academia Alsatia</option>
-                        <option ${donor.entity === 'Cours Herrade de Landsberg' ? 'selected' : ''}>Cours Herrade de Landsberg</option>
-                        <option ${donor.entity === 'Collège Saints Louis et Zélie Martin' ? 'selected' : ''}>Collège Saints Louis et Zélie Martin</option>
-                    </select>
+                    <h2 style="margin:0;font-size:1.2rem;font-weight:800;color:var(--primary);">
+                        ${donor.company_name ? donor.company_name : ((donor.last_name||'').toUpperCase() + ' ' + (donor.first_name||''))}
+                    </h2>
+                    <span style="font-size:0.8rem;color:var(--text-muted);">${donor.entity||''}</span>
                 </div>
             </div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;flex-shrink:0;">
@@ -1179,110 +1211,203 @@ window.openDonorFile = async (id) => {
                     style="background:#f0fdf4;color:#16a34a;border:1px solid #86efac;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:0.65rem;font-weight:700;">
                     <i data-lucide="archive-restore" style="width:12px;height:12px;vertical-align:middle;"></i> DÉSARCHIVER
                 </button>`}
-                <button onclick="window.askDeleteDonor('${donor.id}', '${(donor.last_name||'').replace(/'/g, "\\'")}')"
+                <button onclick="window.askDeleteDonor('${donor.id}', '${(donor.last_name||'').replace(/'/g,"\\'")}')"
                     style="background:#fee2e2;color:#ef4444;border:none;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:0.65rem;">
                     <i data-lucide="trash-2" style="width:12px;height:12px;vertical-align:middle;"></i> SUPPRIMER
                 </button>
                 <button onclick="window.closeCustomModal()" style="border:none;background:none;cursor:pointer;font-size:1.4rem;color:#94a3b8;line-height:1;">&times;</button>
             </div>
         </div>
-
         ${donor.archived_at ? `
         <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:0.82rem;">
             <b style="color:#dc2626;">Motif d'archivage :</b>
-            <span style="color:#64748b;margin-left:6px;">${donor.archive_reason || '—'}</span>
+            <span style="color:#64748b;margin-left:6px;">${donor.archive_reason||'—'}</span>
             <span style="color:#94a3b8;font-size:0.72rem;margin-left:10px;">le ${new Date(donor.archived_at).toLocaleDateString('fr-FR')}</span>
-        </div>` : ''}
+        </div>` : ''}`;
 
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+    // ── Onglet 1 : Identité ──────────────────────────────────────────
+    const tabIdentite = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
             <div>
                 <p class="mini-label">COORDONNÉES</p>
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;">
-                    <input type="text" id="edit-last" class="luxe-input" value="${donor.last_name || ''}" placeholder="NOM">
-                    <input type="text" id="edit-first" class="luxe-input" value="${donor.first_name || ''}" placeholder="PRÉNOM">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+                    <input type="text" id="edit-last"  class="luxe-input" value="${donor.last_name||''}"  placeholder="NOM">
+                    <input type="text" id="edit-first" class="luxe-input" value="${donor.first_name||''}" placeholder="PRÉNOM">
                 </div>
-                <input type="text" id="edit-company" class="luxe-input" value="${donor.company_name || ''}" placeholder="Entreprise" style="margin-bottom:8px;">
-                <input type="email" id="edit-email" class="luxe-input" value="${donor.email || ''}" placeholder="Email" style="margin-bottom:8px;">
-                <input type="text" id="edit-phone" class="luxe-input" value="${donor.phone || ''}" placeholder="Tél" style="margin-bottom:8px;">
-                <input type="text" id="edit-address" class="luxe-input" value="${donor.address || ''}" placeholder="Adresse" style="margin-bottom:8px;">
-                <div style="display:grid; grid-template-columns:1fr 2fr; gap:8px;">
-                    <input type="text" id="edit-zip" class="luxe-input" value="${donor.zip_code || ''}" placeholder="CP">
-                    <input type="text" id="edit-city" class="luxe-input" value="${donor.city || ''}" placeholder="VILLE">
+                <input type="text"  id="edit-company" class="luxe-input" value="${donor.company_name||''}" placeholder="Entreprise"  style="margin-bottom:8px;">
+                <input type="email" id="edit-email"   class="luxe-input" value="${donor.email||''}"        placeholder="Email"        style="margin-bottom:8px;">
+                <input type="text"  id="edit-phone"   class="luxe-input" value="${donor.phone||''}"        placeholder="Tél"          style="margin-bottom:8px;">
+                <input type="text"  id="edit-address" class="luxe-input" value="${donor.address||''}"      placeholder="Adresse"      style="margin-bottom:8px;">
+                <div style="display:grid;grid-template-columns:1fr 2fr;gap:8px;">
+                    <input type="text" id="edit-zip"  class="luxe-input" value="${donor.zip_code||''}" placeholder="CP">
+                    <input type="text" id="edit-city" class="luxe-input" value="${donor.city||''}"     placeholder="VILLE">
                 </div>
             </div>
             <div>
+                <p class="mini-label">ENTITÉ</p>
+                <select id="edit-entity" class="luxe-input" style="margin-bottom:12px;border:1px solid var(--gold);">
+                    <option ${donor.entity==='Institut Alsatia'?'selected':''}>Institut Alsatia</option>
+                    <option ${donor.entity==='Academia Alsatia'?'selected':''}>Academia Alsatia</option>
+                    <option ${donor.entity==='Cours Herrade de Landsberg'?'selected':''}>Cours Herrade de Landsberg</option>
+                    <option ${donor.entity==="Collège Saints Louis et Zélie Martin"?'selected':''}>Collège Saints Louis et Zélie Martin</option>
+                </select>
                 <p class="mini-label">SUIVI CRM</p>
-
                 <p class="mini-label" style="font-size:0.68rem;margin:0 0 4px;">TYPE DE CONTACT</p>
                 <select id="edit-donor-type" class="luxe-input" style="margin-bottom:8px;">
                     <option value="">— Non renseigné —</option>
                     ${DONOR_TYPES.map(t => `<option ${donor.donor_type===t?'selected':''}>${t}</option>`).join('')}
                 </select>
-
                 <p class="mini-label" style="font-size:0.68rem;margin:0 0 4px;">ORIGINE DU CONTACT</p>
                 <div style="display:flex;gap:6px;margin-bottom:8px;">
-                    <input type="text" id="edit-origin" class="luxe-input" style="margin:0;flex:1;" value="${donor.origin || ''}" placeholder="Ex : Gala 2024, Recommandation...">
+                    <input type="text" id="edit-origin" class="luxe-input" style="margin:0;flex:1;" value="${donor.origin||''}" placeholder="Ex : Gala 2024...">
                     <button onclick="window.pickOriginFromCampaign('${donor.id}')" title="Lier à une campagne"
                         style="padding:8px;border:1.5px solid var(--gold);background:rgba(197,160,89,0.08);color:var(--gold);border-radius:8px;cursor:pointer;flex-shrink:0;">
                         <i data-lucide="link" style="width:14px;height:14px;vertical-align:middle;"></i>
                     </button>
                 </div>
-
-                <textarea id="edit-notes" class="luxe-input" style="height:80px;margin-bottom:10px;">${donor.notes || ''}</textarea>
+                <textarea id="edit-notes" class="luxe-input" style="height:80px;margin-bottom:10px;">${donor.notes||''}</textarea>
                 <button onclick="window.updateDonorFields('${donor.id}')" class="btn-gold" style="width:100%;height:40px;">ENREGISTRER</button>
             </div>
-        </div>
+        </div>`;
 
-        <div style="margin-top:20px;">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <p class="mini-label">HISTORIQUE DES DONS</p>
-                <button onclick="window.addDonationPrompt('${id}')" class="btn-gold" style="padding:4px 10px; font-size:0.65rem;">+ AJOUTER UN DON</button>
+    // ── Onglet 2 : Dons ─────────────────────────────────────────────
+    const donRows = dons.length === 0
+        ? '<tr><td colspan="9" style="text-align:center;padding:20px;color:#94a3b8;">Aucun don enregistré</td></tr>'
+        : dons.map(don => `
+            <tr style="${!don.thanked ? 'background:rgba(239,68,68,0.04);' : ''}">
+                <td>${new Date(don.date).toLocaleDateString('fr-FR')}</td>
+                <td style="font-weight:700;">${Number(don.amount).toLocaleString('fr-FR')} €</td>
+                <td><span style="font-size:0.75rem;color:#64748b;">${don.payment_mode||'—'}</span></td>
+                <td><span style="font-size:0.75rem;color:#64748b;">${don.campaign||'—'}</span></td>
+                <td>
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <input type="text" id="receipt-${don.id}" value="${don.tax_receipt_number||''}" placeholder="RF-2024-001"
+                            style="padding:4px 8px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.8rem;width:110px;">
+                        <i data-lucide="save" style="width:14px;color:var(--gold);cursor:pointer;" onclick="window.updateReceiptNumber('${don.id}')" title="Enregistrer"></i>
+                    </div>
+                </td>
+                <td style="text-align:center;">
+                    <input type="checkbox" ${don.thanked?'checked':''} onchange="window.toggleThanked('${don.id}',this.checked)">
+                </td>
+                <td>
+                    <input type="date" id="thank-date-${don.id}" value="${don.thank_date||''}"
+                        style="padding:3px 6px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.78rem;width:120px;"
+                        onchange="window.updateThankInfo('${don.id}')">
+                </td>
+                <td>
+                    <input type="text" id="thank-means-${don.id}" value="${don.thank_means||''}" placeholder="Courrier, email..."
+                        style="padding:3px 6px;border:1px solid #e2e8f0;border-radius:6px;font-size:0.78rem;width:110px;"
+                        onchange="window.updateThankInfo('${don.id}')">
+                </td>
+                <td style="text-align:right;">
+                    <div style="display:flex;align-items:center;gap:8px;justify-content:flex-end;">
+                        <i data-lucide="split" style="width:14px;color:var(--gold);cursor:pointer;"
+                            onclick="window.showDonationAllocationModal('${don.id}',${don.amount})" title="Répartir"></i>
+                        <i data-lucide="trash-2" style="width:14px;color:#ef4444;cursor:pointer;"
+                            onclick="window.askDeleteDonation('${don.id}')"></i>
+                    </div>
+                </td>
+            </tr>`).join('');
+
+    const tabDons = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <div style="display:flex;gap:16px;">
+                <div style="text-align:center;">
+                    <div style="font-size:1.4rem;font-weight:800;color:var(--primary);">${total.toLocaleString('fr-FR')} €</div>
+                    <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">Total cumulé</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:1.4rem;font-weight:800;color:var(--primary);">${dons.length}</div>
+                    <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">Dons</div>
+                </div>
+                <div style="text-align:center;">
+                    <div style="font-size:1.4rem;font-weight:800;color:#ef4444;">${dons.filter(d=>d.thanked===false).length}</div>
+                    <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">Non remerciés</div>
+                </div>
             </div>
-            <div style="max-height:240px; overflow-y:auto; border:1px solid #eee; margin-top:10px; border-radius:8px;">
-                <table class="luxe-table">
-                    <thead><tr><th>DATE DON</th><th>MONTANT</th><th>MODE</th><th>CAMPAGNE</th><th>N° REÇU</th><th>REMERCIÉ ?</th><th>DATE REMERCT</th><th>MOYEN REMERCT</th><th style="text-align:right;">ACTION</th></tr></thead>
-                    <tbody>
-                        ${dons.length === 0 ? '<tr><td colspan="5" style="text-align:center; padding:15px; color:#999;">Aucun don enregistré</td></tr>' : ''}
-                        ${dons.map(don => `
-                            <tr style="${!don.thanked ? 'background:rgba(239, 68, 68, 0.05);' : ''}">
-                                <td>${new Date(don.date).toLocaleDateString('fr-FR')}</td>
-                                <td style="font-weight:700;">${Number(don.amount).toLocaleString('fr-FR')} €</td>
-                                <td><span style="font-size:0.75rem; color:#64748b;">${don.payment_mode || '—'}</span></td>
-                                <td><span style="font-size:0.75rem; color:#64748b;">${don.campaign || '—'}</span></td>
-                                <td>
-                                    <div style="display:flex; align-items:center; gap:6px;">
-                                        <input type="text" id="receipt-${don.id}" value="${don.tax_receipt_number || ''}" placeholder="RF-2024-001" style="padding:4px 8px; border:1px solid #e2e8f0; border-radius:6px; font-size:0.85rem; width:100%; max-width:120px;">
-                                        <i data-lucide="save" style="width:14px; color:var(--gold); cursor:pointer;" onclick="window.updateReceiptNumber('${don.id}')" title="Enregistrer"></i>
-                                    </div>
-                                </td>
-                                <td style="text-align:center;">
-                                    <input type="checkbox" ${don.thanked ? 'checked' : ''} onchange="window.toggleThanked('${don.id}', this.checked)">
-                                </td>
-                                <td>
-                                    <input type="date" id="thank-date-${don.id}"
-                                        value="${don.thank_date || ''}"
-                                        style="padding:3px 6px; border:1px solid #e2e8f0; border-radius:6px; font-size:0.78rem; width:120px;"
-                                        onchange="window.updateThankInfo('${don.id}')">
-                                </td>
-                                <td>
-                                    <input type="text" id="thank-means-${don.id}"
-                                        value="${don.thank_means || ''}"
-                                        placeholder="Courrier, email..."
-                                        style="padding:3px 6px; border:1px solid #e2e8f0; border-radius:6px; font-size:0.78rem; width:110px;"
-                                        onchange="window.updateThankInfo('${don.id}')">
-                                </td>
-                                <td style="text-align:right;">
-                                    <div style="display:flex;align-items:center;gap:8px;justify-content:flex-end;">
-                                        <i data-lucide="split" style="width:14px;color:var(--gold);cursor:pointer;" onclick="window.showDonationAllocationModal('${don.id}',${don.amount})" title="Répartir par entité"></i>
-                                        <i data-lucide="trash-2" style="width:14px; color:#ef4444; cursor:pointer;" onclick="window.askDeleteDonation('${don.id}')"></i>
-                                    </div>
-                                </td>
-                            </tr>`).join('')}
-                    </tbody>
-                </table>
-            </div>
-        </div>`);
+            <button onclick="window.addDonationPrompt('${id}')" class="btn-gold" style="padding:6px 14px;font-size:0.75rem;">+ AJOUTER UN DON</button>
+        </div>
+        <div style="max-height:320px;overflow-y:auto;border:1px solid #eee;border-radius:8px;">
+            <table class="luxe-table">
+                <thead><tr><th>DATE</th><th>MONTANT</th><th>MODE</th><th>CAMPAGNE</th><th>N° REÇU</th><th>REMERCIÉ</th><th>DATE REMRCT</th><th>MOYEN</th><th style="text-align:right;">ACTION</th></tr></thead>
+                <tbody>${donRows}</tbody>
+            </table>
+        </div>`;
+
+    // ── Onglet 3 : Campagnes liées ───────────────────────────────────
+    const tabCampagnes = `<div id="donor-campaigns-content" style="min-height:120px;display:flex;align-items:center;justify-content:center;">
+        <div style="text-align:center;color:var(--text-muted);">
+            <div style="width:32px;height:32px;border:3px solid rgba(197,160,89,0.2);border-top-color:var(--gold);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 10px;"></div>
+            <p style="font-size:0.85rem;">Chargement...</p>
+        </div>
+    </div>`;
+
+    // ── Rendu final avec onglets ─────────────────────────────────────
+    showCustomModal(`
+        ${headerHtml}
+        <div class="donor-tabs">
+            <button class="donor-tab active" id="dtab-identite"  onclick="window.switchDonorTab('identite')">
+                <i data-lucide="user" style="width:14px;height:14px;"></i> Identité
+            </button>
+            <button class="donor-tab" id="dtab-dons" onclick="window.switchDonorTab('dons')">
+                <i data-lucide="banknote" style="width:14px;height:14px;"></i> Dons
+                ${dons.filter(d=>d.thanked===false).length > 0 ? `<span class="dtab-badge">${dons.filter(d=>d.thanked===false).length}</span>` : ''}
+            </button>
+            <button class="donor-tab" id="dtab-campagnes" onclick="window.switchDonorTab('campagnes','${id}')">
+                <i data-lucide="megaphone" style="width:14px;height:14px;"></i> Campagnes
+            </button>
+        </div>
+        <div id="dtab-content-identite"  class="dtab-panel active">${tabIdentite}</div>
+        <div id="dtab-content-dons"      class="dtab-panel"        style="display:none;">${tabDons}</div>
+        <div id="dtab-content-campagnes" class="dtab-panel"        style="display:none;">${tabCampagnes}</div>
+    `);
     lucide.createIcons();
+};
+
+window.switchDonorTab = function(tab, donorId) {
+    ['identite','dons','campagnes'].forEach(t => {
+        document.getElementById('dtab-' + t)?.classList.toggle('active', t === tab);
+        const panel = document.getElementById('dtab-content-' + t);
+        if (panel) panel.style.display = (t === tab) ? 'block' : 'none';
+    });
+    // Charger les campagnes au premier clic
+    if (tab === 'campagnes' && donorId) window.loadDonorCampaigns(donorId);
+    if (window.lucide) lucide.createIcons();
+};
+
+window.loadDonorCampaigns = async function(donorId) {
+    const el = document.getElementById('dtab-content-campagnes');
+    if (!el || el.dataset.loaded) return;
+    el.dataset.loaded = '1';
+
+    const { data, error } = await supabaseClient
+        .from('campaign_recipients')
+        .select('status, notes, created_at, campaigns(id, name, status, canal, start_date, end_date)')
+        .eq('donor_id', donorId)
+        .order('created_at', { ascending: false });
+
+    if (error || !data || !data.length) {
+        el.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-muted);">
+            <i data-lucide="megaphone" style="width:36px;height:36px;opacity:0.3;margin-bottom:10px;"></i>
+            <p>Aucune campagne liée à ce donateur.</p></div>`;
+        if (window.lucide) lucide.createIcons();
+        return;
+    }
+
+    el.innerHTML = data.map(r => {
+        const c = r.campaigns;
+        if (!c) return '';
+        const sc = { 'Active':'#10b981','Terminée':'#64748b','Brouillon':'#f59e0b','Archivée':'#94a3b8' };
+        return `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;margin-bottom:8px;background:white;">
+            <div style="flex:1;min-width:0;">
+                <div style="font-weight:700;font-size:0.88rem;color:var(--primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${c.name||''}</div>
+                <div style="font-size:0.73rem;color:var(--text-muted);margin-top:2px;">${c.canal||''} ${c.start_date ? '· '+new Date(c.start_date).toLocaleDateString('fr-FR') : ''}</div>
+            </div>
+            <span style="background:${sc[c.status]||'#64748b'}18;color:${sc[c.status]||'#64748b'};border:1px solid ${sc[c.status]||'#64748b'}44;padding:3px 10px;border-radius:20px;font-size:0.7rem;font-weight:700;white-space:nowrap;">${c.status||''}</span>
+            <span style="background:#f1f5f9;color:#475569;padding:3px 10px;border-radius:20px;font-size:0.7rem;font-weight:700;white-space:nowrap;">${r.status||''}</span>
+        </div>`;
+    }).join('');
+    if (window.lucide) lucide.createIcons();
 };
 
 /**
@@ -2248,6 +2373,115 @@ window.exportLegs = async () => {
     window.showNotice('✅ Téléchargé', `${rows.length} dossiers legs — "${fn}"`, 'success');
 };
 
+
+
+// ══════════════════════════════════════════════════════
+// RECHERCHE GLOBALE — donateurs + contacts + campagnes
+// ══════════════════════════════════════════════════════
+window.globalSearchOpen = false;
+
+window.toggleGlobalSearch = function() {
+    const overlay = document.getElementById('global-search-overlay');
+    if (!overlay) return;
+    window.globalSearchOpen = !window.globalSearchOpen;
+    overlay.style.display = window.globalSearchOpen ? 'flex' : 'none';
+    if (window.globalSearchOpen) {
+        setTimeout(() => document.getElementById('global-search-input')?.focus(), 50);
+        document.getElementById('global-search-results').innerHTML = '';
+        document.getElementById('global-search-input').value = '';
+    }
+};
+
+window.closeGlobalSearch = function(e) {
+    if (e && e.target !== document.getElementById('global-search-overlay')) return;
+    const overlay = document.getElementById('global-search-overlay');
+    if (overlay) overlay.style.display = 'none';
+    window.globalSearchOpen = false;
+};
+
+window.handleGlobalSearch = async function() {
+    const q = (document.getElementById('global-search-input')?.value || '').toLowerCase().trim();
+    const resultsEl = document.getElementById('global-search-results');
+    if (!resultsEl) return;
+    if (q.length < 2) { resultsEl.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px;font-size:0.85rem;">Tapez au moins 2 caractères...</p>'; return; }
+
+    resultsEl.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px;font-size:0.85rem;">Recherche en cours...</p>';
+
+    // Chercher en parallèle
+    const [{ data: donors }, { data: contacts }, { data: campaigns }] = await Promise.all([
+        supabaseClient.from('donors').select('id,last_name,first_name,company_name,entity,email,donor_type,archived_at,donations(amount)').order('last_name'),
+        supabaseClient.from('profiles').select('id,last_name,first_name,email,portal,role').order('last_name'),
+        supabaseClient.from('campaigns').select('id,name,status,canal,start_date').order('created_at',{ascending:false})
+    ]);
+
+    const results = [];
+
+    // Donateurs
+    (donors||[]).forEach(d => {
+        const haystack = [d.last_name,d.first_name,d.company_name,d.email,d.entity,d.donor_type].join(' ').toLowerCase();
+        if (!haystack.includes(q)) return;
+        const total = (d.donations||[]).reduce((s,don) => s+Number(don.amount||0), 0);
+        const tier  = window.getDonorTier(total);
+        results.push({ type:'donor', icon:'users', color:'#c5a059',
+            title: d.company_name || ((d.last_name||'')+ ' '+(d.first_name||'')),
+            sub: d.entity||'', tag: tier.icon+' '+tier.label,
+            action: `window.closeGlobalSearch();window.switchTab('donors');setTimeout(()=>window.openDonorFile('${d.id}'),400);`
+        });
+    });
+
+    // Contacts
+    (contacts||[]).forEach(c => {
+        const haystack = [c.last_name,c.first_name,c.email,c.portal,c.role].join(' ').toLowerCase();
+        if (!haystack.includes(q)) return;
+        results.push({ type:'contact', icon:'contact', color:'#3b82f6',
+            title: (c.last_name||'')+' '+(c.first_name||''),
+            sub: c.email||'', tag: c.portal||'',
+            action: `window.closeGlobalSearch();window.switchTab('contacts');`
+        });
+    });
+
+    // Campagnes
+    (campaigns||[]).forEach(c => {
+        if (!(c.name||'').toLowerCase().includes(q)) return;
+        const sc = {'Active':'#10b981','Terminée':'#64748b','Brouillon':'#f59e0b','Archivée':'#94a3b8'};
+        results.push({ type:'campaign', icon:'megaphone', color: sc[c.status]||'#64748b',
+            title: c.name||'',
+            sub: c.canal||'', tag: c.status||'',
+            action: `window.closeGlobalSearch();window.switchTab('campaigns');setTimeout(()=>window.openCampaign('${c.id}'),400);`
+        });
+    });
+
+    if (!results.length) {
+        resultsEl.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:30px;font-size:0.88rem;">Aucun résultat pour « '+q+' »</p>';
+        return;
+    }
+
+    // Grouper par type
+    const groups = [
+        { key:'donor',    label:'Donateurs',  items: results.filter(r=>r.type==='donor')    },
+        { key:'contact',  label:'Contacts',   items: results.filter(r=>r.type==='contact')  },
+        { key:'campaign', label:'Campagnes',  items: results.filter(r=>r.type==='campaign') },
+    ].filter(g => g.items.length);
+
+    resultsEl.innerHTML = groups.map(g => `
+        <div style="margin-bottom:16px;">
+            <div style="font-size:0.68rem;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:8px;padding:0 4px;">${g.label} (${g.items.length})</div>
+            ${g.items.slice(0,6).map(r => `
+                <div onclick="${r.action}" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;cursor:pointer;transition:background 0.15s;margin-bottom:4px;"
+                     onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+                    <div style="width:34px;height:34px;border-radius:9px;background:${r.color}18;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        <i data-lucide="${r.icon}" style="width:16px;height:16px;color:${r.color};"></i>
+                    </div>
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-weight:700;font-size:0.88rem;color:var(--text-main);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.title}</div>
+                        <div style="font-size:0.73rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.sub}</div>
+                    </div>
+                    <span style="background:${r.color}18;color:${r.color};border:1px solid ${r.color}44;padding:2px 8px;border-radius:12px;font-size:0.68rem;font-weight:700;white-space:nowrap;flex-shrink:0;">${r.tag}</span>
+                </div>`).join('')}
+            ${g.items.length > 6 ? `<div style="font-size:0.75rem;color:var(--text-muted);padding:4px 12px;">… et ${g.items.length-6} autre(s)</div>` : ''}
+        </div>`).join('');
+    if (window.lucide) lucide.createIcons();
+};
 
 function loadUsersForMentions() { console.log("Module CRM Alsatia v2.0 chargé."); }
 
