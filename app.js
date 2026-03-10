@@ -516,7 +516,23 @@ window.toggleSortUnthanked = function() {
     if (btn) btn.classList.toggle('active', sortUnthankedActive);
     if (label) label.textContent = sortUnthankedActive ? 'Tous les donateurs' : 'Remerciements dus';
     window.filterDonors();
+}
+
+// Mettre à jour le badge compteur "Remerciements dûs"
+window.updateUnthankedBadge = function() {
+    const badge = document.getElementById('unthanked-count-badge');
+    if (!badge) return;
+    const count = (window.allDonorsData || []).filter(d =>
+        !d.archived_at && (d.donations || []).some(don => don.thanked === false)
+    ).length;
+    if (count > 0) {
+        badge.textContent = count;
+        badge.style.display = 'inline-flex';
+    } else {
+        badge.style.display = 'none';
+    }
 };
+;
 
 window.switchTab = (tabId) => {
     currentTab = tabId;
@@ -902,6 +918,7 @@ window.loadDonors = async function() {
     }
     window.allDonorsData = data || [];
     window.filterDonors();
+    window.updateUnthankedBadge();
 };
 
 /**
