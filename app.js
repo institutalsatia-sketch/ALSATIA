@@ -102,21 +102,94 @@ window.startGlobalMentionWatcher = function() {
         });
 };
 
-// FIX CHAT REALTIME
-window.subscribeToChat = function() {
-    if (window.chatChannel) window.chatChannel.unsubscribe();
-    var myFullName = currentUser.first_name + ' ' + currentUser.last_name;
-    window.chatChannel = supabaseClient.channel('chat-' + Date.now())
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_global', filter: 'subject=eq.' + currentChatSubject }, function(p) {
-            if (p.new.author_full_name !== myFullName) {
-                var c = document.getElementById('chat-messages-container');
-                if (c) {
-                    c.insertAdjacentHTML('beforeend', renderSingleMessage(p.new));
-                    c.scrollTop = c.scrollHeight;
-                    if (window.lucide) lucide.createIcons();
-                }
+// =====================================================
+// CHAT GLOBAL — REALTIME ROBUSTE
+// - Pas de filter= (bugué côté Supabase RT)
+// - Déduplication via Set des IDs déjà affichés
+// - Fallback polling si CHANNEL_ERROR / TIMED_OUT
+// - DELETE + UPDATE gérés
+// =====================================================
+
+// IDs des messages déjà rendus dans le DOM (évite doublons optimiste + realtime)
+window._chatRenderedIds = new Set();
+window._chatPollTimer   = null;
+window._chatPollFlight  = false;
+
+window._chatStopPoll = function() {
+    if (window._chatPollTimer) { clearInterval(window._chatPollTimer); window._chatPollTimer = null; }
+};
+
+window._chatStartPoll = function() {
+    if (window._chatPollTimer) return;
+    console.warn('⚠️ Chat realtime KO → polling fallback 3s');
+    window._chatPollTimer = setInterval(async function() {
+        if (window._chatPollFlight) return;
+        window._chatPollFlight = true;
+        try { await window._chatPollTick(); } catch(e){} finally { window._chatPollFlight = false; }
+    }, 3000);
+};
+
+window._chatPollTick = async function() {
+    const { data } = await supabaseClient.from('chat_global')
+        .select('*').eq('subject', currentChatSubject)
+        .order('created_at', { ascending: true }).limit(200);
+    if (!data) return;
+    const container = document.getElementById('chat-messages-container');
+    if (!container) return;
+    data.forEach(function(msg) {
+        if (!window._chatRenderedIds.has(msg.id)) {
+            if (!document.getElementById('msg-' + msg.id)) {
+                appendSingleMessageSafe(msg);
             }
-        }).subscribe();
+            window._chatRenderedIds.add(msg.id);
+        }
+    });
+};
+
+window.subscribeToChat = function() {
+    window._chatStopPoll();
+    if (window.chatChannel) {
+        try { supabaseClient.removeChannel(window.chatChannel); } catch(e){}
+        window.chatChannel = null;
+    }
+
+    const myFullName = currentUser.first_name + ' ' + currentUser.last_name;
+
+    window.chatChannel = supabaseClient
+        .channel('chat-global-' + Date.now())
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_global' }, function(p) {
+            const msg = p.new;
+            if (!msg || msg.subject !== currentChatSubject) return;
+            // Déduplication : si déjà dans le DOM (ajout optimiste), on skip
+            if (window._chatRenderedIds.has(msg.id)) return;
+            if (document.getElementById('msg-' + msg.id)) {
+                window._chatRenderedIds.add(msg.id);
+                return;
+            }
+            window._chatRenderedIds.add(msg.id);
+            appendSingleMessageSafe(msg);
+        })
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'chat_global' }, function(p) {
+            const old = p.old;
+            if (!old) return;
+            window._chatRenderedIds.delete(old.id);
+            const wrapper = document.querySelector('[data-msg-id="' + old.id + '"]');
+            if (wrapper) {
+                wrapper.style.transition = 'opacity 0.3s';
+                wrapper.style.opacity = '0';
+                setTimeout(function() { wrapper.remove(); }, 300);
+            }
+        })
+        .subscribe(function(status) {
+            console.log('💬 Chat realtime:', status);
+            if (status === 'SUBSCRIBED') { window._chatStopPoll(); }
+            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') { window._chatStartPoll(); }
+        });
+
+    // Filet de sécurité : si pas SUBSCRIBED après 4s → polling
+    setTimeout(function() {
+        if (!window._chatPollTimer) window._chatStartPoll();
+    }, 4000);
 };
 // ==========================================
 // MOTEUR DE DIALOGUE DE LUXE (INDISPENSABLE)
@@ -2557,10 +2630,13 @@ window.loadChatSubjects = async () => {
 
 window.switchChatSubject = (subjectName) => {
     currentChatSubject = subjectName;
+    window._chatRenderedIds = new Set(); // reset déduplication sur changement canal
+    window._chatStopPoll();
     const titleEl = document.getElementById('chat-current-title');
     if(titleEl) titleEl.innerText = `# ${subjectName}`;
-    window.loadChatSubjects(); 
+    window.loadChatSubjects();
     window.loadChatMessages();
+    window.subscribeToChat();
 };
 
 window.promptCreateSubject = () => {
@@ -2637,29 +2713,40 @@ window.loadChatMessages = async () => {
         return;
     }
     
-    // Organiser les messages en threads (parents + réponses)
+    // Réinitialiser le Set de déduplication
+    window._chatRenderedIds = new Set();
+    data.forEach(m => window._chatRenderedIds.add(m.id));
+
+    // Organiser en threads (parents + réponses imbriquées)
     const parentMessages = data.filter(msg => !msg.reply_to);
-    const replyMessages = data.filter(msg => msg.reply_to);
-    
-    // Construire le HTML avec les threads
-    let html = '';
+    const replyMap = {};
+    data.filter(msg => msg.reply_to).forEach(r => {
+        if (!replyMap[r.reply_to]) replyMap[r.reply_to] = [];
+        replyMap[r.reply_to].push(r);
+    });
+
+    // Construire le HTML via DOM fragments (pas de string.replace fragile)
+    container.innerHTML = '';
     parentMessages.forEach(parent => {
-        html += renderSingleMessage(parent, false);
-        
-        // Ajouter les réponses de ce message
-        const replies = replyMessages.filter(r => r.reply_to === parent.id);
+        // Wrapper du message parent
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = renderSingleMessage(parent, false);
+        container.appendChild(wrapper.firstElementChild);
+
+        // Injecter les réponses dans leur conteneur dédié
+        const replies = replyMap[parent.id] || [];
         if (replies.length > 0) {
-            // Fermer la div du parent, ajouter les réponses dans le container replies-{id}
-            html = html.replace(
-                `<div id="replies-${parent.id}" class="replies-container"></div>`,
-                `<div id="replies-${parent.id}" class="replies-container">
-                    ${replies.map(r => renderSingleMessage(r, true)).join('')}
-                </div>`
-            );
+            const repliesContainer = document.getElementById('replies-' + parent.id);
+            if (repliesContainer) {
+                replies.forEach(r => {
+                    const rWrap = document.createElement('div');
+                    rWrap.innerHTML = renderSingleMessage(r, true);
+                    repliesContainer.appendChild(rWrap.firstElementChild);
+                });
+            }
         }
     });
-    
-    container.innerHTML = html;
+
     container.scrollTop = container.scrollHeight;
     lucide.createIcons();
 };
@@ -2767,71 +2854,73 @@ function renderSingleMessage(msg, isReply = false) {
     `;
 }
 
-function appendSingleMessage(msg) {
+// appendSingleMessageSafe : utilisé à la fois par l'envoi optimiste et par le realtime
+function appendSingleMessageSafe(msg) {
     const container = document.getElementById('chat-messages-container');
     if (!container) return;
-    
-    // Vérifier si le message existe déjà (éviter les doublons)
-    if (document.getElementById(`msg-${msg.id}`)) {
-        console.log('Message déjà affiché, ignoré:', msg.id);
-        return;
-    }
-    
-    // Si c'est une réponse, l'ajouter sous le message parent
+
+    // Déduplication stricte
+    if (document.getElementById('msg-' + msg.id)) return;
+
+    const isMe = (msg.author_full_name === (currentUser.first_name + ' ' + currentUser.last_name));
+
+    // Réponse à un message parent existant
     if (msg.reply_to) {
-        const repliesContainer = document.getElementById(`replies-${msg.reply_to}`);
+        const repliesContainer = document.getElementById('replies-' + msg.reply_to);
         if (repliesContainer) {
-            const messageHTML = renderSingleMessage(msg, true);
-            repliesContainer.insertAdjacentHTML('beforeend', messageHTML);
-            
-            // Animation d'apparition
-            const lastReply = repliesContainer.lastElementChild;
-            if (lastReply) {
-                lastReply.style.opacity = '0';
-                lastReply.style.transform = 'translateY(10px)';
-                setTimeout(() => {
-                    lastReply.style.transition = 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
-                    lastReply.style.opacity = '1';
-                    lastReply.style.transform = 'translateY(0)';
-                }, 50);
-            }
-            
-            lucide.createIcons();
+            const tmp = document.createElement('div');
+            tmp.innerHTML = renderSingleMessage(msg, true);
+            const el = tmp.firstElementChild;
+            if (!el) return;
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(8px)';
+            repliesContainer.appendChild(el);
+            setTimeout(() => {
+                el.style.transition = 'all 0.35s cubic-bezier(0.4,0,0.2,1)';
+                el.style.opacity = '1';
+                el.style.transform = 'translateY(0)';
+            }, 30);
+            if (window.lucide) lucide.createIcons();
             container.scrollTop = container.scrollHeight;
             return;
         }
     }
-    
-    // Sinon, c'est un message principal, l'ajouter à la fin
-    const messageHTML = renderSingleMessage(msg, false);
-    container.insertAdjacentHTML('beforeend', messageHTML);
-    
-    // Récupérer le message qu'on vient d'ajouter
-    const lastMsg = container.lastElementChild;
-    if (!lastMsg) return;
-    
-    // Animation d'apparition
-    lastMsg.style.opacity = '0';
-    lastMsg.style.transform = 'translateY(20px)';
-    
+
+    // Message principal
+    const tmp = document.createElement('div');
+    tmp.innerHTML = renderSingleMessage(msg, false);
+    const el = tmp.firstElementChild;
+    if (!el) return;
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(16px)';
+    container.appendChild(el);
     container.scrollTop = container.scrollHeight;
-    
-    // Animation fluide
     setTimeout(() => {
-        lastMsg.style.transition = 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
-        lastMsg.style.opacity = '1';
-        lastMsg.style.transform = 'translateY(0)';
-    }, 50);
-    
-    lucide.createIcons();
-    
-    // Notification sonore discrète pour les nouveaux messages (sauf les siens)
-    if (msg.author_full_name !== `${currentUser.first_name} ${currentUser.last_name}`) {
-        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYHGGS67emnURALT6Lf77BdGAU9kc/ywXIiBS9/y/DdjD4IFme57+ijUhAKTKHd67FeGgU8ktHtw3cmBi6AzvLaiTQGF2K48eylUxAKTJ/d7bdgGgU/k9HuwXMjBCx/zPHejj4HFme64OunVRILSZ3c67RfGQc/k9HuwHIkBC1+y/HejT0GFmi74OynUhAJTKHe67RgGQc/ktLux3QlBSx+zPLgkD0GFWe74eynVBELSZ7d7LNgGQc+ktPvxHMkBCt9y/Hej0AGF2i74O2oVBILSJ7e7LNhGwc+k9TwxnQlBSx8y/PhkUEGFWa64e2oVRIKSZ/e7LVgGQc+ktPvw3QlBCt8y/Ddjj0GF2m74O2nVBEKS57d7LRfGQc/k9Pvw3QmBSt8yO/ejT0HGWm84O6nVBEKS5/d7LReGAc/k9TwxHMkBCt7yO/djT4IHGq94O2oVREJS57e7LNgGAc+ktTwxHMlBCp7x+/ejj8JH2y84O+rVhIJSp7e7LNgGQc9ktTvw3QkBCp7x+/fi0AIH2284e+sWRQLSZ7f7rZjHAk9k9XwxHQlBCl6xu/ejD8JIm+74u+uWhYMSJ3f77RiGwk9lNbvw3YmBSh6xe7cizsIJHG64+6vWhYMSJ3g8LVjGgk8lNbvwnQmBSh5xe7djDsHJHG65O6wWxYLR53h8LRjGgk8lNfvwnUmBSd5xO3djDwHI3G65e6vWxYLSJ7h8bZkGwk7k9fvwXQlBSd4xO3di0AII3K65e6uWxYLSJ/h8bVjGgk7k9fvwHMlBSd4xOzdjj4II3G65e2vWhYKSJ/i8rZjGgk7kszvwHMjBSd3w+3ciz0JJHGz5u2vWRQJR5/j8rVhGQk5ktXwv3IlBCZ3wuzci0AIJHK05+2vWxUJRp7j8rViGQk5kdXwvnEkBCZ2wuvciz8JI3Kz5+2vWxUJRZ3j87RhGQk5kdTvv3IlBCZ2wuvcij4IJHOy5+yuWhQIRZ3j8rNfGAc4kdXvvnIkAyV1werciz4JJHO05+uuWhQIRZvj8rNfFwc4kNPvvXEkAyV0weraij4IJHSx5uuuWRQHRZrj8bJdFgY3j9Puu3AjAyR0wOralD0HJXS06euqWBQHQ5nk8bJcFQY3jtLtuG8iAyNzv+nYkD4HJXa16+qrVxMGQpjk8LJbFAU1jdDts28hAiJyvunXkD8HJ3az6+mpVxMFQZbj8LBaFAU0ks/ts28gAiByvenWjz8HKHW06+ioVRMFQJXi8K9ZEwQzj87ss24fASBwvujWkUAHKXe36+inVBIEP5Th8K5aEgQyjczssmwfAR9tvujVkUEHKne56+imUxEEPpPh8K5YEgQxjMvssWwdAR5svObUkEIHK3e76+imURIDP5Lg765YEQP=');
-        audio.volume = 0.15;
-        audio.play().catch(() => {});
+        el.style.transition = 'all 0.4s cubic-bezier(0.4,0,0.2,1)';
+        el.style.opacity = '1';
+        el.style.transform = 'translateY(0)';
+    }, 30);
+    if (window.lucide) lucide.createIcons();
+
+    // Son discret pour les messages entrants
+    if (!isMe) {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.type = 'sine'; osc.frequency.value = 880;
+            gain.gain.setValueAtTime(0, ctx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.06, ctx.currentTime + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+            osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.25);
+        } catch(e){}
     }
 }
+
+// Alias rétrocompat
+function appendSingleMessage(msg) { appendSingleMessageSafe(msg); }
+
 
 /**
  * 4. MENTIONS & ENVOI
@@ -2839,78 +2928,52 @@ function appendSingleMessage(msg) {
 window.handleChatKeyUp = async (e) => {
     const input = e.target;
     const box = document.getElementById('mention-box');
+    if (!box) return;
 
-    if (input.value.includes('@')) {
-        const query = input.value.split('@').pop().toLowerCase();
-        box.style.display = 'block';
-        
-        console.log('@ détecté, requête:', query);
-        
-        // Charger tous les utilisateurs depuis la base de données
+    // Escape : fermer les suggestions
+    if (e.key === 'Escape') { box.style.display = 'none'; return; }
+
+    // Enter : envoyer seulement si les suggestions ne sont pas visibles
+    if (e.key === 'Enter') {
+        if (box.style.display === 'block') { box.style.display = 'none'; return; }
+        window.sendChatMessage();
+        return;
+    }
+
+    // Détecter la dernière occurrence de @ pour les mentions
+    const atIdx = input.value.lastIndexOf('@');
+    if (atIdx !== -1) {
+        const query = input.value.slice(atIdx + 1).toLowerCase();
+        // Charger les utilisateurs si nécessaire
         if (!allUsersForMentions || allUsersForMentions.length === 0) {
-            console.log('Chargement des utilisateurs...');
-            const { data: users, error } = await supabaseClient.from('profiles').select('first_name, last_name, portal');
-            if (users && !error) {
-                allUsersForMentions = users.map(u => ({
-                    name: `${u.first_name} ${u.last_name}`,
-                    portal: u.portal
-                }));
-                console.log('Utilisateurs chargés:', allUsersForMentions.length);
-            } else {
-                console.error('Erreur chargement utilisateurs:', error);
-                allUsersForMentions = [];
-            }
+            const { data: users } = await supabaseClient.from('profiles').select('first_name, last_name');
+            allUsersForMentions = (users || []).map(u => ({ name: `${u.first_name} ${u.last_name}` }));
         }
-        
-        // Liste des entités
-        const entities = [
-            'Institut Alsatia', 
-            'Academia Alsatia', 
-            'Cours Herrade de Landsberg', 
-            'Collège Saints Louis et Zélie Martin'
-        ];
-        
-        // Combiner utilisateurs et entités
-        const userSuggestions = allUsersForMentions.map(u => u.name);
-        const allSuggestions = [...entities, ...userSuggestions];
-        
-        console.log('Total suggestions:', allSuggestions.length);
-        
-        const filtered = allSuggestions.filter(s => s.toLowerCase().includes(query));
-        
-        console.log('Suggestions filtrées:', filtered.length);
-        
-        if (filtered.length === 0) {
-            box.innerHTML = '<div style="padding:10px; color:var(--text-muted); font-size:0.85rem; text-align:center;">Aucune suggestion</div>';
-        } else {
-            box.innerHTML = filtered.slice(0, 8).map(s => {
+        const entities = ['Institut Alsatia', 'Academia Alsatia', 'Cours Herrade de Landsberg', 'Collège Saints Louis et Zélie Martin'];
+        const allSuggestions = [...entities, ...allUsersForMentions.map(u => u.name)];
+        const filtered = allSuggestions.filter(s => s.toLowerCase().includes(query)).slice(0, 8);
+
+        if (filtered.length > 0) {
+            box.innerHTML = filtered.map(s => {
                 const isEntity = entities.includes(s);
-                return `
-                    <div class="suggest-item" 
-                         onclick="window.insertMention('${s.replace(/'/g, "\\'")}')" 
-                         style="padding:12px 15px; 
-                                cursor:pointer; 
-                                border-bottom:1px solid #f1f5f9; 
-                                transition:all 0.2s;
-                                display:flex;
-                                align-items:center;
-                                gap:10px;"
-                         onmouseover="this.style.background='#fdfaf3'; this.style.borderLeftColor='var(--gold)';"
-                         onmouseout="this.style.background='white'; this.style.borderLeftColor='transparent';">
-                        <div style="width:6px; height:6px; border-radius:50%; background:${isEntity ? 'var(--gold)' : '#64748b'};"></div>
-                        <div style="flex:1;">
-                            <div style="font-weight:600; color:var(--text-main);">@${s}</div>
-                            ${isEntity ? '<div style="font-size:0.7rem; color:var(--text-muted); margin-top:2px;">Entité</div>' : ''}
-                        </div>
+                return `<div class="suggest-item"
+                     onclick="window.insertMention('${s.replace(/'/g, "\'")}')"
+                     style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:10px;"
+                     onmouseover="this.style.background='#fdfaf3'" onmouseout="this.style.background='white'">
+                    <div style="width:7px;height:7px;border-radius:50%;background:${isEntity ? 'var(--gold)' : '#64748b'};flex-shrink:0;"></div>
+                    <div>
+                        <div style="font-weight:700;color:var(--text-main);font-size:0.88rem;">@${s}</div>
+                        ${isEntity ? '<div style="font-size:0.68rem;color:var(--text-muted);">Entité</div>' : ''}
                     </div>
-                `;
+                </div>`;
             }).join('');
+            box.style.display = 'block';
+        } else {
+            box.style.display = 'none';
         }
     } else {
         box.style.display = 'none';
     }
-    
-    if (e.key === 'Enter') window.sendChatMessage();
 };
 
 window.insertMention = (name) => {
@@ -3001,9 +3064,10 @@ window.sendChatMessage = async () => {
         return;
     }
 
-    // Affichage optimiste : ajouter le message immédiatement
+    // Affichage optimiste : on enregistre l'ID AVANT d'ajouter pour que le realtime le déduplique
     if (data) {
-        appendSingleMessage(data);
+        window._chatRenderedIds.add(data.id);
+        appendSingleMessageSafe(data);
     }
 
     input.value = '';
