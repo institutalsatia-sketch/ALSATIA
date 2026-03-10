@@ -9,7 +9,9 @@ const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
 let currentUser = JSON.parse(localStorage.getItem('alsatia_user'));
 let allDonorsData = [];
-let sortUnthankedActive = false; // tri "remerciements dus en premier"
+let sortUnthankedActive = false; // tri remerciements dus en premier
+let donorSortCol = null;   // 'name' | 'entity' | 'total'
+let donorSortDir = 'asc';  // 'asc' | 'desc'
 let activityFilter = 'ALL'; // 'ALL' | 'active' | 'inactive' | 'never' 
 let allUsersForMentions = []; 
 let selectedChatFile = null; // Pour la gestion des pièces jointes dans la messagerie
@@ -546,6 +548,23 @@ window.refreshTab = function(tabId) {
 // =====================================================
 // TRI REMERCIEMENTS DUS — Donateurs
 // =====================================================
+window.toggleDonorSort = function(col) {
+    if (donorSortCol === col) {
+        donorSortDir = donorSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+        donorSortCol = col;
+        donorSortDir = col === 'total' ? 'desc' : 'asc';
+    }
+    ['name','entity','total'].forEach(function(c) {
+        var el = document.getElementById('sort-icon-' + c);
+        if (!el) return;
+        if (c !== col) { el.setAttribute('data-lucide','chevrons-up-down'); el.style.opacity='0.3'; }
+        else { el.setAttribute('data-lucide', donorSortDir === 'asc' ? 'chevron-up' : 'chevron-down'); el.style.opacity='1'; }
+    });
+    if (window.lucide) lucide.createIcons();
+    window.filterDonors();
+};
+
 window.setActivityFilter = function(val) {
     activityFilter = val;
     // Mettre à jour les boutons visuellement
@@ -1074,6 +1093,28 @@ window.filterDonors = () => {
             return bHas - aHas;
         });
     }
+    // Tri colonnes cliquables
+    if (donorSortCol) {
+        filtered.sort(function(a, b) {
+            var va, vb;
+            if (donorSortCol === 'name') {
+                va = (a.company_name || a.last_name || '').toLowerCase();
+                vb = (b.company_name || b.last_name || '').toLowerCase();
+                return donorSortDir === 'asc' ? va.localeCompare(vb,'fr') : vb.localeCompare(va,'fr');
+            }
+            if (donorSortCol === 'entity') {
+                va = (a.entity || '').toLowerCase();
+                vb = (b.entity || '').toLowerCase();
+                return donorSortDir === 'asc' ? va.localeCompare(vb,'fr') : vb.localeCompare(va,'fr');
+            }
+            if (donorSortCol === 'total') {
+                va = (a.donations || []).reduce(function(s,d){ return s+Number(d.amount||0); }, 0);
+                vb = (b.donations || []).reduce(function(s,d){ return s+Number(d.amount||0); }, 0);
+                return donorSortDir === 'asc' ? va - vb : vb - va;
+            }
+            return 0;
+        });
+    }
     renderDonors(filtered);
 };
 
@@ -1360,7 +1401,46 @@ window.openDonorFile = async (id) => {
                 </td>
             </tr>`).join('');
 
+    // ── Graphique barres par année ──────────────────────────────────────
+    const donsByYear = {};
+    dons.forEach(function(d) {
+        var yr = new Date(d.date).getFullYear();
+        donsByYear[yr] = (donsByYear[yr] || 0) + Number(d.amount || 0);
+    });
+    var chartHtml = '';
+    if (Object.keys(donsByYear).length > 0) {
+        var years   = Object.keys(donsByYear).map(Number).sort(function(a,b){return a-b;});
+        var maxVal  = Math.max.apply(null, years.map(function(y){ return donsByYear[y]; }));
+        var BAR_H   = 64; // hauteur max px
+        var barW    = Math.min(40, Math.floor(280 / years.length) - 6);
+        var barsHtml = years.map(function(yr) {
+            var val  = donsByYear[yr];
+            var pct  = maxVal > 0 ? (val / maxVal) : 0;
+            var h    = Math.max(4, Math.round(pct * BAR_H));
+            var isCurrentYear = (yr === new Date().getFullYear());
+            var barColor = isCurrentYear ? 'var(--gold)' : 'var(--primary)';
+            var opacity  = isCurrentYear ? '1' : '0.45';
+            return '<div style="display:flex;flex-direction:column;align-items:center;gap:4px;">'
+                + '<div style="font-size:0.6rem;font-weight:700;color:var(--primary);">'
+                +   (val >= 1000 ? Math.round(val/1000) + 'k' : val) + '€'
+                + '</div>'
+                + '<div style="width:' + barW + 'px;height:' + BAR_H + 'px;display:flex;align-items:flex-end;">'
+                +   '<div style="width:100%;height:' + h + 'px;background:' + barColor + ';opacity:' + opacity
+                +     ';border-radius:5px 5px 0 0;transition:all 0.3s;" title="' + yr + ' : ' + val.toLocaleString("fr-FR") + ' €"></div>'
+                + '</div>'
+                + '<div style="font-size:0.62rem;color:#94a3b8;font-weight:600;">' + yr + '</div>'
+                + '</div>';
+        }).join('');
+        chartHtml = '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin-bottom:14px;">'
+            + '<div style="font-size:0.68rem;font-weight:800;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);margin-bottom:10px;">Évolution des dons par année</div>'
+            + '<div style="display:flex;align-items:flex-end;gap:6px;overflow-x:auto;padding-bottom:2px;">'
+            + barsHtml
+            + '</div>'
+            + '</div>';
+    }
+
     const tabDons = `
+        ${chartHtml}
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
             <div style="display:flex;gap:16px;">
                 <div style="text-align:center;">
@@ -5571,6 +5651,9 @@ window.openCampaign = async (campaignId) => {
                     <button onclick="window.showCreateCampaignModal(${JSON.stringify(campaign).replace(/"/g,'&quot;')})" class="btn-outline" style="padding:5px 10px;font-size:0.72rem;">
                         <i data-lucide="edit" style="width:13px;height:13px;vertical-align:middle;margin-right:3px;"></i>Modifier
                     </button>
+                    <button onclick="window.duplicateCampaign('${campaignId}')" class="btn-outline" style="padding:5px 10px;font-size:0.72rem;" title="Dupliquer cette campagne">
+                        <i data-lucide="copy" style="width:13px;height:13px;vertical-align:middle;margin-right:3px;"></i>Dupliquer
+                    </button>
                     <button onclick="window.showAddRecipientsModal('${campaignId}')" class="btn-gold" style="padding:5px 10px;font-size:0.72rem;">
                         <i data-lucide="user-plus" style="width:13px;height:13px;vertical-align:middle;margin-right:3px;"></i>Contacts
                     </button>
@@ -6148,6 +6231,125 @@ window.execExportCampaign = async (campaignId) => {
 };
 
 // ── SUPPRESSION CAMPAGNE ───────────────────────────────────
+
+// ══════════════════════════════════════════════════════
+// DÉTECTION DE DOUBLONS
+// ══════════════════════════════════════════════════════
+window.showDuplicatesModal = async function() {
+    window.showNotice("Analyse...", "Vérification des doublons en cours.", "info");
+
+    // Charger tous les donateurs avec leurs dons
+    const { data: donors, error } = await supabaseClient
+        .from('donors')
+        .select('id, last_name, first_name, company_name, email, entity, archived_at, donations(amount)')
+        .order('last_name');
+
+    if (error) return window.showNotice("Erreur", error.message, "error");
+
+    // Grouper par clé de doublon : (last_name+first_name) ou email
+    var groups = {};
+    donors.forEach(function(d) {
+        var keyName = ((d.last_name||'').trim().toLowerCase() + '|' + (d.first_name||'').trim().toLowerCase());
+        var keyEmail = (d.email||'').trim().toLowerCase();
+
+        // Clé principale : nom+prénom (si non vide)
+        if ((d.last_name||'').trim()) {
+            if (!groups[keyName]) groups[keyName] = { key: keyName, type: 'name', donors: [] };
+            groups[keyName].donors.push(d);
+        }
+        // Clé secondaire : email (si non vide et pas déjà dans un groupe nom)
+        if (keyEmail && keyEmail.includes('@')) {
+            var emailKey = 'email:' + keyEmail;
+            if (!groups[emailKey]) groups[emailKey] = { key: emailKey, type: 'email', donors: [] };
+            // Éviter de dupliquer si déjà dans le groupe nom
+            if (!groups[emailKey].donors.find(function(x){ return x.id === d.id; })) {
+                groups[emailKey].donors.push(d);
+            }
+        }
+    });
+
+    var duplicates = Object.values(groups).filter(function(g) { return g.donors.length >= 2; });
+
+    if (!duplicates.length) {
+        return window.showNotice("Aucun doublon ✅", "Aucun doublon détecté dans la base.", "success");
+    }
+
+    var rowsHtml = duplicates.map(function(g) {
+        var label = g.type === 'email'
+            ? '<span style="background:#ede9fe;color:#6d28d9;border:1px solid #c4b5fd;padding:2px 7px;border-radius:10px;font-size:0.65rem;font-weight:800;">Email identique</span>'
+            : '<span style="background:#fef3c7;color:#92400e;border:1px solid #fde68a;padding:2px 7px;border-radius:10px;font-size:0.65rem;font-weight:800;">Nom identique</span>';
+
+        var donorsHtml = g.donors.map(function(d) {
+            var total = (d.donations||[]).reduce(function(s,x){ return s+Number(x.amount||0); }, 0);
+            var tier  = window.getDonorTier(total);
+            return '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:10px;margin-bottom:6px;background:' + (d.archived_at ? '#f8fafc' : 'white') + ';opacity:' + (d.archived_at ? '0.6' : '1') + ';">'
+                + '<div style="flex:1;min-width:0;">'
+                + '<div style="font-weight:700;font-size:0.88rem;">' + ((d.last_name||'').toUpperCase()) + ' ' + (d.first_name||'') + (d.company_name ? ' <span style="color:#94a3b8;font-size:0.75rem;">(' + d.company_name + ')</span>' : '') + '</div>'
+                + '<div style="font-size:0.72rem;color:#64748b;">' + (d.entity||'') + (d.email ? ' · ' + d.email : '') + '</div>'
+                + '</div>'
+                + '<span style="font-size:0.75rem;font-weight:700;color:var(--primary);white-space:nowrap;">' + total.toLocaleString('fr-FR') + ' €</span>'
+                + window.renderTierBadge(total)
+                + (d.archived_at ? '<span style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:2px 6px;border-radius:8px;font-size:0.62rem;font-weight:800;white-space:nowrap;">ARCHIVÉ</span>' : '')
+                + '<button onclick="window.openDonorFile('' + d.id + '');window.closeCustomModal();" class="btn-gold" style="padding:4px 10px;font-size:0.65rem;flex-shrink:0;">DOSSIER</button>'
+                + '</div>';
+        }).join('');
+
+        return '<div style="border:1.5px solid #e2e8f0;border-radius:12px;padding:14px 16px;margin-bottom:14px;">'
+            + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">' + label
+            + '<span style="font-size:0.78rem;font-weight:700;color:var(--text-main);">' + g.donors[0].last_name + ' ' + (g.donors[0].first_name||'') + '</span>'
+            + '<span style="font-size:0.72rem;color:#94a3b8;">(' + g.donors.length + ' fiches)</span></div>'
+            + donorsHtml
+            + '</div>';
+    }).join('');
+
+    showCustomModal(
+        '<div class="modal-header-luxe">'
+        + '<h3 class="luxe-title"><i data-lucide="copy" style="width:18px;height:18px;vertical-align:middle;margin-right:8px;color:var(--gold);"></i>Doublons détectés — ' + duplicates.length + ' groupe(s)</h3>'
+        + '<button onclick="window.closeCustomModal()" class="close-btn">&times;</button>'
+        + '</div>'
+        + '<p style="font-size:0.82rem;color:#64748b;margin-bottom:16px;">Ces fiches partagent le même nom ou la même adresse email. Ouvrez chaque dossier pour les fusionner manuellement ou archiver le doublon.</p>'
+        + '<div class="modal-scroll-body">' + rowsHtml + '</div>'
+    );
+    if (window.lucide) lucide.createIcons();
+};
+
+window.duplicateCampaign = async (campaignId) => {
+    const { data: orig, error: e1 } = await supabaseClient
+        .from('campaigns')
+        .select('*')
+        .eq('id', campaignId)
+        .single();
+    if (e1 || !orig) return window.showNotice("Erreur", "Campagne introuvable.", "error");
+
+    window.alsatiaConfirm(
+        "Dupliquer la campagne",
+        "Une copie de <b>" + (orig.name||'') + "</b> sera créée avec le statut Brouillon et sans destinataires. Continuer ?",
+        async function() {
+            const payload = {
+                name            : "Copie — " + orig.name,
+                description     : orig.description || null,
+                objective       : orig.objective || null,
+                objective_other : orig.objective_other || null,
+                canal           : orig.canal || null,
+                status          : 'Brouillon',
+                target_entities : orig.target_entities || null,
+                donor_types     : orig.donor_types || null,
+                start_date      : null,
+                end_date        : null,
+                goal_amount     : orig.goal_amount || null,
+                created_by      : currentUser.first_name + ' ' + currentUser.last_name
+            };
+            const { data: newCamp, error: e2 } = await supabaseClient
+                .from('campaigns').insert([payload]).select().single();
+            if (e2) return window.showNotice("Erreur", e2.message, "error");
+            window.showNotice("Campagne dupliquée ✅", """ + payload.name + "" créée en Brouillon.", "success");
+            window.closeCustomModal();
+            window.loadCampaigns();
+            setTimeout(function() { window.openCampaign(newCamp.id); }, 600);
+        }
+    );
+};
+
 window.deleteCampaign = (campaignId) => {
     window.alsatiaConfirm(
         "SUPPRIMER LA CAMPAGNE",
