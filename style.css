@@ -1791,3 +1791,87 @@ img {
 .my-wrapper > div {
     align-items: flex-end;
 }
+
+/* ══════════════════════════════════════════════
+   REPLY BAR — style WhatsApp
+   ══════════════════════════════════════════════ */
+
+.reply-bar-wa {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin: 0 16px 6px;
+    padding: 8px 12px 8px 0;
+    background: rgba(197,160,89,0.06);
+    border-radius: 10px;
+    border: 1px solid rgba(197,160,89,0.2);
+    animation: replyBarIn 0.2s ease;
+}
+@keyframes replyBarIn {
+    from { opacity:0; transform:translateY(6px); }
+    to   { opacity:1; transform:translateY(0);   }
+}
+
+.reply-bar-quote {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.reply-bar-strip {
+    width: 4px;
+    min-height: 100%;
+    background: var(--gold);
+    border-radius: 4px;
+    flex-shrink: 0;
+    margin-right: 10px;
+}
+
+.reply-bar-text {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    min-width: 0;
+}
+
+.reply-bar-author {
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: var(--gold);
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.reply-bar-preview {
+    font-size: 0.83rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 350px;
+}
+
+.reply-bar-close-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    transition: all 0.15s;
+}
+.reply-bar-close-btn:hover {
+    background: rgba(0,0,0,0.07);
+    color: var(--text-main);
+}
