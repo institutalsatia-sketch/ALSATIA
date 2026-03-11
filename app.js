@@ -133,6 +133,118 @@ window.startGlobalMentionWatcher = function() {
 // =====================================================
 
 // IDs des messages déjà rendus dans le DOM (évite doublons optimiste + realtime)
+
+// ══════════════════════════════════════════════════════
+// MOTEUR CENTRAL NON-LUS — chat canaux + événements
+// ══════════════════════════════════════════════════════
+window._unreadMap = {};   // clé → nb non-lus  ('chat:Général', 'event:<id>')
+
+window._unreadInc = function(key) {
+    window._unreadMap[key] = (window._unreadMap[key] || 0) + 1;
+    window._unreadRefreshUI(key);
+};
+
+window._unreadClear = function(key) {
+    if (!window._unreadMap[key]) return;
+    delete window._unreadMap[key];
+    window._unreadRefreshUI(key);
+};
+
+window._unreadRefreshUI = function(key) {
+    // ── Badge dans la sidebar chat (canal) ──────────────────────
+    if (key && key.startsWith('chat:')) {
+        const subject = key.slice(5);
+        // Chercher l'élément du canal dans la sidebar
+        const items = document.querySelectorAll('.chat-subject-item');
+        items.forEach(function(item) {
+            const titleEl = item.querySelector('.channel-title');
+            if (!titleEl) return;
+            const itemSubject = titleEl.textContent.replace(/^#\s*/, '').trim();
+            if (itemSubject !== subject) return;
+            _setBadgeOnElement(item, window._unreadMap[key] || 0, 'chat-unread-badge');
+        });
+    }
+
+    // ── Badge sur nav-chat (total tous canaux) ──────────────────
+    const totalChat = Object.keys(window._unreadMap)
+        .filter(function(k){ return k.startsWith('chat:'); })
+        .reduce(function(s, k){ return s + (window._unreadMap[k] || 0); }, 0);
+    const navChat = document.getElementById('nav-chat');
+    if (navChat) _setBadgeOnElement(navChat, totalChat, 'nav-unread-badge');
+
+    // ── Badge sur nav-events (total tous events) ────────────────
+    const totalEvents = Object.keys(window._unreadMap)
+        .filter(function(k){ return k.startsWith('event:'); })
+        .reduce(function(s, k){ return s + (window._unreadMap[k] || 0); }, 0);
+    const navEvents = document.getElementById('nav-events');
+    if (navEvents) _setBadgeOnElement(navEvents, totalEvents, 'nav-unread-badge');
+
+    // ── Badge sur carte événement individuelle ──────────────────
+    if (key && key.startsWith('event:')) {
+        const eventId = key.slice(6);
+        const card = document.querySelector('[data-event-id="' + eventId + '"]');
+        if (card) _setBadgeOnElement(card, window._unreadMap[key] || 0, 'event-unread-badge');
+    }
+};
+
+function _setBadgeOnElement(el, count, className) {
+    if (!el) return;
+    let badge = el.querySelector('.' + className);
+    if (!badge) {
+        badge = document.createElement('span');
+        badge.className = className;
+        el.style.position = 'relative';
+        el.appendChild(badge);
+    }
+    if (count > 0) {
+        badge.textContent = count > 99 ? '99+' : String(count);
+        badge.style.display = 'inline-flex';
+    } else {
+        badge.style.display = 'none';
+        badge.textContent = '';
+    }
+}
+
+// Watcher global pour les nouveaux messages chat (tous canaux, même inactifs)
+window._startChatUnreadWatcher = function() {
+    if (window._chatUnreadWatcherChannel) return;
+    window._chatUnreadWatcherChannel = supabaseClient
+        .channel('chat-unread-watcher-' + Date.now())
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_global' }, function(p) {
+            var msg = p.new;
+            if (!msg) return;
+            // Ignorer ses propres messages
+            var myFullName = (currentUser.first_name + ' ' + currentUser.last_name).toLowerCase().trim();
+            if ((msg.author_full_name || '').toLowerCase().trim() === myFullName) return;
+            // Ignorer si canal actif et onglet chat ouvert
+            if (currentTab === 'chat' && msg.subject === currentChatSubject) return;
+            // Incrémenter
+            window._unreadInc('chat:' + msg.subject);
+        })
+        .subscribe(function(status) {
+            console.log('🔴 chat-unread-watcher:', status);
+        });
+};
+
+// Watcher global pour les nouveaux messages événements
+window._startEventUnreadWatcher = function() {
+    if (window._eventUnreadWatcherChannel) return;
+    window._eventUnreadWatcherChannel = supabaseClient
+        .channel('event-unread-watcher-' + Date.now())
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'event_messages' }, function(p) {
+            var msg = p.new;
+            if (!msg) return;
+            // Ignorer ses propres messages
+            if (msg.author_id === currentUser.id) return;
+            // Ignorer si la fiche événement est ouverte dans la modale
+            if (window._openEventId && msg.event_id === window._openEventId) return;
+            window._unreadInc('event:' + msg.event_id);
+        })
+        .subscribe(function(status) {
+            console.log('🔴 event-unread-watcher:', status);
+        });
+};
+
 window._chatRenderedIds = new Set();
 window._chatPollTimer   = null;
 window._chatPollFlight  = false;
@@ -264,7 +376,8 @@ window.logout = () => {
     window.location.href = 'login.html'; 
 };
 
-window.closeCustomModal = () => { 
+window.closeCustomModal = () => {
+    window._openEventId = null; // plus d'événement ouvert
     const m = document.getElementById('custom-modal');
     if (m) {
         // Nettoyer le channel Realtime si ouvert
@@ -539,6 +652,7 @@ window.refreshTab = function(tabId) {
     if (tabId === 'chat') {
         window._chatRenderedIds = new Set();
         window._chatStopPoll();
+        if (window._unreadClear) window._unreadClear('chat:' + currentChatSubject);
         window.loadChatSubjects();
         window.loadChatMessages();
         window.subscribeToChat();
@@ -3588,6 +3702,7 @@ window.loadChatSubjects = async () => {
 
     container.innerHTML = filtered.map(s => {
         const isActive = currentChatSubject === s.name;
+        const unread = window._unreadMap && window._unreadMap['chat:' + s.name] || 0;
         return `
         <div class="chat-subject-item ${isActive ? 'active-chat-tab' : ''}" 
              onclick="window.switchChatSubject('${s.name.replace(/'/g, "\\'")}')">
@@ -3596,9 +3711,12 @@ window.loadChatSubjects = async () => {
                 <div class="channel-title"># ${s.name}</div>
                 ${s.entity ? `<div class="channel-entity">${s.entity}</div>` : ''}
             </div>
-            ${(currentUser.portal === 'Institut Alsatia' || s.entity === currentUser.portal) ? 
-                `<i data-lucide="trash-2" 
-                    onclick="event.stopPropagation(); window.deleteSubject('${s.id}', '${s.name}')"></i>` : ''}
+            <div style="display:flex;align-items:center;gap:4px;margin-left:auto;">
+                ${unread > 0 ? `<span class="chat-unread-badge">${unread > 99 ? '99+' : unread}</span>` : ''}
+                ${(currentUser.portal === 'Institut Alsatia' || s.entity === currentUser.portal) ? 
+                    `<i data-lucide="trash-2" 
+                        onclick="event.stopPropagation(); window.deleteSubject('${s.id}', '${s.name}')"></i>` : ''}
+            </div>
         </div>
     `;
     }).join('');
@@ -3635,6 +3753,7 @@ window.switchChatSubject = (subjectName) => {
     window._chatStopPoll();
     const titleEl = document.getElementById('chat-current-title');
     if(titleEl) titleEl.innerText = `# ${subjectName}`;
+    if (window._unreadClear) window._unreadClear('chat:' + subjectName);
     window.loadChatSubjects();
     window.loadChatMessages();
     window.subscribeToChat();
@@ -4277,7 +4396,7 @@ function renderEventCard(ev, isPast) {
                        ev.status === 'published' ? '#3b82f6' : '#f59e0b';
     
     return `
-        <div class="event-card" onclick="window.openEventDetails('${ev.id}')" style="
+        <div class="event-card" data-event-id="${ev.id}" onclick="window.openEventDetails('${ev.id}')" style="
             border-left: 4px solid ${borderColor};
             opacity: ${isPast ? '0.7' : '1'};
         ">
@@ -4400,6 +4519,8 @@ window.createEvent = async () => {
  * OUVRIR LA FICHE DÉTAILLÉE D'UN ÉVÉNEMENT
  */
 window.openEventDetails = async (eventId) => {
+    window._openEventId = eventId;
+    if (window._unreadClear) window._unreadClear('event:' + eventId);
     // Charger l'événement
     const { data: ev, error } = await supabaseClient
         .from('events_v2')
