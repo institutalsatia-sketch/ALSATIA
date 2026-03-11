@@ -549,7 +549,7 @@ function initInterface() {
     document.addEventListener('keydown', function(e) {
         if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
             e.preventDefault();
-            window.toggleGlobalSearch();
+            if (currentUser && currentUser.portal === 'Institut Alsatia') window.toggleGlobalSearch();
         }
         if (e.key === 'Escape' && window.globalSearchOpen) {
             window.toggleGlobalSearch();
@@ -2626,6 +2626,7 @@ window.exportLegs = async () => {
 window.globalSearchOpen = false;
 
 window.toggleGlobalSearch = function() {
+    if (!currentUser || currentUser.portal !== 'Institut Alsatia') return;
     const overlay = document.getElementById('global-search-overlay');
     if (!overlay) return;
     window.globalSearchOpen = !window.globalSearchOpen;
@@ -5395,6 +5396,11 @@ window.toggleAccess = async (userId, accessField, isChecked) => {
 };
 
 function applyAccessPermissions() {
+    // Bouton recherche globale — Institut Alsatia seulement
+    const searchNavBtn = document.getElementById('nav-search-global');
+    if (searchNavBtn) {
+        searchNavBtn.style.display = (currentUser && currentUser.portal === 'Institut Alsatia') ? 'flex' : 'none';
+    }
     if (!currentUser) return;
     
     // Institut Alsatia a accès à tout, rien à cacher
