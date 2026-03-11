@@ -570,7 +570,34 @@ console.log('💬 DM.JS CHARGÉ');
       })
       .subscribe((status) => {
         console.log('📥 DM realtime status (inbox):', status);
-        // Pas de polling ici, seulement badges. Si ça rate, les badges ne seront pas realtime.
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            // Fallback : repolling inbox toutes les 5s
+            if (!window._dmInboxPollTimer) {
+                console.warn('🟠 DM inbox realtime KO → fallback polling 5s');
+                window._dmInboxPollTimer = setInterval(async function() {
+                    const sb = getSupabaseClient();
+                    const me = getCurrentUser();
+                    if (!sb || !me) return;
+                    const since = window._dmInboxLastPoll || new Date(Date.now() - 30000).toISOString();
+                    window._dmInboxLastPoll = new Date().toISOString();
+                    const { data } = await sb.from('dm_messages')
+                        .select('id, sender_profile_id, receiver_profile_id, created_at')
+                        .eq('receiver_profile_id', me.id)
+                        .gt('created_at', since)
+                        .order('created_at', { ascending: false })
+                        .limit(20);
+                    if (!data || !data.length) return;
+                    data.forEach(function(row) {
+                        if (dmActivePeer && row.sender_profile_id === dmActivePeer.id) return;
+                        incUnread(row.sender_profile_id);
+                    });
+                }, 5000);
+            }
+        }
+        if (status === 'SUBSCRIBED' && window._dmInboxPollTimer) {
+            clearInterval(window._dmInboxPollTimer);
+            window._dmInboxPollTimer = null;
+        }
       });
   }
 
