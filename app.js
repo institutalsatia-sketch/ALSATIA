@@ -6290,7 +6290,7 @@ window.showDuplicatesModal = async function() {
                 + '<span style="font-size:0.75rem;font-weight:700;color:var(--primary);white-space:nowrap;">' + total.toLocaleString('fr-FR') + ' €</span>'
                 + window.renderTierBadge(total)
                 + (d.archived_at ? '<span style="background:#fef2f2;color:#dc2626;border:1px solid #fecaca;padding:2px 6px;border-radius:8px;font-size:0.62rem;font-weight:800;white-space:nowrap;">ARCHIVÉ</span>' : '')
-                + '<button onclick="window.openDonorFile('' + d.id + '');window.closeCustomModal();" class="btn-gold" style="padding:4px 10px;font-size:0.65rem;flex-shrink:0;">DOSSIER</button>'
+                + '<button onclick="window.openDonorFile(\'' + d.id + '\');window.closeCustomModal();" class="btn-gold" style="padding:4px 10px;font-size:0.65rem;flex-shrink:0;">DOSSIER</button>'
                 + '</div>';
         }).join('');
 
@@ -6342,7 +6342,7 @@ window.duplicateCampaign = async (campaignId) => {
             const { data: newCamp, error: e2 } = await supabaseClient
                 .from('campaigns').insert([payload]).select().single();
             if (e2) return window.showNotice("Erreur", e2.message, "error");
-            window.showNotice("Campagne dupliquée ✅", """ + payload.name + "" créée en Brouillon.", "success");
+            window.showNotice("Campagne dupliquée ✅", "\"" + payload.name + "\" créée en Brouillon.", "success");
             window.closeCustomModal();
             window.loadCampaigns();
             setTimeout(function() { window.openCampaign(newCamp.id); }, 600);
