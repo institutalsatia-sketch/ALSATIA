@@ -154,15 +154,21 @@ window._unreadRefreshUI = function(key) {
     // ── Badge dans la sidebar chat (canal) ──────────────────────
     if (key && key.startsWith('chat:')) {
         const subject = key.slice(5);
-        // Chercher l'élément du canal dans la sidebar
         const items = document.querySelectorAll('.chat-subject-item');
+        let found = false;
         items.forEach(function(item) {
             const titleEl = item.querySelector('.channel-title');
             if (!titleEl) return;
             const itemSubject = titleEl.textContent.replace(/^#\s*/, '').trim();
             if (itemSubject !== subject) return;
+            found = true;
             _setBadgeOnElement(item, window._unreadMap[key] || 0, 'chat-unread-badge');
         });
+        // Si la sidebar n'est pas rendue (onglet chat non actif),
+        // recharger la sidebar pour qu'elle affiche le badge au prochain switchTab
+        if (!found && window.loadChatSubjects) {
+            window.loadChatSubjects();
+        }
     }
 
     // ── Badge sur nav-chat (total tous canaux) ──────────────────
@@ -208,40 +214,90 @@ function _setBadgeOnElement(el, count, className) {
 // Watcher global pour les nouveaux messages chat (tous canaux, même inactifs)
 window._startChatUnreadWatcher = function() {
     if (window._chatUnreadWatcherChannel) return;
+
+    function handleChatInsert(p) {
+        var msg = p.new;
+        if (!msg) return;
+        var myFullName = (currentUser.first_name + ' ' + currentUser.last_name).toLowerCase().trim();
+        if ((msg.author_full_name || '').toLowerCase().trim() === myFullName) return;
+        if (currentTab === 'chat' && msg.subject === currentChatSubject) return;
+        window._unreadInc('chat:' + msg.subject);
+    }
+
     window._chatUnreadWatcherChannel = supabaseClient
         .channel('chat-unread-watcher-' + Date.now())
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_global' }, function(p) {
-            var msg = p.new;
-            if (!msg) return;
-            // Ignorer ses propres messages
-            var myFullName = (currentUser.first_name + ' ' + currentUser.last_name).toLowerCase().trim();
-            if ((msg.author_full_name || '').toLowerCase().trim() === myFullName) return;
-            // Ignorer si canal actif et onglet chat ouvert
-            if (currentTab === 'chat' && msg.subject === currentChatSubject) return;
-            // Incrémenter
-            window._unreadInc('chat:' + msg.subject);
-        })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_global' }, handleChatInsert)
         .subscribe(function(status) {
             console.log('🔴 chat-unread-watcher:', status);
+            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                console.warn('⚠️ chat-unread-watcher KO → polling fallback 5s');
+                if (window._chatUnreadPollTimer) return;
+                var lastPoll = new Date().toISOString();
+                window._chatUnreadPollTimer = setInterval(async function() {
+                    var since = lastPoll;
+                    lastPoll = new Date().toISOString();
+                    var myFull = (currentUser.first_name + ' ' + currentUser.last_name).toLowerCase().trim();
+                    var res = await supabaseClient.from('chat_global')
+                        .select('id, subject, author_full_name')
+                        .gt('created_at', since)
+                        .order('created_at', { ascending: false })
+                        .limit(30);
+                    if (!res.data) return;
+                    res.data.forEach(function(msg) {
+                        if ((msg.author_full_name || '').toLowerCase().trim() === myFull) return;
+                        if (currentTab === 'chat' && msg.subject === currentChatSubject) return;
+                        window._unreadInc('chat:' + msg.subject);
+                    });
+                }, 5000);
+            }
+            if (status === 'SUBSCRIBED' && window._chatUnreadPollTimer) {
+                clearInterval(window._chatUnreadPollTimer);
+                window._chatUnreadPollTimer = null;
+            }
         });
 };
 
 // Watcher global pour les nouveaux messages événements
 window._startEventUnreadWatcher = function() {
     if (window._eventUnreadWatcherChannel) return;
+
+    function handleEventInsert(p) {
+        var msg = p.new;
+        if (!msg) return;
+        if (msg.author_id === currentUser.id) return;
+        if (window._openEventId && msg.event_id === window._openEventId) return;
+        window._unreadInc('event:' + msg.event_id);
+    }
+
     window._eventUnreadWatcherChannel = supabaseClient
         .channel('event-unread-watcher-' + Date.now())
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'event_messages' }, function(p) {
-            var msg = p.new;
-            if (!msg) return;
-            // Ignorer ses propres messages
-            if (msg.author_id === currentUser.id) return;
-            // Ignorer si la fiche événement est ouverte dans la modale
-            if (window._openEventId && msg.event_id === window._openEventId) return;
-            window._unreadInc('event:' + msg.event_id);
-        })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'event_messages' }, handleEventInsert)
         .subscribe(function(status) {
             console.log('🔴 event-unread-watcher:', status);
+            if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                console.warn('⚠️ event-unread-watcher KO → polling fallback 5s');
+                if (window._eventUnreadPollTimer) return;
+                var lastPoll = new Date().toISOString();
+                window._eventUnreadPollTimer = setInterval(async function() {
+                    var since = lastPoll;
+                    lastPoll = new Date().toISOString();
+                    var res = await supabaseClient.from('event_messages')
+                        .select('id, event_id, author_id')
+                        .gt('created_at', since)
+                        .order('created_at', { ascending: false })
+                        .limit(20);
+                    if (!res.data) return;
+                    res.data.forEach(function(msg) {
+                        if (msg.author_id === currentUser.id) return;
+                        if (window._openEventId && msg.event_id === window._openEventId) return;
+                        window._unreadInc('event:' + msg.event_id);
+                    });
+                }, 5000);
+            }
+            if (status === 'SUBSCRIBED' && window._eventUnreadPollTimer) {
+                clearInterval(window._eventUnreadPollTimer);
+                window._eventUnreadPollTimer = null;
+            }
         });
 };
 
@@ -513,7 +569,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.loadChatMessages();
     window.subscribeToChat();
     window.startGlobalMentionWatcher();
-    
+    window._startChatUnreadWatcher();
+    window._startEventUnreadWatcher();
+
     // Initialiser les icônes Lucide
     if(window.lucide) lucide.createIcons();
 });
