@@ -4625,6 +4625,38 @@ window.openEventDetails = async (eventId) => {
                 </div>
             </div>
             
+            <!-- Vidéos -->
+            <div class="luxe-section">
+                <h4 style="margin:0 0 15px 0; color:var(--gold);">🎬 VIDÉOS</h4>
+                <input type="file" id="video-input-${eventId}" accept="video/*" multiple style="display:none;" onchange="window.uploadVideos('${eventId}')">
+                <button onclick="document.getElementById('video-input-${eventId}').click()" class="btn-outline" style="width:100%; margin-bottom:15px;">
+                    <i data-lucide="video"></i> AJOUTER DES VIDÉOS <span style="font-size:0.72rem;opacity:0.7;">(max 50 MB/vidéo)</span>
+                </button>
+                <div id="videos-grid-${eventId}" style="display:flex;flex-direction:column;gap:12px;">
+                    ${(ev.videos || []).length === 0
+                        ? '<p style="text-align:center; color:var(--text-muted); padding:20px;">Aucune vidéo</p>'
+                        : (ev.videos || []).map(url => {
+                            const fname = url.split('/').pop().replace(/^\d+_/, '');
+                            return `<div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:12px;padding:14px;position:relative;">
+                                <video src="${url}" controls style="width:100%;border-radius:8px;max-height:280px;background:#000;"></video>
+                                <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;">
+                                    <span style="font-size:0.75rem;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:200px;">${fname}</span>
+                                    <div style="display:flex;gap:6px;flex-shrink:0;">
+                                        <button onclick="window.downloadSingleVideo('${url}')"
+                                            style="background:rgba(197,160,89,0.12);border:1.5px solid var(--gold);color:var(--gold);border-radius:8px;padding:5px 10px;cursor:pointer;font-size:0.72rem;font-weight:700;">
+                                            <i data-lucide="download" style="width:13px;height:13px;vertical-align:middle;"></i> Télécharger
+                                        </button>
+                                        <button onclick="window.deleteVideo('${eventId}', '${url}')"
+                                            style="background:#fef2f2;border:1.5px solid #fecaca;color:#ef4444;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:0.72rem;font-weight:700;">
+                                            <i data-lucide="trash-2" style="width:13px;height:13px;vertical-align:middle;"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>`;
+                        }).join('')}
+                </div>
+            </div>
+
             <!-- Texte réseaux sociaux -->
             <div class="luxe-section" style="background:linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); padding:20px; border-radius:12px;">
                 <h4 style="margin:0 0 15px 0; color:#92400e;">📱 TEXTE POUR LES RÉSEAUX SOCIAUX</h4>
@@ -4890,6 +4922,126 @@ window.deletePhoto = async (eventId, photoUrl) => {
                 .eq('id', eventId);
             
             window.showNotice("Supprimée", "Photo supprimée.", "success");
+            window.openEventDetails(eventId);
+        },
+        true
+    );
+};
+
+
+// ══════════════════════════════════════════════════════
+// GESTION VIDÉOS ÉVÉNEMENTS
+// ══════════════════════════════════════════════════════
+window.uploadVideos = async (eventId) => {
+    const input = document.getElementById('video-input-' + eventId);
+    const files = input ? input.files : null;
+    if (!files || files.length === 0) return;
+
+    const MAX_SIZE = 50 * 1024 * 1024; // 50 MB
+    let uploaded = 0;
+    let failed = 0;
+
+    const uploadBtn = document.querySelector('[onclick*="video-input-' + eventId + '"]');
+    const originalBtnHTML = uploadBtn ? uploadBtn.innerHTML : null;
+    if (uploadBtn) {
+        uploadBtn.disabled = true;
+        uploadBtn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:8px;"><span style="width:16px;height:16px;border:2px solid rgba(197,160,89,0.3);border-top-color:var(--gold);border-radius:50%;animation:spin 0.8s linear infinite;display:inline-block;"></span>Envoi en cours...</span>';
+    }
+
+    window.showNotice('Upload', 'Envoi de ' + files.length + ' vidéo(s)...', 'info');
+
+    for (const file of files) {
+        if (file.size > MAX_SIZE) {
+            window.showNotice('Fichier trop lourd', file.name + ' dépasse 50 MB.', 'error');
+            failed++;
+            continue;
+        }
+
+        const timestamp = Date.now();
+        const fileName = timestamp + '_' + file.name.replace(/[^a-zA-Z0-9.]/g, '_');
+        const filePath = eventId + '/videos/' + fileName;
+
+        const { error: upErr } = await supabaseClient.storage
+            .from('event-files')
+            .upload(filePath, file);
+
+        if (upErr) {
+            console.error('Erreur upload vidéo:', upErr);
+            failed++;
+            continue;
+        }
+
+        const { data: urlData } = supabaseClient.storage
+            .from('event-files')
+            .getPublicUrl(filePath);
+
+        // Ajouter au tableau videos
+        const { data: ev } = await supabaseClient
+            .from('events_v2').select('videos').eq('id', eventId).single();
+
+        const videos = ev.videos || [];
+        videos.push(urlData.publicUrl);
+
+        await supabaseClient.from('events_v2').update({ videos }).eq('id', eventId);
+        uploaded++;
+    }
+
+    if (uploadBtn && originalBtnHTML) {
+        uploadBtn.disabled = false;
+        uploadBtn.innerHTML = originalBtnHTML;
+    }
+    input.value = '';
+
+    if (uploaded > 0) {
+        window.showNotice('Vidéo(s) ajoutée(s) ✅', uploaded + ' vidéo(s) uploadée(s).', 'success');
+        window.openEventDetails(eventId);
+    }
+    if (failed > 0) {
+        window.showNotice('Attention', failed + ' fichier(s) non uploadé(s).', 'error');
+    }
+};
+
+window.downloadSingleVideo = async (videoUrl) => {
+    try {
+        const response = await fetch(videoUrl);
+        const blob = await response.blob();
+        const urlParts = videoUrl.split('/');
+        const fileName = urlParts[urlParts.length - 1].replace(/^\d+_/, '');
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        window.showNotice('Téléchargée', 'Vidéo téléchargée.', 'success');
+    } catch (e) {
+        window.showNotice('Erreur', 'Impossible de télécharger la vidéo.', 'error');
+    }
+};
+
+window.deleteVideo = async (eventId, videoUrl) => {
+    window.alsatiaConfirm(
+        'SUPPRIMER LA VIDÉO',
+        'Voulez-vous vraiment supprimer cette vidéo ?',
+        async function() {
+            // Extraire le chemin depuis l'URL
+            // URL publique : .../event-files/eventId/videos/filename
+            const parts = videoUrl.split('/event-files/');
+            const filePath = parts[1] ? decodeURIComponent(parts[1]) : null;
+
+            if (filePath) {
+                await supabaseClient.storage.from('event-files').remove([filePath]);
+            }
+
+            const { data: ev } = await supabaseClient
+                .from('events_v2').select('videos').eq('id', eventId).single();
+
+            const videos = (ev.videos || []).filter(function(u) { return u !== videoUrl; });
+            await supabaseClient.from('events_v2').update({ videos }).eq('id', eventId);
+
+            window.showNotice('Supprimée', 'Vidéo supprimée.', 'success');
             window.openEventDetails(eventId);
         },
         true
