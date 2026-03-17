@@ -1253,9 +1253,10 @@ function renderDonors(data) {
         const hasUnthanked = dons.some(don => don.thanked === false);
         const blinkClass = hasUnthanked ? 'blink-warning' : '';
 
-        const displayName = d.company_name 
-            ? `<b>${d.company_name.toUpperCase()}</b> <span style="font-size:0.7rem; color:#64748b;">(${d.last_name})</span>` 
-            : `<b>${d.last_name.toUpperCase()}</b> ${d.first_name || ''}`;
+        const abbr = d.civility ? window.civAbbr(d.civility) : '';
+        const displayName = d.company_name
+            ? `<b>${d.company_name.toUpperCase()}</b> <span style="font-size:0.7rem; color:#64748b;">(${d.last_name})</span>`
+            : `${abbr ? `<span style="font-size:0.78rem;color:#94a3b8;font-weight:600;margin-right:3px;">${abbr}</span>` : ''}<b>${d.last_name.toUpperCase()}</b> ${d.first_name || ''}`;
             
         return `
             <tr class="${blinkClass}" style="${d.archived_at ? 'opacity:0.6;' : ''}">
@@ -1304,6 +1305,10 @@ window.showAddDonorModal = () => {
                 <option ${userPortal === 'Cours Herrade de Landsberg' ? 'selected' : ''}>Cours Herrade de Landsberg</option>
                 <option ${userPortal === 'Collège Saints Louis et Zélie Martin' ? 'selected' : ''}>Collège Saints Louis et Zélie Martin</option>
             </select>
+
+            <!-- Civilité -->
+            <p class="mini-label">CIVILITÉ</p>
+            ${window.civSelect('n-d-civility', '', 'margin-bottom:14px;')}
 
             <!-- Nom + Prénom -->
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:15px;">
@@ -1362,7 +1367,8 @@ window.execCreateDonor = async () => {
     if(!last || !ent) return window.showNotice("Erreur", "Le Nom et l'Entité sont obligatoires.", "error");
 
     const { error } = await supabaseClient.from('donors').insert([{
-        last_name: last.toUpperCase(),
+        civility:   document.getElementById('n-d-civility')?.value || null,
+        last_name:  last.toUpperCase(),
         first_name: document.getElementById('n-d-first').value.trim(),
         company_name: document.getElementById('n-d-company').value.trim() || null,
         entity: ent,
@@ -1399,7 +1405,9 @@ window.openDonorFile = async (id) => {
                 ${!donor.archived_at ? window.renderTierBadgeLarge(total) : ''}
                 <div>
                     <h2 style="margin:0;font-size:1.2rem;font-weight:800;color:var(--primary);">
-                        ${donor.company_name ? donor.company_name : ((donor.last_name||'').toUpperCase() + ' ' + (donor.first_name||''))}
+                        ${donor.company_name
+                            ? donor.company_name
+                            : ((donor.civility ? `<span style="font-size:0.85rem;font-weight:600;color:#94a3b8;margin-right:4px;">${donor.civility}</span>` : '') + (donor.last_name||'').toUpperCase() + ' ' + (donor.first_name||''))}
                     </h2>
                     <span style="font-size:0.8rem;color:var(--text-muted);">${donor.entity||''}</span>
                 </div>
@@ -1436,6 +1444,7 @@ window.openDonorFile = async (id) => {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
             <div>
                 <p class="mini-label">COORDONNÉES</p>
+                ${window.civSelect('edit-civility', donor.civility||'', 'margin-bottom:8px;')}
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
                     <input type="text" id="edit-last"  class="luxe-input" value="${donor.last_name||''}"  placeholder="NOM">
                     <input type="text" id="edit-first" class="luxe-input" value="${donor.first_name||''}" placeholder="PRÉNOM">
@@ -1833,7 +1842,8 @@ window.execAddDonation = async (donorId) => {
 window.updateDonorFields = async (id) => {
     const payload = {
         entity: document.getElementById('edit-entity').value,
-        last_name: document.getElementById('edit-last').value.toUpperCase(),
+        civility:   document.getElementById('edit-civility')?.value || null,
+        last_name:  document.getElementById('edit-last').value.toUpperCase(),
         first_name: document.getElementById('edit-first').value,
         company_name: document.getElementById('edit-company').value || null,
         email: document.getElementById('edit-email').value || null,
@@ -1994,6 +2004,8 @@ window.executeExportToExcel = async () => {
     
     // Préparer les données pour l'onglet DONATEURS
     const donorsData = filteredDonors.map(d => ({
+        'Civilité': d.civility || '',
+        'Civilité': d.civility || '',
         'Nom': d.last_name || '',
         'Prénom': d.first_name || '',
         'Entreprise': d.company_name || '',
@@ -2018,6 +2030,7 @@ window.executeExportToExcel = async () => {
                 const donYear = new Date(don.date).getFullYear().toString();
                 if (yearFilter === "ALL" || donYear === yearFilter) {
                     allDonations.push({
+                        'Civilité': d.civility || '',
                         'Nom donateur': d.last_name || '',
                         'Prénom donateur': d.first_name || '',
                         'Entreprise': d.company_name || '',
@@ -2074,6 +2087,7 @@ window.exportDonorToExcel = async (donorId) => {
     
     // Onglet 1 : INFORMATIONS DU DONATEUR
     const donorInfo = [{
+        'Civilité': donor.civility || '',
         'Nom': donor.last_name || '',
         'Prénom': donor.first_name || '',
         'Entreprise': donor.company_name || '',
@@ -2215,6 +2229,7 @@ window.exportUnthanked = async () => {
         (d.donations || []).forEach(don => {
             if (don.thanked !== false) return;
             rows.push({
+                'Civilité':         d.civility || '',
                 'Nom':              d.last_name || '',
                 'Prénom':           d.first_name || '',
                 'Entreprise':       d.company_name || '',
@@ -2255,6 +2270,7 @@ window.exportAnnualSummary = async () => {
 
     const rows = (data || []).map(d => {
         const row = {
+            'Civilité':   d.civility || '',
             'Nom':        d.last_name || '',
             'Prénom':     d.first_name || '',
             'Entreprise': d.company_name || '',
@@ -2515,6 +2531,7 @@ window.doExportInactive = async () => {
         const lastDon = dons.length ? dons.reduce((max, don) =>
             new Date(don.date) > new Date(max.date) ? don : max, dons[0]) : null;
         return {
+            'Civilité':           d.civility || '',
             'Nom':                d.last_name || '',
             'Prénom':             d.first_name || '',
             'Entreprise':         d.company_name || '',
@@ -2655,7 +2672,7 @@ window.handleGlobalSearch = async function() {
 
     // Chercher en parallèle
     const [{ data: donors }, { data: contacts }, { data: campaigns }] = await Promise.all([
-        supabaseClient.from('donors').select('id,last_name,first_name,company_name,entity,email,donor_type,archived_at,donations(amount)').order('last_name'),
+        supabaseClient.from('donors').select('id,last_name,first_name,civility,company_name,entity,email,donor_type,archived_at,donations(amount)').order('last_name'),
         supabaseClient.from('profiles').select('id,last_name,first_name,email,portal,role').order('last_name'),
         supabaseClient.from('campaigns').select('id,name,status,canal,start_date').order('created_at',{ascending:false})
     ]);
@@ -3015,7 +3032,8 @@ function _parseSheetPersonnes(rows, sourceLabel) {
             const donorKey = `${nom.toUpperCase()}__${entity}__${sourceLabel}__${i}`;
             donors.push({
                 _key: donorKey,
-                last_name: nom.toUpperCase(),
+                civility:   (function(){ var h=headers.find(function(h){return /civili/i.test(h);}); return h?_raw(row[headers.indexOf(h)])||null:null; })(),
+                last_name:  nom.toUpperCase(),
                 first_name: prenom || null,
                 company_name: null,
                 entity,
@@ -5453,6 +5471,45 @@ const CAMPAIGN_STATUTS = ['Brouillon', 'Active', 'Terminée', 'Archivée'];
 const RECIPIENT_STATUTS = ['Planifié', 'Envoyé', 'Répondu', 'Refusé', 'Sans réponse'];
 // Types de donateurs/contacts pour le ciblage
 const DONOR_TYPES = ['Famille', 'Amis', 'Donateurs', 'IFI', 'Entreprise', 'Congrégation', 'Legs'];
+
+// ══════════════════════════════════════════════════════
+// CIVILITÉS
+// ══════════════════════════════════════════════════════
+const CIVILITIES = [
+    'Monsieur',
+    'Madame',
+    'Madame et Monsieur',
+    'Mademoiselle',
+    "Monsieur l'Abbé",
+    'Père',
+    'Autre'
+];
+
+// Abréviation pour la liste donateurs
+window.civAbbr = function(civ) {
+    const map = {
+        'Monsieur':            'M.',
+        'Madame':              'Mme',
+        'Madame et Monsieur':  'Mme & M.',
+        'Mademoiselle':        'Mlle',
+        "Monsieur l'Abbé":    'M. l\'Abbé',
+        'Père':                'P.',
+        'Autre':               ''
+    };
+    return map[civ] || '';
+};
+
+// Select HTML réutilisable
+window.civSelect = function(id, selected, style) {
+    style = style || '';
+    const opts = [''].concat(CIVILITIES).map(function(c) {
+        const sel = (c === (selected||'')) ? 'selected' : '';
+        const label = c || '— Civilité —';
+        return '<option value="' + c + '" ' + sel + '>' + label + '</option>';
+    }).join('');
+    return '<select id="' + id + '" class="luxe-input" style="' + style + '">' + opts + '</select>';
+};
+
 const ALL_ENTITIES = [
     'Institut Alsatia',
     'Cours Herrade de Landsberg',
@@ -6310,7 +6367,7 @@ window.execExportCampaign = async (campaignId) => {
     if (inclMail) {
         const withAddr = recipients.filter(r => r.donors?.address || r.donors?.zip_code);
         const ws2 = XLSX.utils.json_to_sheet(withAddr.map(r => ({
-            'Civilité' : '',
+            'Civilité' : r.donors?.civility || '',
             'Nom'      : (r.donors?.company_name || `${r.donors?.last_name||''} ${r.donors?.first_name||''}`.trim()),
             'Adresse'  : r.donors?.address || '',
             'CP'       : r.donors?.zip_code || '',
@@ -6368,7 +6425,7 @@ window.showDuplicatesModal = async function() {
     // Charger tous les donateurs avec leurs dons
     const { data: donors, error } = await supabaseClient
         .from('donors')
-        .select('id, last_name, first_name, company_name, email, entity, archived_at, donations(amount)')
+        .select('id, last_name, first_name, civility, company_name, email, entity, archived_at, donations(amount)')
         .order('last_name');
 
     if (error) return window.showNotice("Erreur", error.message, "error");
@@ -6411,7 +6468,7 @@ window.showDuplicatesModal = async function() {
             var tier  = window.getDonorTier(total);
             return '<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border:1.5px solid #e2e8f0;border-radius:10px;margin-bottom:6px;background:' + (d.archived_at ? '#f8fafc' : 'white') + ';opacity:' + (d.archived_at ? '0.6' : '1') + ';">'
                 + '<div style="flex:1;min-width:0;">'
-                + '<div style="font-weight:700;font-size:0.88rem;">' + ((d.last_name||'').toUpperCase()) + ' ' + (d.first_name||'') + (d.company_name ? ' <span style="color:#94a3b8;font-size:0.75rem;">(' + d.company_name + ')</span>' : '') + '</div>'
+                + '<div style="font-weight:700;font-size:0.88rem;">' + (d.civility ? '<span style="font-size:0.75rem;color:#94a3b8;margin-right:4px;">' + d.civility + '</span>' : '') + ((d.last_name||'').toUpperCase()) + ' ' + (d.first_name||'') + (d.company_name ? ' <span style="color:#94a3b8;font-size:0.75rem;">(' + d.company_name + ')</span>' : '') + '</div>'
                 + '<div style="font-size:0.72rem;color:#64748b;">' + (d.entity||'') + (d.email ? ' · ' + d.email : '') + '</div>'
                 + '</div>'
                 + '<span style="font-size:0.75rem;font-weight:700;color:var(--primary);white-space:nowrap;">' + total.toLocaleString('fr-FR') + ' €</span>'
